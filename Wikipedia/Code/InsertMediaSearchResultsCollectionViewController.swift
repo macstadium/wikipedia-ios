@@ -276,7 +276,7 @@ extension InsertMediaSearchResultsCollectionViewController: UIViewControllerPrev
             self.delegate?.insertMediaSearchResultsCollectionViewControllerDidSelect(self, searchResult: searchResult)
         }
         previewingViewController.moreInformationAction = { url in
-            self.wmf_openExternalUrl(url, useSafari: true)
+            self.wmf_openExternalUrl(url)
         }
         previewingViewController.apply(theme: theme)
         return previewingViewController
