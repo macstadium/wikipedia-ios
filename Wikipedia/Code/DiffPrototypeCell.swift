@@ -24,6 +24,12 @@ class DiffPrototypeCell: UICollectionViewCell {
         widthConstraint.constant = width
         widthConstraint.isActive = true
         
+        if item.type == .moveDestination || item.type == .moveSource {
+            backgroundColor = .yellow
+        } else {
+            backgroundColor = .white
+        }
+        
         //todo: pass in single closure to both
         let insertedRanges: [NSRange] = item.highlightRanges.filter { $0.type == .add }.map {
             

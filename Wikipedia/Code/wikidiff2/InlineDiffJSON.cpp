@@ -103,11 +103,13 @@ void InlineDiffJSON::printWordDiff(const String &text1, const String &text2,
             for (j = 0; j < n; j++) {
                 op.from[j]->get_whole(word);
 
-                if (ranges.length() > 1)
-                    ranges.append(",");
-                ranges.append("{\"start\": " + toString(rangeCalcResult.length()) + ", \"length\": " +
-                              toString(word.length()) + ", \"type\": " + toString(HighlightType::Delete) +
-                              " }");
+                if (!isMoveSrc) {
+                    if (ranges.length() > 1)
+                        ranges.append(",");
+                    ranges.append("{\"start\": " + toString(rangeCalcResult.length()) + ", \"length\": " +
+                                  toString(word.length()) + ", \"type\": " + toString(HighlightType::Delete) +
+                                  " }");
+                }
                 rangeCalcResult.append(word);
 
                 printEscapedJSON(word);
@@ -132,11 +134,14 @@ void InlineDiffJSON::printWordDiff(const String &text1, const String &text2,
             for (j = 0; j < n; j++) {
                 op.from[j]->get_whole(word);
 
-                if (ranges.length() > 1)
-                    ranges.append(",");
-                ranges.append("{\"start\": " + toString(rangeCalcResult.length()) + ", \"length\": " +
-                              toString(word.length()) + ", \"type\": " + toString(HighlightType::Delete) +
-                              " }");
+                if (!isMoveSrc) {
+                    if (ranges.length() > 1)
+                        ranges.append(",");
+                    ranges.append("{\"start\": " + toString(rangeCalcResult.length()) + ", \"length\": " +
+                                  toString(word.length()) + ", \"type\": " + toString(HighlightType::Delete) +
+                                  " }");
+                }
+                
                 rangeCalcResult.append(word);
 
                 printEscapedJSON(word);
