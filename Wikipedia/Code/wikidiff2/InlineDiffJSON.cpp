@@ -1,45 +1,55 @@
 
-#include "InlineDiffJSON.hpp"
+#include "InlineDiffJSON.h"
 #include <string>
 #include <sstream>
 #include <iomanip>
 
-void InlineDiffJSON::printAdd(const String& line, const String& sectionTitle, int leftLine, int rightLine)
+void InlineDiffJSON::printAdd(const String& line, const String& sectionTitle, int leftLine,
+                              int rightLine)
 {
     printAddDelete(line, HighlightType::Add, sectionTitle, rightLine);
 }
 
-void InlineDiffJSON::printDelete(const String& line, const String& sectionTitle, int leftLine, int rightLine)
+void InlineDiffJSON::printDelete(const String& line, const String& sectionTitle, int leftLine,
+                                 int rightLine)
 {
     printAddDelete(line, HighlightType::Delete, sectionTitle, rightLine);
 }
 
-void InlineDiffJSON::printAddDelete(const String& line, HighlightType highlightType, const String& sectionTitle, int lineNumber) {
+void InlineDiffJSON::printAddDelete(const String& line, HighlightType highlightType,
+                                    const String& sectionTitle, int lineNumber) {
     if (hasResults)
         result += ",";
-    
-    const char* pre;
-    String escapedLine;
+
     int diffType = DiffType::Change;
     
-    std::string preString = "{\"type\": " + std::to_string(diffType) + ", \"lineNumber\": " + std::to_string(lineNumber) + ", \"sectionTitle\": " + nullifySectionTitle(sectionTitle) + ", \"text\": ";
-    pre = preString.c_str();
+    String preString = "{\"type\": " + toString(diffType) + ", \"lineNumber\": " +
+        toString(lineNumber) + ", \"sectionTitle\": " + nullifySectionTitle(sectionTitle) +
+        ", \"text\": ";
     
     if(line.empty()) {
-        std::string strPost = ", \"highlightRanges\": [{\"start\": 0, \"length\": 1, \"type\": " + std::to_string(highlightType) + "}]}";
-        escapedLine = "\" \"";
-        printWrappedLine(pre, escapedLine, strPost.c_str());
+        String postStr = ", \"highlightRanges\": [{\"start\": 0, \"length\": 1, \"type\": " +
+            toString(highlightType) + "}]}";
+        String escapedLine = "\" \"";
+        printWrappedLine(preString.c_str(), escapedLine, postStr.c_str());
     } else {
-        std::stringstream highlightRanges;
-        highlightRanges << ", \"highlightRanges\": [{\"start\": 0, \"length\": " << line.length() << ", \"type\": " << highlightType << "}]}";
-        escapedLine = "\"" + escape_json(line) + "\"";
-        printWrappedLine(pre, escapedLine, highlightRanges.str().c_str());
+        StringStream highlightRanges;
+        highlightRanges << ", \"highlightRanges\": [{\"start\": 0, \"length\": " << line.length() <<
+            ", \"type\": " << highlightType << "}]}";
+        
+        result += preString + "\"";
+        printEscapedJSON(line);
+        result += "\"";
+        result += highlightRanges.str().c_str();
     }
     
     hasResults = true;
 }
 
-void InlineDiffJSON::printWordDiff(const String& text1, const String& text2, const String& sectionTitle, int leftLine, int rightLine, bool printLeft, bool printRight, const String & srcAnchor, const String & dstAnchor, bool moveDirectionDownwards)
+void InlineDiffJSON::printWordDiff(const String& text1, const String& text2,
+                                   const String& sectionTitle, int leftLine, int rightLine,
+                                   bool printLeft, bool printRight, const String & srcAnchor,
+                                   const String & dstAnchor, bool moveDirectionDownwards)
 {
     WordVector words1, words2;
     
@@ -56,16 +66,26 @@ void InlineDiffJSON::printWordDiff(const String& text1, const String& text2, con
     if (moved) {
         String moveObject;
         if (isMoveSrc) {
-            LinkDirection direction = moveDirectionDownwards ? LinkDirection::Down : LinkDirection::Up;
-            moveObject = "{\"id\": \"" + srcAnchor + "\", \"linkId\": \"" + dstAnchor + "\", \"linkDirection\": " + std::to_string(direction) + "}";
-            result += "{\"type\": " + std::to_string(DiffType::MoveSource) + ", \"lineNumber\": " + std::to_string(rightLine) + ", \"moveInfo\": " + moveObject + ", \"sectionTitle\": " + nullifySectionTitle(sectionTitle) + ", \"text\": \"";
+            LinkDirection direction = moveDirectionDownwards ?
+                LinkDirection::Down : LinkDirection::Up;
+            moveObject = "{\"id\": \"" + srcAnchor + "\", \"linkId\": \"" + dstAnchor +
+                "\", \"linkDirection\": " + toString(direction) + "}";
+            result += "{\"type\": " + toString(DiffType::MoveSource) + ", \"lineNumber\": " +
+                toString(rightLine) + ", \"moveInfo\": " + moveObject + ", \"sectionTitle\": " +
+                nullifySectionTitle(sectionTitle) + ", \"text\": \"";
         } else {
-            LinkDirection direction = moveDirectionDownwards ? LinkDirection::Down : LinkDirection::Up;
-            moveObject = "{\"id\": \"" + srcAnchor + "\", \"linkId\": \"" + dstAnchor + "\", \"linkDirection\": " + std::to_string(direction) + "}";
-            result += "{\"type\": " + std::to_string(DiffType::MoveDestination) + ", \"lineNumber\": " + std::to_string(rightLine) + ", \"moveInfo\": " + moveObject + ", \"sectionTitle\": " + nullifySectionTitle(sectionTitle) + ", \"text\": \"";
+            LinkDirection direction = moveDirectionDownwards ?
+                LinkDirection::Down : LinkDirection::Up;
+            moveObject = "{\"id\": \"" + srcAnchor + "\", \"linkId\": \"" + dstAnchor +
+                "\", \"linkDirection\": " + toString(direction) + "}";
+            result += "{\"type\": " + toString(DiffType::MoveDestination) + ", \"lineNumber\": " +
+                toString(rightLine) + ", \"moveInfo\": " + moveObject + ", \"sectionTitle\": " +
+                nullifySectionTitle(sectionTitle) + ", \"text\": \"";
         }
     } else {
-        result += "{\"type\": " + std::to_string(DiffType::Change) + ", \"lineNumber\": " + std::to_string(rightLine) + ", \"sectionTitle\": " + nullifySectionTitle(sectionTitle) + ", \"text\": \"";
+        result += "{\"type\": " + toString(DiffType::Change) + ", \"lineNumber\": " +
+            toString(rightLine) + ", \"sectionTitle\": " + nullifySectionTitle(sectionTitle) +
+            ", \"text\": \"";
     }
     hasResults = true;
     
@@ -80,23 +100,21 @@ void InlineDiffJSON::printWordDiff(const String& text1, const String& text2, con
             for (j=0; j<n; j++) {
                 op.from[j]->get_whole(word);
                 rangeCalcResult += word;
-                printText(escape_json(word), true);
+                printEscapedJSON(word);
             }
         } else if (op.op == DiffOp<Word>::del) {
             n = op.from.size();
             for (j=0; j<n; j++) {
                 op.from[j]->get_whole(word);
                 
-                std::stringstream positionStream;
-                positionStream  << "" << rangeCalcResult.length() << "";
-                std::stringstream lengthStream;
-                lengthStream << "" << word.length() << "";
                 if (ranges.length() > 1)
                     ranges += ",";
-                ranges += "{\"start\": " + positionStream.str() + ", \"length\": " + lengthStream.str() + ", \"type\": " + std::to_string(HighlightType::Delete) + " }";
+                ranges += "{\"start\": " + toString(rangeCalcResult.length()) + ", \"length\": " +
+                    toString(word.length()) + ", \"type\": " + toString(HighlightType::Delete) +
+                    " }";
                 rangeCalcResult += word;
                 
-                printText(escape_json(word), true);
+                printEscapedJSON(word);
             }
         } else if (op.op == DiffOp<Word>::add) {
             if (isMoveSrc)
@@ -105,32 +123,27 @@ void InlineDiffJSON::printWordDiff(const String& text1, const String& text2, con
             for (j=0; j<n; j++) {
                 op.to[j]->get_whole(word);
                 
-                std::stringstream positionStream;
-                positionStream  << "" << rangeCalcResult.length() << "";
-                std::stringstream lengthStream;
-                lengthStream << "" << word.length() << "";
                 if (ranges.length() > 1)
                     ranges += ",";
-                ranges += "{\"start\": " + positionStream.str() + ", \"length\": " + lengthStream.str() + ", \"type\": " + std::to_string(HighlightType::Add) + " }";
+                ranges += "{\"start\": " + toString(rangeCalcResult.length()) + ", \"length\": " +
+                    toString(word.length()) + ", \"type\": " + toString(HighlightType::Add) + " }";
                 rangeCalcResult += word;
                 
-                printText(escape_json(word), true);
+                printEscapedJSON(word);
             }
         } else if (op.op == DiffOp<Word>::change) {
             n = op.from.size();
             for (j=0; j<n; j++) {
                 op.from[j]->get_whole(word);
                 
-                std::stringstream positionStream;
-                positionStream  << "" << rangeCalcResult.length() << "";
-                std::stringstream lengthStream;
-                lengthStream << "" << word.length() << "";
                 if (ranges.length() > 1)
                     ranges += ",";
-                ranges += "{\"start\": " + positionStream.str() + ", \"length\": " + lengthStream.str() + ", \"type\": " + std::to_string(HighlightType::Delete) + " }";
+                ranges += "{\"start\": " + toString(rangeCalcResult.length()) + ", \"length\": " +
+                    toString(word.length()) + ", \"type\": " + toString(HighlightType::Delete) +
+                    " }";
                 rangeCalcResult += word;
                 
-                printText(escape_json(word), true);
+                printEscapedJSON(word);
             }
             if (isMoveSrc)
                 continue;
@@ -138,16 +151,13 @@ void InlineDiffJSON::printWordDiff(const String& text1, const String& text2, con
             for (j=0; j<n; j++) {
                 op.to[j]->get_whole(word);
                 
-                std::stringstream positionStream;
-                positionStream  << "" << rangeCalcResult.length() << "";
-                std::stringstream lengthStream;
-                lengthStream << "" << word.length() << "";
                 if (ranges.length() > 1)
                     ranges += ",";
-                ranges += "{\"start\": " + positionStream.str() + ", \"length\": " + lengthStream.str() + ", \"type\": " + std::to_string(HighlightType::Add) + " }";
+                ranges += "{\"start\": " + toString(rangeCalcResult.length()) + ", \"length\": " +
+                    toString(word.length()) + ", \"type\": " + toString(HighlightType::Add) + " }";
                 rangeCalcResult += word;
                 
-                printText(escape_json(word), true);
+                printEscapedJSON(word);
             }
         }
     }
@@ -159,16 +169,19 @@ void InlineDiffJSON::printBlockHeader(int leftLine, int rightLine)
     //inline diff json not setup to print this
 }
 
-void InlineDiffJSON::printContext(const String & input, const String& sectionTitle, int leftLine, int rightLine)
+void InlineDiffJSON::printContext(const String & input, const String& sectionTitle, int leftLine,
+                                  int rightLine)
 {
     if (hasResults)
         result += ",";
     
-    const char* pre;
-    std::string preString = "{\"type\": " + std::to_string(DiffType::Context) + ", \"lineNumber\": " + std::to_string(rightLine) + ", \"sectionTitle\": " + nullifySectionTitle(sectionTitle) + ", \"text\": ";
-    pre = preString.c_str();
+    String preString = "{\"type\": " + toString(DiffType::Context) + ", \"lineNumber\": " +
+        toString(rightLine) + ", \"sectionTitle\": " + nullifySectionTitle(sectionTitle) +
+        ", \"text\": ";
 
-    printWrappedLine(pre, "\"" + escape_json(input) + "\"", ", \"highlightRanges\": []}");
+    result += preString + "\"";
+    printEscapedJSON(input);
+    result += "\", \"highlightRanges\": []}";
     hasResults = true;
 }
 
@@ -178,12 +191,12 @@ void InlineDiffJSON::printWrappedLine(const char* pre, const String& line, const
     if (line.empty()) {
         result += " ";
     } else {
-        printText(line, true);
+        result.append(line);
     }
     result += post;
 }
 
-std::string InlineDiffJSON::escape_json(const std::string &s) {
+void InlineDiffJSON::printEscapedJSON(const String &s) {
     std::ostringstream o;
     for (auto c = s.cbegin(); c != s.cend(); c++) {
         switch (*c) {
@@ -203,7 +216,7 @@ std::string InlineDiffJSON::escape_json(const std::string &s) {
                 }
         }
     }
-    return o.str();
+    result += o.str();
 }
 
 
@@ -213,4 +226,9 @@ std::string InlineDiffJSON::nullifySectionTitle(const std::string &sectionTitle)
     } else {
         return "\"" + sectionTitle + "\"";
     }
+}
+
+bool InlineDiffJSON::needsJSONFormat()
+{
+    return true;
 }

@@ -3831,7 +3831,7 @@
 		677E49B122A03859002D40D6 /* LanguageLinkNamespace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageLinkNamespace.swift; sourceTree = "<group>"; };
 		6780DF422264265400D9069D /* RemoteSubHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteSubHandler.swift; sourceTree = "<group>"; };
 		6789B1C823071CCA000CEB65 /* InlineDiffJSON.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = InlineDiffJSON.cpp; sourceTree = "<group>"; };
-		6789B1C923071CCA000CEB65 /* InlineDiffJSON.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = InlineDiffJSON.hpp; sourceTree = "<group>"; };
+		6789B1C923071CCA000CEB65 /* InlineDiffJSON.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = InlineDiffJSON.h; sourceTree = "<group>"; };
 		6789B1CF23074E63000CEB65 /* DiffFetcher.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DiffFetcher.swift; sourceTree = "<group>"; };
 		6789B1D5230AF34A000CEB65 /* libdatrie.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libdatrie.a; sourceTree = "<group>"; };
 		6789B1D7230AF353000CEB65 /* libthai.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libthai.a; sourceTree = "<group>"; };
@@ -6479,7 +6479,7 @@
 			children = (
 				6718A1002305EBCD00142626 /* DiffEngine.h */,
 				6789B1C823071CCA000CEB65 /* InlineDiffJSON.cpp */,
-				6789B1C923071CCA000CEB65 /* InlineDiffJSON.hpp */,
+				6789B1C923071CCA000CEB65 /* InlineDiffJSON.h */,
 				6718A10B2305EBD000142626 /* InlineDiff.cpp */,
 				6718A1072305EBCF00142626 /* InlineDiff.h */,
 				6718A1042305EBCE00142626 /* IntSet.h */,

@@ -7,13 +7,14 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <sstream>
 #include <stdarg.h>
 #include "Wikidiff2.h"
 #include <regex>
 
 
 void Wikidiff2::diffLines(const StringVector & lines1, const StringVector & lines2,
-		int numContextLines, int maxMovedLines, bool needsJSONFormat)
+		int numContextLines, int maxMovedLines, const String& sectionTitleRegex)
 {
 	// first do line-level diff
 	StringDiff linediff(lines1, lines2);
@@ -24,12 +25,12 @@ void Wikidiff2::diffLines(const StringVector & lines1, const StringVector & line
 	// Set to true initially so we get a line number on line 1
 	bool showLineNumber = true;
 
-    if (needsJSONFormat) {
+    if (needsJSONFormat()) {
         result += "{\"diffs\": [";
     }
     
     String sectionTitle;
-    std::regex sectionTitleRegex("==+([\\s\\S])+==+");
+    std::regex regexSectionTitle(sectionTitleRegex);
     
 	for (int i = 0; i < linediff.size(); ++i) {
         int n, j, n1, n2;
@@ -44,7 +45,7 @@ void Wikidiff2::diffLines(const StringVector & lines1, const StringVector & line
 				n = linediff[i].to.size();
 				for (j=0; j<n; j++) {
                     
-                    bool isSectionTitle = regex_match(*linediff[i].to[j], sectionTitleRegex);
+                    bool isSectionTitle = regex_match(*linediff[i].to[j], regexSectionTitle);
                     if (isSectionTitle)
                         sectionTitle = *linediff[i].to[j];
                     
@@ -59,7 +60,7 @@ void Wikidiff2::diffLines(const StringVector & lines1, const StringVector & line
 				n = linediff[i].from.size();
 				for (j=0; j<n; j++) {
                     
-                    bool wasSectionTitle = regex_match(*linediff[i].from[j], sectionTitleRegex);
+                    bool wasSectionTitle = regex_match(*linediff[i].from[j], regexSectionTitle);
                     String sectionTitleToInsert = wasSectionTitle ? *linediff[i].from[j] : sectionTitle;
                     
 					if (!printMovedLineDiff(linediff, i, j, maxMovedLines, sectionTitleToInsert, from_index, to_index)) {
@@ -73,7 +74,7 @@ void Wikidiff2::diffLines(const StringVector & lines1, const StringVector & line
 				n = linediff[i].from.size();
 				for (j=0; j<n; j++) {
                     
-                    if ( regex_match(*linediff[i].from[j], sectionTitleRegex) ) {
+                    if ( regex_match(*linediff[i].from[j], regexSectionTitle) ) {
                         sectionTitle = *linediff[i].from[j];
                     }
                     
@@ -98,7 +99,7 @@ void Wikidiff2::diffLines(const StringVector & lines1, const StringVector & line
 				n = std::min(n1, n2);
 				for (j=0; j<n; j++) {
                     
-                    bool isSectionTitle = regex_match(*linediff[i].to[j], sectionTitleRegex);
+                    bool isSectionTitle = regex_match(*linediff[i].to[j], regexSectionTitle);
                     String sectionTitleToInsert = isSectionTitle ? *linediff[i].to[j] : sectionTitle;
                     
 					printWordDiff(*linediff[i].from[j], *linediff[i].to[j], sectionTitleToInsert, from_index, to_index);
@@ -111,7 +112,7 @@ void Wikidiff2::diffLines(const StringVector & lines1, const StringVector & line
 		showLineNumber = false;
 	}
     
-    if (needsJSONFormat) {
+    if (needsJSONFormat()) {
         result += "]}";
     }
 }
@@ -381,14 +382,8 @@ void Wikidiff2::debugPrintWordDiff(WordDiff & worddiff)
 	}
 }
 
-void Wikidiff2::printText(const String & input, bool needsJSONFormat)
+void Wikidiff2::printHtmlEncodedText(const String & input)
 {
-    
-    if (needsJSONFormat) {
-        result.append(input);
-        return;
-    }
-    
 	size_t start = 0;
 	size_t end = input.find_first_of("<>&");
 	while (end != String::npos) {
@@ -428,7 +423,7 @@ void Wikidiff2::explodeLines(const String & text, StringVector &lines)
 	}
 }
 
-const Wikidiff2::String & Wikidiff2::execute(const String & text1, const String & text2, int numContextLines, int maxMovedLines, bool needsJSONFormat)
+const Wikidiff2::String & Wikidiff2::execute(const String & text1, const String & text2, int numContextLines, int maxMovedLines, const String &sectionTitleRegex)
 {
 	// Allocate some result space to avoid excessive copying
 	result.clear();
@@ -441,8 +436,20 @@ const Wikidiff2::String & Wikidiff2::execute(const String & text1, const String 
 	explodeLines(text2, lines2);
 
 	// Do the diff
-	diffLines(lines1, lines2, numContextLines, maxMovedLines, needsJSONFormat);
+	diffLines(lines1, lines2, numContextLines, maxMovedLines, sectionTitleRegex);
 
 	// Return a reference to the result buffer
 	return result;
+}
+
+const Wikidiff2::String Wikidiff2::toString(long input)
+{
+    StringStream stream;
+    stream << input;
+    return String(stream.str());
+}
+
+bool Wikidiff2::needsJSONFormat()
+{
+    return false;
 }

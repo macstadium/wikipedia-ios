@@ -1,12 +1,10 @@
 
-#ifndef InlineDiffJSON_hpp
-#define InlineDiffJSON_hpp
+#ifndef INLINEDIFFJSON_H
+#define INLINEDIFFJSON_H
 
 #include <stdio.h>
 
 #include "Wikidiff2.h"
-#include <string>
-#include <sstream>
 
 enum DiffType {Context, Change, MoveSource, MoveDestination};
 enum HighlightType {Add, Delete};
@@ -22,9 +20,10 @@ protected:
     void printWordDiff(const String& text1, const String& text2, const String& sectionTitle, int leftLine, int rightLine, bool printLeft = true, bool printRight = true, const String & srcAnchor = "", const String & dstAnchor = "", bool moveDirectionDownwards = false);
     void printBlockHeader(int leftLine, int rightLine);
     void printContext(const String& input, const String& sectionTitle, int leftLine, int rightLine);
-    std::string escape_json(const std::string &s);
+    void printEscapedJSON(const String &s);
     std::string nullifySectionTitle(const std::string &sectionTitle);
     void printWrappedLine(const char* pre, const String& line, const char* post);
+    bool needsJSONFormat();
 };
 
-#endif /* InlineDiffJSON_hpp */
+#endif /* InlineDiffJSON_h */
