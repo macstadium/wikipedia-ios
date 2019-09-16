@@ -5,6 +5,8 @@ struct DiffResponse: Codable {
 enum DiffItemType: Int, Codable {
     case context
     case change
+    case moveSource
+    case moveDestination
 }
 
 enum DiffHighlightRangeType: Int, Codable {

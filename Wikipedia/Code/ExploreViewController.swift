@@ -5,6 +5,8 @@ class ExploreViewController: ColumnarCollectionViewController, ExploreCardViewCo
 
     // MARK - UIViewController
     
+    var diffPrototypeButton: UIButton?
+    
     override func viewDidLoad() {
         super.viewDidLoad()
         layoutManager.register(ExploreCardCollectionViewCell.self, forCellWithReuseIdentifier: ExploreCardCollectionViewCell.identifier, addPlaceholder: true)
@@ -30,6 +32,13 @@ class ExploreViewController: ColumnarCollectionViewController, ExploreCardViewCo
         }
 #endif
     }
+    
+    @objc func tappedDiffPrototypeButton() {
+        let storyboard = UIStoryboard(name: "DiffPrototype", bundle: nil)
+        if let vc = storyboard.instantiateInitialViewController() {
+            present(vc, animated: true, completion: nil)
+        }
+    }
 
     deinit {
         NotificationCenter.default.removeObserver(self)
@@ -44,6 +53,18 @@ class ExploreViewController: ColumnarCollectionViewController, ExploreCardViewCo
         imageScaleTransitionView = nil
         detailTransitionSourceRect = nil
         logFeedImpressionAfterDelay()
+        
+        //diff prototype button
+        if diffPrototypeButton == nil {
+            diffPrototypeButton = UIButton(type: .system)
+            diffPrototypeButton!.setTitle("Diff Prototype", for: .normal)
+            diffPrototypeButton!.translatesAutoresizingMaskIntoConstraints = false
+            diffPrototypeButton!.addTarget(self, action: #selector(tappedDiffPrototypeButton), for: .touchUpInside)
+            view.addSubview(diffPrototypeButton!)
+            view.trailingAnchor.constraint(equalTo: diffPrototypeButton!.trailingAnchor, constant: 10).isActive = true
+            view.bottomAnchor.constraint(equalTo: diffPrototypeButton!.bottomAnchor, constant: 150).isActive = true
+        }
+        
     }
     
     override func viewWillHaveFirstAppearance(_ animated: Bool) {

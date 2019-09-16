@@ -1,11 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="14490.70" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="9rW-sn-UYg">
-    <device id="retina6_1" orientation="portrait">
-        <adaptation id="fullscreen"/>
-    </device>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="14868" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="9rW-sn-UYg">
+    <device id="retina6_1" orientation="portrait" appearance="light"/>
     <dependencies>
         <deployment identifier="iOS"/>
-        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="14490.49"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="14824"/>
         <capability name="Safe area layout guides" minToolsVersion="9.0"/>
         <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
     </dependencies>
@@ -18,8 +16,20 @@
                         <rect key="frame" x="0.0" y="0.0" width="414" height="896"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
+                            <navigationBar contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="tc4-px-2FG">
+                                <rect key="frame" x="0.0" y="44" width="414" height="44"/>
+                                <items>
+                                    <navigationItem title="Title" id="6tt-cy-CYA">
+                                        <barButtonItem key="leftBarButtonItem" title="Close" id="tjM-zw-nEn">
+                                            <connections>
+                                                <action selector="tappedClose:" destination="9rW-sn-UYg" id="Su4-Sx-egR"/>
+                                            </connections>
+                                        </barButtonItem>
+                                    </navigationItem>
+                                </items>
+                            </navigationBar>
                             <collectionView clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="scaleToFill" dataMode="prototypes" translatesAutoresizingMaskIntoConstraints="NO" id="PJK-eZ-RcY">
-                                <rect key="frame" x="0.0" y="44" width="414" height="818"/>
+                                <rect key="frame" x="0.0" y="88" width="414" height="774"/>
                                 <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
                                 <collectionViewFlowLayout key="collectionViewLayout" minimumLineSpacing="5" minimumInteritemSpacing="0.0" id="Ojf-dH-5Hz">
                                     <size key="itemSize" width="414" height="50"/>
@@ -85,9 +95,12 @@
                         <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
                         <constraints>
                             <constraint firstItem="nXb-th-O3a" firstAttribute="bottom" secondItem="PJK-eZ-RcY" secondAttribute="bottom" id="I8L-fi-vOd"/>
-                            <constraint firstItem="PJK-eZ-RcY" firstAttribute="top" secondItem="nXb-th-O3a" secondAttribute="top" id="b3w-By-spD"/>
+                            <constraint firstItem="tc4-px-2FG" firstAttribute="leading" secondItem="nXb-th-O3a" secondAttribute="leading" id="X4e-0N-Ndu"/>
+                            <constraint firstItem="tc4-px-2FG" firstAttribute="trailing" secondItem="nXb-th-O3a" secondAttribute="trailing" id="hae-bV-2HJ"/>
+                            <constraint firstItem="tc4-px-2FG" firstAttribute="top" secondItem="nXb-th-O3a" secondAttribute="top" id="iIf-WG-PpA"/>
                             <constraint firstItem="PJK-eZ-RcY" firstAttribute="leading" secondItem="nXb-th-O3a" secondAttribute="leading" id="rSF-fW-POK"/>
                             <constraint firstItem="nXb-th-O3a" firstAttribute="trailing" secondItem="PJK-eZ-RcY" secondAttribute="trailing" id="wFJ-UL-ded"/>
+                            <constraint firstItem="PJK-eZ-RcY" firstAttribute="top" secondItem="tc4-px-2FG" secondAttribute="bottom" id="yJx-iR-KoM"/>
                         </constraints>
                         <viewLayoutGuide key="safeArea" id="nXb-th-O3a"/>
                     </view>

@@ -19,17 +19,21 @@ class DiffPrototypeViewController: UIViewController {
         populateDataSource()
     }
     
+    @IBAction func tappedClose(_ sender: Any) {
+        dismiss(animated: true, completion: nil)
+    }
+    
     private func populateDataSource() {
         
         guard let url = NSURL.wmf_URL(withDefaultSiteAndlanguage: "test") else {
             return
         }
         
-        //fetcher.fetchDiffData(siteURL: url, fromRevisionID: 375751, toRevisionID: 399929) { (result) in
-        //    switch result {
-        //    case .success(let response):
+        fetcher.fetchDiffData(siteURL: url, fromRevisionID: 375751, toRevisionID: 399929) { (result) in
+            switch result {
+            case .success(let response):
                 let diffBridge = WMFDiffBridge()
-                if let diff = diffBridge.diffResults(fromString1: "blah", andString2: "blah2"),
+                if let diff = diffBridge.diffResults(fromString1: response.fromWikitext, andString2: response.toWikitext),
                     let data = diff.data(using: String.Encoding.utf8) {
                     do {
                             let response = try JSONDecoder().decode(DiffResponse.self, from: data)
@@ -41,10 +45,10 @@ class DiffPrototypeViewController: UIViewController {
                         print(error)
                     }
                 }
-         //   case .failure(let error):
-         //       print(error)
-         //   }
-        //}
+            case .failure(let error):
+                print(error)
+            }
+        }
     }
 }
 
