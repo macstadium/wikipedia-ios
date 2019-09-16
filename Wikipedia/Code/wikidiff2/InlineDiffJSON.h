@@ -21,8 +21,7 @@ protected:
     void printBlockHeader(int leftLine, int rightLine);
     void printContext(const String& input, const String& sectionTitle, int leftLine, int rightLine);
     void printEscapedJSON(const String &s);
-    std::string nullifySectionTitle(const std::string &sectionTitle);
-    void printWrappedLine(const char* pre, const String& line, const char* post);
+    const String nullifySectionTitle( const String& sectionTitle);
     bool needsJSONFormat();
 };
 
