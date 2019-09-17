@@ -23,7 +23,7 @@ void InlineDiffJSON::printAddDelete(const String &line, HighlightType highlightT
 
     String preStr = "{\"type\": " + toString(diffType) + ", \"lineNumber\": " +
                     toString(lineNumber) + ", \"sectionTitle\": " + nullifySectionTitle(sectionTitle) +
-                    ", \"text\": ";
+                    ", \"moveInfo\": null, \"text\": ";
 
     if (line.empty()) {
         String highlightRanges = ", \"highlightRanges\": [{\"start\": 0, \"length\": 1, \"type\": " +
@@ -68,20 +68,20 @@ void InlineDiffJSON::printWordDiff(const String &text1, const String &text2,
             moveObject = "{\"id\": \"" + srcAnchor + "\", \"linkId\": \"" + dstAnchor +
                          "\", \"linkDirection\": " + toString(direction) + "}";
             result.append("{\"type\": " + toString(DiffType::MoveSource) + ", \"lineNumber\": " +
-                          toString(rightLine) + ", \"moveInfo\": " + moveObject + ", \"sectionTitle\": " +
-                          nullifySectionTitle(sectionTitle) + ", \"text\": \"");
+                          toString(rightLine) + ", \"sectionTitle\": " +
+                          nullifySectionTitle(sectionTitle) + ", \"moveInfo\": " + moveObject + ", \"text\": \"");
         } else {
             LinkDirection direction = moveDirectionDownwards ? LinkDirection::Down : LinkDirection::Up;
             moveObject = "{\"id\": \"" + srcAnchor + "\", \"linkId\": \"" + dstAnchor +
                          "\", \"linkDirection\": " + toString(direction) + "}";
             result.append("{\"type\": " + toString(DiffType::MoveDestination) + ", \"lineNumber\": " +
-                          toString(rightLine) + ", \"moveInfo\": " + moveObject + ", \"sectionTitle\": " +
-                          nullifySectionTitle(sectionTitle) + ", \"text\": \"");
+                          toString(rightLine) + ", \"sectionTitle\": " +
+                          nullifySectionTitle(sectionTitle) + ", \"moveInfo\": " + moveObject + ", \"text\": \"");
         }
     } else {
         result.append("{\"type\": " + toString(DiffType::Change) + ", \"lineNumber\": " +
                       toString(rightLine) + ", \"sectionTitle\": " + nullifySectionTitle(sectionTitle) +
-                      ", \"text\": \"");
+                      ", \"moveInfo\": null, \"text\": \"");
     }
     hasResults = true;
 
@@ -141,7 +141,7 @@ void InlineDiffJSON::printWordDiff(const String &text1, const String &text2,
                                   toString(word.length()) + ", \"type\": " + toString(HighlightType::Delete) +
                                   " }");
                 }
-                
+
                 rangeCalcResult.append(word);
 
                 printEscapedJSON(word);
@@ -176,7 +176,7 @@ void InlineDiffJSON::printContext(const String &input, const String &sectionTitl
 
     String preString = "{\"type\": " + toString(DiffType::Context) + ", \"lineNumber\": " +
                        toString(rightLine) + ", \"sectionTitle\": " + nullifySectionTitle(sectionTitle) +
-                       ", \"text\": ";
+                       ", \"moveInfo\": null, \"text\": ";
 
     result.append(preString + "\"");
     printEscapedJSON(input);
