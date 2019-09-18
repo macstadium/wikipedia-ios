@@ -1,5 +1,5 @@
 struct DiffResponse: Codable {
-    let diffs: [DiffItem]
+    let diff: [DiffItem]
 }
 
 enum DiffItemType: Int, Codable {
