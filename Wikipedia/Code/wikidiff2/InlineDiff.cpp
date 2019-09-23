@@ -1,22 +1,25 @@
 #include "InlineDiff.h"
 
-void InlineDiff::printAdd(const String &line, const String &sectionTitle, int leftLine, int rightLine) {
-    if (line.empty()) {
+void InlineDiff::printAdd(const String& line, int leftLine, int rightLine)
+{
+    if(line.empty()) {
         printWrappedLine("<div class=\"mw-diff-inline-added mw-diff-empty-line\"><ins>", line, "</ins></div>\n");
     } else {
         printWrappedLine("<div class=\"mw-diff-inline-added\"><ins>", line, "</ins></div>\n");
     }
 }
 
-void InlineDiff::printDelete(const String &line, const String &sectionTitle, int leftLine, int rightLine) {
-    if (line.empty()) {
+void InlineDiff::printDelete(const String& line, int leftLine, int rightLine)
+{
+    if(line.empty()) {
         printWrappedLine("<div class=\"mw-diff-inline-deleted mw-diff-empty-line\"><del>", line, "</del></div>\n");
     } else {
         printWrappedLine("<div class=\"mw-diff-inline-deleted\"><del>", line, "</del></div>\n");
     }
 }
 
-void InlineDiff::printWordDiff(const String &text1, const String &text2, const String &sectionTitle, int leftLine, int rightLine, bool printLeft, bool printRight, const String &srcAnchor, const String &dstAnchor, bool moveDirectionDownwards) {
+void InlineDiff::printWordDiff(const String& text1, const String& text2, int leftLine, int rightLine, bool printLeft, bool printRight, const String & srcAnchor, const String & dstAnchor, bool moveDirectionDownwards)
+{
     WordVector words1, words2;
 
     TextUtil::explodeWords(text1, words1);
@@ -30,24 +33,24 @@ void InlineDiff::printWordDiff(const String &text1, const String &text2, const S
 
     if (moved) {
         result += String("<div class=\"mw-diff-inline-moved mw-diff-inline-moved-") +
-                  (printLeft ? "source" : "destination") + " mw-diff-inline-moved-" +
-                  (moveDirectionDownwards ? "downwards" : "upwards") + "\">";
+            (printLeft ? "source" : "destination") + " mw-diff-inline-moved-" +
+            (moveDirectionDownwards ? "downwards" : "upwards") + "\">";
         result += "<a name=\"" + srcAnchor + "\"></a>";
         if (!moveDirectionDownwards) {
             result += "<a class=\"mw-diff-movedpara-" +
-                      String(printLeft ? "left" : "right") + "\" data-title-tag=\"" +
-                      (printRight ? "new" : "old") + "\" href=\"#" + dstAnchor + "\">" + "&#9650;" + "</a>";
+                String(printLeft ? "left" : "right") + "\" data-title-tag=\"" +
+                (printRight ? "new" : "old") + "\" href=\"#" + dstAnchor + "\">" + "&#9650;" + "</a>";
         }
     } else {
         result += "<div class=\"mw-diff-inline-changed\">";
     }
 
     for (unsigned i = 0; i < worddiff.size(); ++i) {
-        DiffOp<Word> &op = worddiff[i];
+        DiffOp<Word> & op = worddiff[i];
         int n, j;
         if (op.op == DiffOp<Word>::copy) {
             n = op.from.size();
-            for (j = 0; j < n; j++) {
+            for (j=0; j<n; j++) {
                 op.from[j]->get_whole(word);
                 printHtmlEncodedText(word);
             }
@@ -55,7 +58,7 @@ void InlineDiff::printWordDiff(const String &text1, const String &text2, const S
             n = op.from.size();
             if (!isMoveSrc)
                 result += "<del>";
-            for (j = 0; j < n; j++) {
+            for (j=0; j<n; j++) {
                 op.from[j]->get_whole(word);
                 printHtmlEncodedText(word);
             }
@@ -66,7 +69,7 @@ void InlineDiff::printWordDiff(const String &text1, const String &text2, const S
                 continue;
             n = op.to.size();
             result += "<ins>";
-            for (j = 0; j < n; j++) {
+            for (j=0; j<n; j++) {
                 op.to[j]->get_whole(word);
                 printHtmlEncodedText(word);
             }
@@ -75,7 +78,7 @@ void InlineDiff::printWordDiff(const String &text1, const String &text2, const S
             n = op.from.size();
             if (!isMoveSrc)
                 result += "<del>";
-            for (j = 0; j < n; j++) {
+            for (j=0; j<n; j++) {
                 op.from[j]->get_whole(word);
                 printHtmlEncodedText(word);
             }
@@ -84,7 +87,7 @@ void InlineDiff::printWordDiff(const String &text1, const String &text2, const S
             result += "</del>";
             n = op.to.size();
             result += "<ins>";
-            for (j = 0; j < n; j++) {
+            for (j=0; j<n; j++) {
                 op.to[j]->get_whole(word);
                 printHtmlEncodedText(word);
             }
@@ -93,25 +96,28 @@ void InlineDiff::printWordDiff(const String &text1, const String &text2, const S
     }
     if (moved && moveDirectionDownwards) {
         result += "<a class=\"mw-diff-movedpara-" +
-                  String(printLeft ? "left" : "right") + "\" data-title-tag=\"" +
-                  (printRight ? "new" : "old") + "\" href=\"#" + dstAnchor + "\">" + "&#9660;" + "</a>";
+            String(printLeft ? "left" : "right") + "\" data-title-tag=\"" +
+            (printRight ? "new" : "old") + "\" href=\"#" + dstAnchor + "\">" + "&#9660;" + "</a>";
     }
     result += "</div>\n";
 }
 
-void InlineDiff::printBlockHeader(int leftLine, int rightLine) {
+void InlineDiff::printBlockHeader(int leftLine, int rightLine)
+{
     char buf[256]; // should be plenty
     snprintf(buf, sizeof(buf),
-             "<div class=\"mw-diff-inline-header\"><!-- LINES %u,%u --></div>\n",
-             leftLine, rightLine);
+        "<div class=\"mw-diff-inline-header\"><!-- LINES %u,%u --></div>\n",
+        leftLine, rightLine);
     result += buf;
 }
 
-void InlineDiff::printContext(const String &input, const String &sectionTitle, int leftLine, int rightLine) {
+void InlineDiff::printContext(const String & input, int leftLine, int rightLine)
+{
     printWrappedLine("<div class=\"mw-diff-inline-context\">", input, "</div>\n");
 }
 
-void InlineDiff::printWrappedLine(const char *pre, const String &line, const char *post) {
+void InlineDiff::printWrappedLine(const char* pre, const String& line, const char* post)
+{
     result += pre;
     if (line.empty()) {
         result += "&#160;";

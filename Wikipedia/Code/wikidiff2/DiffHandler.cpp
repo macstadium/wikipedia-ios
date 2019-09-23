@@ -11,7 +11,7 @@ std::string DiffHandler::diff(const std::string &text1, const std::string &text2
 
         InlineDiffJSON wikidiff2;
 
-        return wikidiff2.execute(text1, text2, 2, movedParagraphDetectionCutoff(), "==+([\\s\\S])+==+");
+        return wikidiff2.execute(text1, text2, 2, movedParagraphDetectionCutoff());
 
     } catch (std::bad_alloc &e) {
         return "";

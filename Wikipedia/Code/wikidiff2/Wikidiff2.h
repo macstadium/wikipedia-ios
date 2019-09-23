@@ -31,7 +31,7 @@ class Wikidiff2 {
         typedef Diff<String> StringDiff;
         typedef Diff<Word> WordDiff;
 
-        const String & execute(const String & text1, const String & text2, int numContextLines, int maxMovedLines, const String &sectionTitleRegex);
+        const String & execute(const String & text1, const String & text2, int numContextLines, int maxMovedLines);
 
         inline const String & getResult() const;
 
@@ -60,12 +60,12 @@ class Wikidiff2 {
 
         virtual bool needsJSONFormat();
         virtual void diffLines(const StringVector & lines1, const StringVector & lines2,
-                int numContextLines, int maxMovedLines, const String &sectionTitleRegex);
-        virtual void printAdd(const String & line, const String & sectionTitle, int leftLine, int rightLine) = 0;
-        virtual void printDelete(const String & line, const String& sectionTitle, int leftLine, int rightLine) = 0;
-        virtual void printWordDiff(const String & text1, const String & text2, const String& sectionTitle, int leftLine, int rightLine, bool printLeft = true, bool printRight = true, const String & srcAnchor = "", const String & dstAnchor = "", bool moveDirectionDownwards = false) = 0;
+                int numContextLines, int maxMovedLines);
+        virtual void printAdd(const String & line, int leftLine, int rightLine) = 0;
+        virtual void printDelete(const String & line, int leftLine, int rightLine) = 0;
+        virtual void printWordDiff(const String & text1, const String & text2, int leftLine, int rightLine, bool printLeft = true, bool printRight = true, const String & srcAnchor = "", const String & dstAnchor = "", bool moveDirectionDownwards = false) = 0;
         virtual void printBlockHeader(int leftLine, int rightLine) = 0;
-        virtual void printContext(const String & input, const String& sectionTitle, int leftLine, int rightLine) = 0;
+        virtual void printContext(const String & input, int leftLine, int rightLine) = 0;
 
         void printHtmlEncodedText(const String & input);
         void debugPrintWordDiff(WordDiff & worddiff);
@@ -73,7 +73,7 @@ class Wikidiff2 {
         void explodeLines(const String & text, StringVector &lines);
         const String toString(long input);
 
-        bool printMovedLineDiff(StringDiff & linediff, int opIndex, int opLine, int maxMovedLines, String & sectionTitle, int leftLine, int rightLine);
+        bool printMovedLineDiff(StringDiff & linediff, int opIndex, int opLine, int maxMovedLines, int leftLine, int rightLine);
 };
 
 inline const Wikidiff2::String & Wikidiff2::getResult() const

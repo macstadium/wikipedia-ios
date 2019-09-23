@@ -4,28 +4,27 @@
 #include <sstream>
 #include <iomanip>
 
-void InlineDiffJSON::printAdd(const String& line, const String& sectionTitle, int leftLine,
+void InlineDiffJSON::printAdd(const String& line, int leftLine,
     int rightLine)
 {
-    printAddDelete(line, HighlightType::Add, sectionTitle, toString(rightLine));
+    printAddDelete(line, HighlightType::Add, toString(rightLine));
 }
 
-void InlineDiffJSON::printDelete(const String& line, const String& sectionTitle, int leftLine,
+void InlineDiffJSON::printDelete(const String& line, int leftLine,
     int rightLine)
 {
-    printAddDelete(line, HighlightType::Delete, sectionTitle, "null");
+    printAddDelete(line, HighlightType::Delete, "null");
 }
 
 void InlineDiffJSON::printAddDelete(const String& line, HighlightType highlightType,
-    const String& sectionTitle, const String& lineNumber) {
+    const String& lineNumber) {
     if (hasResults)
         result.append(",");
 
     int diffType = DiffType::Change;
 
     String preStr = "{\"type\": " + toString(diffType) + ", \"lineNumber\": " +
-        lineNumber + ", \"sectionTitle\": " + nullifySectionTitle(sectionTitle) +
-        ", \"moveInfo\": null, \"text\": ";
+        lineNumber + ", \"moveInfo\": null, \"text\": ";
 
     if(line.empty()) {
         String highlightRanges = ", \"highlightRanges\": [{\"start\": 0, \"length\": 1, \"type\": " +
@@ -47,9 +46,9 @@ void InlineDiffJSON::printAddDelete(const String& line, HighlightType highlightT
     hasResults = true;
 }
 
-void InlineDiffJSON::printWordDiff(const String& text1, const String& text2,
-    const String& sectionTitle, int leftLine, int rightLine, bool printLeft, bool printRight,
-    const String & srcAnchor, const String & dstAnchor, bool moveDirectionDownwards)
+void InlineDiffJSON::printWordDiff(const String& text1, const String& text2, int leftLine,
+    int rightLine, bool printLeft, bool printRight, const String & srcAnchor,
+    const String & dstAnchor, bool moveDirectionDownwards)
 {
     WordVector words1, words2;
 
@@ -70,24 +69,21 @@ void InlineDiffJSON::printWordDiff(const String& text1, const String& text2,
             moveObject = "{\"id\": \"" + srcAnchor + "\", \"linkId\": \"" + dstAnchor +
                 "\", \"linkDirection\": " + toString(direction) + "}";
             result.append("{\"type\": " + toString(DiffType::MoveSource) +
-            ", \"lineNumber\": null, \"sectionTitle\": " + nullifySectionTitle(sectionTitle) +
-            ", \"moveInfo\": " + moveObject + ", \"text\": \"");
+            ", \"lineNumber\": null, \"moveInfo\": " + moveObject + ", \"text\": \"");
         } else {
             LinkDirection direction = moveDirectionDownwards ? LinkDirection::Down : LinkDirection::Up;
             moveObject = "{\"id\": \"" + srcAnchor + "\", \"linkId\": \"" + dstAnchor +
                 "\", \"linkDirection\": " + toString(direction) + "}";
             result.append("{\"type\": " + toString(DiffType::MoveDestination) + ", \"lineNumber\": " +
-                toString(rightLine) + ", \"sectionTitle\": " +
-                nullifySectionTitle(sectionTitle) + ", \"moveInfo\": " + moveObject + ", \"text\": \"");
+                toString(rightLine) + ", \"moveInfo\": " + moveObject + ", \"text\": \"");
         }
     } else {
         result.append("{\"type\": " + toString(DiffType::Change) + ", \"lineNumber\": " +
-            toString(rightLine) + ", \"sectionTitle\": " + nullifySectionTitle(sectionTitle) +
-            ", \"moveInfo\": null, \"text\": \"");
+            toString(rightLine) + ", \"moveInfo\": null, \"text\": \"");
     }
     hasResults = true;
 
-    String rangeCalcResult;
+    unsigned int rangeCalcResult = 0;
     String ranges = "[";
     for (unsigned i = 0; i < worddiff.size(); ++i) {
         DiffOp<Word> & op = worddiff[i];
@@ -97,18 +93,18 @@ void InlineDiffJSON::printWordDiff(const String& text1, const String& text2,
             n = op.from.size();
             for (j=0; j<n; j++) {
                 op.from[j]->get_whole(word);
-                rangeCalcResult.append(word);
+                rangeCalcResult += word.length();
                 printEscapedJSON(word);
             }
         } else if (op.op == DiffOp<Word>::del) {
             n = op.from.size();
-            long start = rangeCalcResult.length();
-            long length = 0;
+            unsigned int start = rangeCalcResult;
+            unsigned int length = 0;
             for (j=0; j<n; j++) {
                 op.from[j]->get_whole(word);
 
                 length += word.length();
-                rangeCalcResult.append(word);
+                rangeCalcResult += word.length();
                 printEscapedJSON(word);
             }
 
@@ -123,13 +119,13 @@ void InlineDiffJSON::printWordDiff(const String& text1, const String& text2,
             if (isMoveSrc)
                 continue;
             n = op.to.size();
-            long start = rangeCalcResult.length();
-            long length = 0;
+            unsigned int start = rangeCalcResult;
+            unsigned int length = 0;
             for (j=0; j<n; j++) {
                 op.to[j]->get_whole(word);
 
                 length += word.length();
-                rangeCalcResult.append(word);
+                rangeCalcResult += word.length();
                 printEscapedJSON(word);
             }
 
@@ -140,13 +136,13 @@ void InlineDiffJSON::printWordDiff(const String& text1, const String& text2,
 
         } else if (op.op == DiffOp<Word>::change) {
             n = op.from.size();
-            long start = rangeCalcResult.length();
-            long length = 0;
+            unsigned int start = rangeCalcResult;
+            unsigned int length = 0;
             for (j=0; j<n; j++) {
                 op.from[j]->get_whole(word);
 
                 length += word.length();
-                rangeCalcResult.append(word);
+                rangeCalcResult += word.length();
                 printEscapedJSON(word);
             }
 
@@ -161,13 +157,13 @@ void InlineDiffJSON::printWordDiff(const String& text1, const String& text2,
             if (isMoveSrc)
                 continue;
             n = op.to.size();
-            start = rangeCalcResult.length();
+            start = rangeCalcResult;
             length = 0;
             for (j=0; j<n; j++) {
                 op.to[j]->get_whole(word);
 
                 length += word.length();
-                rangeCalcResult.append(word);
+                rangeCalcResult += word.length();
 
                 printEscapedJSON(word);
             }
@@ -186,15 +182,14 @@ void InlineDiffJSON::printBlockHeader(int leftLine, int rightLine)
     //inline diff json not setup to print this
 }
 
-void InlineDiffJSON::printContext(const String & input, const String& sectionTitle, int leftLine,
+void InlineDiffJSON::printContext(const String & input, int leftLine,
     int rightLine)
 {
     if (hasResults)
         result.append(",");
 
     String preString = "{\"type\": " + toString(DiffType::Context) + ", \"lineNumber\": " +
-        toString(rightLine) + ", \"sectionTitle\": " + nullifySectionTitle(sectionTitle) +
-        ", \"moveInfo\": null, \"text\": ";
+        toString(rightLine) + ", \"moveInfo\": null, \"text\": ";
 
     result.append(preString + "\"");
     printEscapedJSON(input);
@@ -203,33 +198,32 @@ void InlineDiffJSON::printContext(const String & input, const String& sectionTit
 }
 
 void InlineDiffJSON::printEscapedJSON(const String &s) {
-    std::ostringstream o;
     for (auto c = s.cbegin(); c != s.cend(); c++) {
         switch (*c) {
-            case '"': o << "\\\""; break;
-            case '\\': o << "\\\\"; break;
-            case '\b': o << "\\b"; break;
-            case '\f': o << "\\f"; break;
-            case '\n': o << "\\n"; break;
-            case '\r': o << "\\r"; break;
-            case '\t': o << "\\t"; break;
+            case '"':
+                result.append("\\\""); break;
+            case '\\':
+                result.append("\\\\"); break;
+            case '\b':
+                result.append("\\b"); break;
+            case '\f':
+                result.append("\\f"); break;
+            case '\n':
+                result.append("\\n"); break;
+            case '\r':
+                result.append("\\r"); break;
+            case '\t':
+                result.append("\\t"); break;
             default:
             if ('\x00' <= *c && *c <= '\x1f') {
+                StringStream o;
                 o << "\\u"
                 << std::hex << std::setw(4) << std::setfill('0') << (int)*c;
+                result.append(o.str());
             } else {
-                o << *c;
+                result += *c;
             }
         }
-    }
-    result.append(o.str());
-}
-
-const InlineDiffJSON::String InlineDiffJSON::nullifySectionTitle(const String &sectionTitle) {
-    if (sectionTitle.length() == 0) {
-        return "null";
-    } else {
-        return "\"" + sectionTitle + "\"";
     }
 }
 
