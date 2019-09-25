@@ -6,7 +6,7 @@
 
 #include "Wikidiff2.h"
 
-enum DiffType {Context, Change, MoveSource, MoveDestination};
+enum DiffType {Context, AddLine, DeleteLine, Change, MoveSource, MoveDestination};
 enum HighlightType {Add, Delete};
 enum LinkDirection {Down, Up};
 
@@ -16,7 +16,7 @@ public:
 protected:
     void printAdd(const String& line, int leftLine, int rightLine);
     void printDelete(const String& line, int leftLine, int rightLine);
-    void printAddDelete(const String& line, HighlightType highlightType,
+    void printAddDelete(const String& line, DiffType diffType,
         const String& lineNumber);
     void printWordDiff(const String& text1, const String& text2,
         int leftLine, int rightLine, bool printLeft = true, bool printRight = true,

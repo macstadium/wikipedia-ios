@@ -4,6 +4,8 @@ struct DiffResponse: Codable {
 
 enum DiffItemType: Int, Codable {
     case context
+    case addLine
+    case deleteLine
     case change
     case moveSource
     case moveDestination
@@ -24,7 +26,7 @@ struct DiffItem: Codable {
     let lineNumber: Int?
     let type: DiffItemType
     let text: String
-    let highlightRanges: [DiffHighlightRange]
+    let highlightRanges: [DiffHighlightRange]?
 }
 //
 //class DiffItemViewModel {

@@ -7,41 +7,26 @@
 void InlineDiffJSON::printAdd(const String& line, int leftLine,
     int rightLine)
 {
-    printAddDelete(line, HighlightType::Add, toString(rightLine));
+    printAddDelete(line, DiffType::AddLine, toString(rightLine));
 }
 
 void InlineDiffJSON::printDelete(const String& line, int leftLine,
     int rightLine)
 {
-    printAddDelete(line, HighlightType::Delete, "null");
+    printAddDelete(line, DiffType::DeleteLine, "null");
 }
 
-void InlineDiffJSON::printAddDelete(const String& line, HighlightType highlightType,
+void InlineDiffJSON::printAddDelete(const String& line, DiffType diffType,
     const String& lineNumber) {
     if (hasResults)
         result.append(",");
 
-    int diffType = DiffType::Change;
-
     String preStr = "{\"type\": " + toString(diffType) + ", \"lineNumber\": " +
         lineNumber + ", \"moveInfo\": null, \"text\": ";
-
-    if(line.empty()) {
-        String highlightRanges = ", \"highlightRanges\": [{\"start\": 0, \"length\": 1, \"type\": " +
-            toString(highlightType) + "}]}";
-        result.append(preStr);
-        result.append("\" \"");
-        result.append(highlightRanges);
-    } else {
-        StringStream highlightRanges;
-        highlightRanges << ", \"highlightRanges\": [{\"start\": 0, \"length\": " << line.length() <<
-            ", \"type\": " << highlightType << "}]}";
-
-        result.append(preStr + "\"");
-        printEscapedJSON(line);
-        result.append("\"");
-        result.append(highlightRanges.str());
-    }
+    result.append(preStr + "\"");
+    printEscapedJSON(line);
+    result.append("\"");
+    result.append(", \"highlightRanges\": null}");
 
     hasResults = true;
 }
@@ -84,7 +69,7 @@ void InlineDiffJSON::printWordDiff(const String& text1, const String& text2, int
     hasResults = true;
 
     unsigned int rangeCalcResult = 0;
-    String ranges = "[";
+    String ranges;
     for (unsigned i = 0; i < worddiff.size(); ++i) {
         DiffOp<Word> & op = worddiff[i];
         unsigned long n;
@@ -174,7 +159,13 @@ void InlineDiffJSON::printWordDiff(const String& text1, const String& text2, int
                 toString(length) + ", \"type\": " + toString(HighlightType::Add) + " }");
         }
     }
-    result.append("\", \"highlightRanges\": " + ranges + "]}");
+    
+    if (moved && isMoveSrc) {
+        result.append("\", \"highlightRanges\": null}");
+    } else {
+        result.append("\", \"highlightRanges\": [" + ranges + "]}");
+    }
+
 }
 
 void InlineDiffJSON::printBlockHeader(int leftLine, int rightLine)
@@ -193,27 +184,20 @@ void InlineDiffJSON::printContext(const String & input, int leftLine,
 
     result.append(preString + "\"");
     printEscapedJSON(input);
-    result.append("\", \"highlightRanges\": []}");
+    result.append("\", \"highlightRanges\": null}");
     hasResults = true;
 }
 
 void InlineDiffJSON::printEscapedJSON(const String &s) {
     for (auto c = s.cbegin(); c != s.cend(); c++) {
         switch (*c) {
-            case '"':
-                result.append("\\\""); break;
-            case '\\':
-                result.append("\\\\"); break;
-            case '\b':
-                result.append("\\b"); break;
-            case '\f':
-                result.append("\\f"); break;
-            case '\n':
-                result.append("\\n"); break;
-            case '\r':
-                result.append("\\r"); break;
-            case '\t':
-                result.append("\\t"); break;
+            case '"': result.append("\\\""); break;
+            case '\\': result.append("\\\\"); break;
+            case '\b': result.append("\\b"); break;
+            case '\f': result.append("\\f"); break;
+            case '\n': result.append("\\n"); break;
+            case '\r': result.append("\\r"); break;
+            case '\t': result.append("\\t"); break;
             default:
             if ('\x00' <= *c && *c <= '\x1f') {
                 StringStream o;

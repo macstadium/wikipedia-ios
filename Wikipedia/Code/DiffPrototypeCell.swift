@@ -31,7 +31,8 @@ class DiffPrototypeCell: UICollectionViewCell {
         }
         
         //todo: pass in single closure to both
-        let insertedRanges: [NSRange] = item.highlightRanges.filter { $0.type == .add }.map {
+        
+        let insertedRanges: [NSRange]? = item.highlightRanges?.filter { $0.type == .add }.map {
             
             // Compute String.UnicodeScalarView indices for first and last position:
             let fromIdx = item.text.utf8.index(item.text.utf8.startIndex, offsetBy: $0.start)
@@ -42,7 +43,7 @@ class DiffPrototypeCell: UICollectionViewCell {
             
             return nsRange
         }
-        let deletedRanges: [NSRange] = item.highlightRanges.filter { $0.type == .delete }.map {
+        let deletedRanges: [NSRange]? = item.highlightRanges?.filter { $0.type == .delete }.map {
             
             // Compute String.UnicodeScalarView indices for first and last position:
             let fromIdx = item.text.utf8.index(item.text.utf8.startIndex, offsetBy: $0.start)
@@ -57,20 +58,25 @@ class DiffPrototypeCell: UICollectionViewCell {
         setAttributedString(text: item.text, insertedRanges: insertedRanges, deletedRanges: deletedRanges)
     }
     
-    private func setAttributedString(text: String, insertedRanges: [NSRange], deletedRanges: [NSRange]) {
+    private func setAttributedString(text: String, insertedRanges: [NSRange]?, deletedRanges: [NSRange]?) {
         
         //let one = "\""
         //let two = "\\\""
         //let whytheHellNot = text.replacingOccurrences(of: one, with: two)
         let attributedString = NSMutableAttributedString(string: text)
         
-        for insertedRange in insertedRanges {
-            attributedString.setAttributes([NSAttributedString.Key.backgroundColor: UIColor.green], range: insertedRange)
+        if let insertedRanges = insertedRanges {
+            for insertedRange in insertedRanges {
+                attributedString.setAttributes([NSAttributedString.Key.backgroundColor: UIColor.green], range: insertedRange)
+            }
         }
         
-        for deletedRange in deletedRanges {
-            attributedString.setAttributes([NSAttributedString.Key.backgroundColor: UIColor.red], range: deletedRange)
+        if let deletedRanges = deletedRanges {
+            for deletedRange in deletedRanges {
+                attributedString.setAttributes([NSAttributedString.Key.backgroundColor: UIColor.red], range: deletedRange)
+            }
         }
+        
         
         textLabel.attributedText = attributedString.copy() as? NSAttributedString
     }

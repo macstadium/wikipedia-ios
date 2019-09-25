@@ -29,17 +29,11 @@ class DiffPrototypeViewController: UIViewController {
             return
         }
         
-//        fetcher.fetchDiffData(siteURL: url, fromRevisionID: 375751, toRevisionID: 399929) { (result) in
-//            switch result {
-//            case .success(let response):
+        fetcher.fetchDiffData(siteURL: url, fromRevisionID: 375751, toRevisionID: 399929) { (result) in
+            switch result {
+            case .success(let response):
                 let diffBridge = WMFDiffBridge()
-                let string1 = """
-This is a paragraph. I hope we can reproduce moved lines. Let's try with this.
-"""
-                let string2 = """
-Let's try with this. I hope we can reproduce moved lines. This is a paragraph. 
-"""
-                if let diff = diffBridge.diffResults(fromString1: string1, andString2: string2),
+                if let diff = diffBridge.diffResults(fromString1: response.fromWikitext, andString2: response.toWikitext),
                     let data = diff.data(using: String.Encoding.utf8) {
                     do {
                             let response = try JSONDecoder().decode(DiffResponse.self, from: data)
@@ -51,10 +45,10 @@ Let's try with this. I hope we can reproduce moved lines. This is a paragraph.
                         print(error)
                     }
                 }
-//            case .failure(let error):
-//                print(error)
-//            }
-//        }
+            case .failure(let error):
+                print(error)
+            }
+        }
     }
 }
 
