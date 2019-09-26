@@ -29,7 +29,7 @@ class DiffPrototypeViewController: UIViewController {
             return
         }
         
-        fetcher.fetchDiffData(siteURL: url, fromRevisionID: 375751, toRevisionID: 399929) { (result) in
+        fetcher.fetchDiffData(siteURL: url, fromRevisionID: 402953, toRevisionID: 402956) { (result) in
             switch result {
             case .success(let response):
                 let diffBridge = WMFDiffBridge()
