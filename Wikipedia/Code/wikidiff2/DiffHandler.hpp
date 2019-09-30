@@ -17,6 +17,7 @@
 class DiffHandler {
 public:
     typedef std::list<int, WD2_ALLOCATOR<int>> IntList;
+    typedef std::basic_string<char, std::char_traits<char>, WD2_ALLOCATOR<char> > String;
     DiffHandler();
     std::string diff(const std::string & text1, const std::string & text2);
 };
