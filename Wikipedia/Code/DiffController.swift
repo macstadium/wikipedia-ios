@@ -18,6 +18,7 @@ class DiffController {
                  let result = try JSONDecoder().decode(DiffResponse.self, from: data)
                 
                 let response: [DiffListGroupViewModel] = self.viewModels(from: result, theme: theme, traitCollection: traitCollection, type: type)
+                
                     completion?(.success(response))
             }
             catch (let error) {

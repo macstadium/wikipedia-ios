@@ -199,7 +199,7 @@ final class DiffListChangeViewModel: DiffListGroupViewModel {
     private(set) var innerPadding: NSDirectionalEdgeInsets
     private(set) var headingPadding: NSDirectionalEdgeInsets
     private(set) var textPadding: NSDirectionalEdgeInsets
-    let innerViewClipsToBounds: Bool
+    let cornerRadius: CGFloat
     
     init(type: DiffListChangeType, diffItems: [DiffItem], theme: Theme, width: CGFloat, traitCollection: UITraitCollection) {
         
@@ -207,7 +207,7 @@ final class DiffListChangeViewModel: DiffListGroupViewModel {
         self.theme = theme
         self._width = width
         self.traitCollection = traitCollection
-        self.innerViewClipsToBounds = type == .compareRevision
+        self.cornerRadius = type == .compareRevision ? 7 : 0
         
         if let firstItemLineNumber = diffItems.first?.lineNumber,
             let lastItemLineNumber = diffItems.last?.lineNumber {

@@ -57,9 +57,6 @@ class DiffContainerViewController: ViewController {
         setupDiffListViewControllerIfNeeded()
         apply(theme: theme)
         
-        view.setNeedsLayout()
-        view.layoutIfNeeded()
-        let width = diffListViewController?.collectionView.frame.width
         diffController.fetchDiff(theme: theme, traitCollection: traitCollection, type: type) { [weak self] (result) in
 
             guard let self = self else {
@@ -69,12 +66,10 @@ class DiffContainerViewController: ViewController {
             switch result {
             case .success(let listViewModel):
 
-                self.containerViewModel.listViewModel = listViewModel
-                self.diffListViewController?.updateListViewModels(listViewModel: listViewModel, updateType: .initialLoad(width: width ?? 0))
-                
                 DispatchQueue.main.async {
-                    self.diffListViewController?.applyListViewModelChanges(updateType: .initialLoad(width: width ?? 0))
-                    
+                    self.diffListViewController?.dataSource = listViewModel
+                    self.view.setNeedsLayout()
+                    self.view.layoutIfNeeded()
                     self.diffListViewController?.updateScrollViewInsets()
                 }
                 
