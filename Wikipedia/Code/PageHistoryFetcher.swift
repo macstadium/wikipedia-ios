@@ -98,7 +98,7 @@ public final class PageHistoryFetcher: WMFLegacyFetcher {
 
     // MARK: Creation date
 
-    public func fetchPageCreationDate(for pageTitle: String, pageURL: URL, completion: @escaping (Result<Date, RequestError>) -> Void) {
+    public func fetchPageCreationDate(for pageTitle: String, pageURL: URL, completion: @escaping (Result<Date, Error>) -> Void) {
         let params: [String: AnyObject] = [
             "action": "query" as AnyObject,
             "prop": "revisions" as AnyObject,
@@ -109,12 +109,16 @@ public final class PageHistoryFetcher: WMFLegacyFetcher {
         ]
         
         performMediaWikiAPIGET(for: pageURL, withQueryParameters: params) { (result, response, error) in
+            if let error = error {
+                completion(.failure(error))
+                return
+            }
             guard let result = result, let results = self.parseSections(result) else {
-                completion(.failure(.unexpectedResponse))
+                completion(.failure(RequestError.unexpectedResponse))
                 return
             }
             guard let firstRevisionDate = results.lastRevision?.revisionDate else {
-                completion(.failure(.unexpectedResponse))
+                completion(.failure(RequestError.unexpectedResponse))
                 return
             }
             completion(.success(firstRevisionDate))
