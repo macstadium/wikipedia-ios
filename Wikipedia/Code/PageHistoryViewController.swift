@@ -8,8 +8,8 @@ enum SelectionOrder: Int, CaseIterable {
     case second
 
     init?(_ rawValue: Int?) {
-        if let rawValue = rawValue, let SelectionOrder = SelectionOrder(rawValue: rawValue) {
-            self = SelectionOrder
+        if let rawValue = rawValue, let selectionOrder = SelectionOrder(rawValue: rawValue) {
+            self = selectionOrder
         } else {
             return nil
         }
