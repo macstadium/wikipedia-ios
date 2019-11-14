@@ -374,6 +374,9 @@ class ScrollableEducationPanelViewController: UIViewController, Themeable {
         primaryButton?.layer.borderColor = theme.colors.link.cgColor
         primaryButton.backgroundColor = primaryButtonBackgroundColor
 
+        effectsView.effect = UIBlurEffect(style: theme.colors.blurEffectStyle)
+        effectsView.backgroundColor = theme.colors.blurEffectBackground
+
         if isUrgent {
             roundedCornerContainer.layer.borderWidth = 3
             roundedCornerContainer.layer.borderColor = theme.colors.error.cgColor
