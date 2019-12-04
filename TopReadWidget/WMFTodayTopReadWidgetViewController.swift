@@ -5,14 +5,26 @@ import WMF
 class WMFTodayTopReadWidgetViewController: ExtensionViewController, NCWidgetProviding {
     
     // Model
-    var siteURL: URL!
+    lazy var siteURL: URL = {
+        guard let appLanguage = MWKLanguageLinkController.sharedInstance().appLanguage else {
+            return NSURL.wmf_URLWithDefaultSiteAndCurrentLocale() ?? NSURL.wmf_URL(withDefaultSiteAndlanguage: "en") ?? URL(string: "https://en.wikipedia.org")!
+        }
+        return appLanguage.siteURL()
+    }()
+    
+    
     var groupURL: URL?
     var results: [WMFFeedTopReadArticlePreview] = []
     
     var feedContentFetcher = WMFFeedContentFetcher()
     
-    var userStore: MWKDataStore!
-    var contentSource: WMFFeedContentSource!
+    lazy var userStore: MWKDataStore = {
+        return SessionSingleton.sharedInstance().dataStore
+    }()
+    
+    lazy var contentSource: WMFFeedContentSource = {
+       return WMFFeedContentSource(siteURL: siteURL, userDataStore: userStore, notificationsController: nil)
+    }()
 
     @IBOutlet weak var chevronImageView: UIImageView!
     
@@ -67,14 +79,6 @@ class WMFTodayTopReadWidgetViewController: ExtensionViewController, NCWidgetProv
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        guard let appLanguage = MWKLanguageLinkController.sharedInstance().appLanguage else {
-            return
-        }
-    
-        siteURL = appLanguage.siteURL()
-        userStore = SessionSingleton.sharedInstance().dataStore
-        contentSource = WMFFeedContentSource(siteURL: siteURL, userDataStore: userStore, notificationsController: nil)
-
         let tapGR = UITapGestureRecognizer(target: self, action: #selector(self.handleTapGestureRecognizer(_:)))
         view.addGestureRecognizer(tapGR)
         
@@ -165,7 +169,6 @@ class WMFTodayTopReadWidgetViewController: ExtensionViewController, NCWidgetProv
         }
         
         var language: String? = nil
-        let siteURL = self.siteURL as NSURL
         if let languageCode = siteURL.wmf_language {
             language = (Locale.current as NSLocale).wmf_localizedLanguageNameForCode(languageCode)
         }
@@ -223,7 +226,7 @@ class WMFTodayTopReadWidgetViewController: ExtensionViewController, NCWidgetProv
 
             vc.titleHTML = result.displayTitleHTML
             if let wikidataDescription = result.wikidataDescription {
-                vc.subtitleLabel.text = wikidataDescription.wmf_stringByCapitalizingFirstCharacter(usingWikipediaLanguage: siteURL.wmf_language)
+                vc.subtitleLabel.text = wikidataDescription.wmf_stringByCapitalizingFirstCharacter(usingWikipediaLanguage: language)
             } else {
                 vc.subtitleLabel.text = result.snippet
             }
