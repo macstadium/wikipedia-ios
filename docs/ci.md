@@ -5,7 +5,7 @@ This document describes the dependencies for working on continuous-integration-r
 
 [fastlane](https://fastlane.tools) automates common development tasks - for example bumping version numbers, running tests on multiple configurations, or submitting to the App Store. You can list the available lanes (our project-specific scripts) using `bundle exec fastlane lanes`. You can list available actions (all actions available to be scripted via lanes) using `bundle exec fastlane actions`. The fastlane configuration and scripts are in the `fastlane` folder.
 
-Fastlane isn't necessary for normal development, but will be necessary if you need to automate tasks locally or you'll be updating the lanes run on our CI sever.
+Fastlane isn't necessary for normal development, but will be necessary if you need to automate tasks locally or you'll be updating the lanes run on our CI server.
 
 Similar to the [project's node setup for web dev](web_dev.md), we recommend using a Ruby version manager to install node and manage multiple versions of Ruby on the same machine.
 
@@ -60,8 +60,26 @@ bundle install
 
 Verify fastlane was installed by running `bundle exec fastlane lanes` and verifying it shows a list of lanes defined by this project.
 
-## Tests
-Tests are run on [Jenkins](https://jenkins.io) on the `appsci` server in response to pull requests. You can run the same tests that are run on a pr locally by running `bundle exec fastlane verify_pull_request`.
+## Xcode version
+You can set the Xcode version used by fastlane by editing the `.xcversion` file in the root directory of the repo. This is helpful when a branch uses a new Xcode beta and you'd like to be able to utilize different Xcode versions for building each branch. 
 
-## Release builds
-Are also handled by the `appsci` server. There is a Jenkins job for release that runs `bundle exec fastlane push_beta`. This builds the app for release to the app store and uploads it to TestFlight. From there it is immediately released to internal beta and can be released to public beta and the app store after testing.
+Additionally, the Xcode version used by Circle CI is set in `.circleci/config.yml`
+
+## Tests
+Tests are run on [Circle CI](https://app.circleci.com/pipelines/github/wikimedia/wikipedia-ios) in response to pull requests. You can run the same tests that are run on a pr locally by running `bundle exec fastlane verify_pull_request`.
+
+## Jenkins server and releasing
+Are handled by the `wmf2249` server. After logging onto the WMF VPN, open a web browser and navigate to the [Jenkins instance](https://wmf2249:8043/). 
+
+There are several Jenkins jobs:
+- **Deploy** - This builds the app from a given branch (defaults to `main`) and uploads it to App Store Connect (essentially running `bundle exec fastlane deploy`). It is immediately released to internal beta, and can be released to an external beta or wide release via App Store Connect. This job automatically runs nightly, if there are new commits to `main`. 
+- **Experimental** - This the app from a given branch (defaults to `main`) and uploads it as the Experimental TestFlight app (aka "Black icon") to App Store Connect. It is immediately released to internal beta, and can be released to an external beta via App Store Connect.
+- **Post-release - Git tag as release** - Should be manually run after each release to the app store. Uploads a git tag for a release. (`bundle exec fastlane tag_release build_tag:[tag]`)
+- **Post-release - Increase app version** - Should be manually run after each release to the app store. Updates the release number in Xcode.
+
+## Build server maintenance
+If you need to do more intensive build server work - like updating Xcode on the build server - when on the VPN, use the `Screen Sharing` macOS app to log into `wmf2249`.
+
+To rotate App Store Connect credentials, log into the build server via the `Jenkins` account and update the files in the account's home directory. 
+
+To rotate GitHub credentials, update them via the Jenkins web interface.

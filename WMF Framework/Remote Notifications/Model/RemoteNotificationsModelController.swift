@@ -1,49 +1,36 @@
-@objc enum RemoteNotificationsModelChangeType: Int {
-    case addedNewNotifications
-    case updatedExistingNotifications
+import CocoaLumberjackSwift
+import CoreData
+
+public extension Notification.Name {
+    static let NotificationsCenterContextDidSave = Notification.Name("NotificationsCenterContextDidSave")
+    static let NotificationsCenterBadgeNeedsUpdate = Notification.Name("NotificationsCenterBadgeNeedsUpdate")
 }
 
-@objc final class RemoteNotificationsModelChange: NSObject {
-    @objc let type: RemoteNotificationsModelChangeType
-    @objc let notificationsGroupedByCategoryNumber: [NSNumber: [RemoteNotification]]
-
-    init(type: RemoteNotificationsModelChangeType, notificationsGroupedByCategoryNumber: [NSNumber: [RemoteNotification]]) {
-        self.type = type
-        self.notificationsGroupedByCategoryNumber = notificationsGroupedByCategoryNumber
-        super.init()
-    }
+@objc public extension NSNotification {
+    static let notificationsCenterContextDidSave = Notification.Name.NotificationsCenterContextDidSave
+    static let notificationsCenterBadgeNeedsUpdate = Notification.Name.NotificationsCenterBadgeNeedsUpdate
 }
 
-@objc final class RemoteNotificationsModelChangeResponseCoordinator: NSObject {
-    @objc let modelChange: RemoteNotificationsModelChange
-    private let modelController: RemoteNotificationsModelController
-
-    init(modelChange: RemoteNotificationsModelChange, modelController: RemoteNotificationsModelController) {
-        self.modelChange = modelChange
-        self.modelController = modelController
-        super.init()
+final class RemoteNotificationsModelController {
+    
+    enum LibraryKey: String {
+        case completedImportFlags = "RemoteNotificationsCompletedImportFlags"
+        case continueIdentifer = "RemoteNotificationsContinueIdentifier"
+        case filterSettings = "RemoteNotificationsFilterSettings"
+        
+        func fullKeyForProject(_ project: WikimediaProject) -> String {
+            if self == .filterSettings {
+                assertionFailure("Shouldn't be using this key for filterSettings")
+            }
+            return "\(self.rawValue)-\(project.notificationsApiWikiIdentifier)"
+        }
     }
-
-    @objc(markAsReadNotificationWithID:)
-    func markAsRead(notificationWithID notificationID: String) {
-        modelController.markAsRead(notificationWithID: notificationID)
-    }
-
-    @objc func markAsExcluded(_ notification: RemoteNotification) {
-        modelController.markAsExcluded(notification)
-    }
-
-    @objc(markAsSeenNotificationWithID:)
-    func markAsSeen(notificationWithID notificationID: String) {
-        modelController.markAsSeen(notificationWithID: notificationID)
-    }
-}
-
-final class RemoteNotificationsModelController: NSObject {
-    public static let modelDidChangeNotification = NSNotification.Name(rawValue: "RemoteNotificationsModelDidChange")
+    
     public static let didLoadPersistentStoresNotification = NSNotification.Name(rawValue: "ModelControllerDidLoadPersistentStores")
     
-    let managedObjectContext: NSManagedObjectContext
+    let viewContext: NSManagedObjectContext
+    let persistentContainer: NSPersistentContainer
+    private let containerURL: URL
 
     enum InitializationError: Error {
         case unableToCreateModelURL(String, String, Bundle)
@@ -58,26 +45,38 @@ final class RemoteNotificationsModelController: NSObject {
             }
         }
     }
+    
+    enum ReadWriteError: LocalizedError {
+        case unexpectedResultsForDistinctWikis
+        case missingNotifications
+        case missingDateInNotification
+        
+        var errorDescription: String? {
+            return CommonStrings.genericErrorDescription
+        }
+    }
+    
+    static let modelName = "RemoteNotifications"
 
-    required init?(_ initializationError: inout Error?) {
-        let modelName = "RemoteNotifications"
+    required init(containerURL: URL) throws {
+        self.containerURL = containerURL
+        let modelName = RemoteNotificationsModelController.modelName
         let modelExtension = "momd"
         let modelBundle = Bundle.wmf
+        
         guard let modelURL = modelBundle.url(forResource: modelName, withExtension: modelExtension) else {
             let error = InitializationError.unableToCreateModelURL(modelName, modelExtension, modelBundle)
             assertionFailure(error.localizedDescription)
-            initializationError = error
-            return nil
+            throw error
         }
         guard let model = NSManagedObjectModel(contentsOf: modelURL) else {
             let error = InitializationError.unableToCreateModel(modelURL, modelName)
             assertionFailure(error.localizedDescription)
-            initializationError = error
-            return nil
+            throw error
         }
         let container = NSPersistentContainer(name: modelName, managedObjectModel: model)
-        let sharedAppContainerURL = FileManager.default.wmf_containerURL()
-        let remoteNotificationsStorageURL = sharedAppContainerURL.appendingPathComponent(modelName)
+        let remoteNotificationsStorageURL = containerURL.appendingPathComponent("\(modelName).sqlite")
+
         let description = NSPersistentStoreDescription(url: remoteNotificationsStorageURL)
         container.persistentStoreDescriptions = [description]
         container.loadPersistentStores { (storeDescription, error) in
@@ -85,235 +84,332 @@ final class RemoteNotificationsModelController: NSObject {
                 NotificationCenter.default.post(name: RemoteNotificationsModelController.didLoadPersistentStoresNotification, object: error)
             }
         }
-        managedObjectContext = NSManagedObjectContext(concurrencyType: .privateQueueConcurrencyType)
-        managedObjectContext.persistentStoreCoordinator = container.persistentStoreCoordinator
-        super.init()
-        NotificationCenter.default.addObserver(self, selector: #selector(managedObjectContextDidSave(_:)), name: NSNotification.Name.NSManagedObjectContextDidSave, object: managedObjectContext)
+        
+        viewContext = container.viewContext
+        viewContext.name = "RemoteNotificationsViewContext"
+        viewContext.automaticallyMergesChangesFromParent = true
+        viewContext.mergePolicy = NSMergeByPropertyStoreTrumpMergePolicy
+        
+        self.persistentContainer = container
     }
-
+    
     deinit {
         NotificationCenter.default.removeObserver(self)
     }
-
-    typealias ResultHandler = (Set<RemoteNotification>?) -> Void
-
-    public func getUnreadNotifications(_ completion: @escaping ResultHandler) {
-        return notifications(with: NSPredicate(format: "stateNumber == nil"), completion: completion)
+    
+    // MARK: Public
+    
+    func deleteLegacyDatabaseFiles() throws {
+        let modelName = Self.modelName
+        let legacyStorageURL = containerURL.appendingPathComponent(modelName)
+        
+        try persistentContainer.persistentStoreCoordinator.destroyPersistentStore(at: legacyStorageURL, ofType: NSSQLiteStoreType, options: nil)
+        
+        let legecyJournalShmUrl = containerURL.appendingPathComponent("\(modelName)-shm")
+        let legecyJournalWalUrl = containerURL.appendingPathComponent("\(modelName)-wal")
+        
+        try FileManager.default.removeItem(at: legacyStorageURL)
+        try FileManager.default.removeItem(at: legecyJournalShmUrl)
+        try FileManager.default.removeItem(at: legecyJournalWalUrl)
     }
-
-    public func getReadNotifications(_ completion: @escaping ResultHandler) {
-        let read = RemoteNotification.State.read.number
-        return notifications(with: NSPredicate(format: "stateNumber == %@", read), completion: completion)
-    }
-
-    public func getAllNotifications(_ completion: @escaping ResultHandler) {
-        return notifications(completion: completion)
-    }
-
-    private func notifications(with predicate: NSPredicate? = nil, completion: @escaping ResultHandler) {
-        let fetchRequest: NSFetchRequest<RemoteNotification> = RemoteNotification.fetchRequest()
-        fetchRequest.predicate = predicate
-        let moc = managedObjectContext
-        moc.perform {
-            guard let notifications = try? moc.fetch(fetchRequest) else {
-                completion(nil)
+    
+    func resetDatabaseAndSharedCache() throws {
+        
+        let batchDeleteBlock: (NSFetchRequest<NSFetchRequestResult>, NSManagedObjectContext) throws -> Void = { [weak self] (fetchRequest, backgroundContext) in
+            
+            guard let self = self else {
                 return
             }
-            completion(Set(notifications))
+            
+            let batchRequest = NSBatchDeleteRequest(fetchRequest: fetchRequest)
+            batchRequest.resultType = .resultTypeObjectIDs
+            
+            let result = try backgroundContext.execute(batchRequest) as? NSBatchDeleteResult
+            let objectIDArray = result?.result as? [NSManagedObjectID]
+            let changes: [AnyHashable : Any] = [NSDeletedObjectsKey : objectIDArray as Any]
+            NSManagedObjectContext.mergeChanges(fromRemoteContextSave: changes, into: [self.viewContext])
         }
+        
+        let backgroundContext = newBackgroundContext()
+        let request: NSFetchRequest<NSFetchRequestResult> = RemoteNotification.fetchRequest()
+        let libraryRequest: NSFetchRequest<NSFetchRequestResult> = NSFetchRequest<NSFetchRequestResult>(entityName: "WMFKeyValue")
+        
+        // batch delete all notification managed objects from Core Data
+        try batchDeleteBlock(request, backgroundContext)
+        
+        // batch delete all library values from Core Data
+        try batchDeleteBlock(libraryRequest, backgroundContext)
+        
+        // remove notifications from shared cache (referenced by the NotificationsService extension)
+        let sharedCache = SharedContainerCache<PushNotificationsCache>.init(fileName: SharedContainerCacheCommonNames.pushNotificationsCache, defaultCache: { PushNotificationsCache(settings: .default, notifications: []) })
+        var cache = sharedCache.loadCache()
+        cache.notifications = []
+        cache.currentUnreadCount = 0
+        sharedCache.saveCache(cache)
+    }
+    
+    func newBackgroundContext() -> NSManagedObjectContext {
+        let backgroundContext = persistentContainer.newBackgroundContext()
+        backgroundContext.name = "RemoteNotificationsBackgroundContext"
+        backgroundContext.automaticallyMergesChangesFromParent = true
+        backgroundContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+        return backgroundContext
+    }
+    
+    // MARK: Count convenience helpers
+    
+    func numberOfUnreadNotifications() throws -> Int {
+        assert(Thread.isMainThread)
+        let fetchRequest = RemoteNotification.fetchRequest()
+        fetchRequest.predicate = unreadNotificationsPredicate
+        return try viewContext.count(for: fetchRequest)
+    }
+    
+    func numberOfAllNotifications() throws -> Int {
+        assert(Thread.isMainThread)
+        let fetchRequest = RemoteNotification.fetchRequest()
+        return try viewContext.count(for: fetchRequest)
+    }
+    
+    // MARK: Fetch and create
+    
+    func fetchNotifications(fetchLimit: Int = 50, fetchOffset: Int = 0, predicate: NSPredicate?) throws -> [RemoteNotification] {
+        assert(Thread.isMainThread)
+        
+        let fetchRequest = RemoteNotification.fetchRequest()
+        fetchRequest.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
+        fetchRequest.fetchLimit = fetchLimit
+        fetchRequest.fetchOffset = fetchOffset
+        fetchRequest.predicate = predicate
+        
+        return try viewContext.fetch(fetchRequest)
     }
 
-    private func save() {
-        let moc = managedObjectContext
-        if moc.hasChanges {
+    func createNewNotifications(moc: NSManagedObjectContext, notificationsFetchedFromTheServer: Set<RemoteNotificationsAPIController.NotificationsResult.Notification>, completion: @escaping ((Result<Void, Error>) -> Void)) {
+        moc.perform { [weak self] in
+            
+            guard let self = self else {
+                return
+            }
+            
+            for notification in notificationsFetchedFromTheServer {
+                try? self.createNewNotification(moc: moc, notification: notification)
+            }
+
             do {
-                try moc.save()
+                try self.save(moc: moc)
+                NotificationCenter.default.post(name: Notification.Name.NotificationsCenterBadgeNeedsUpdate, object: nil)
+                completion(.success(()))
             } catch let error {
-                DDLogError("Error saving RemoteNotificationsModelController managedObjectContext: \(error)")
+                completion(.failure(error))
+            }
+            
+        }
+    }
+    
+    // MARK: Mark as read
+    
+    func markAllAsRead(moc: NSManagedObjectContext, project: WikimediaProject, completion: @escaping (Result<Void, Error>) -> Void) {
+        
+        moc.perform { [weak self] in
+            
+            guard let self = self else {
+                return
+            }
+            
+            let unreadPredicate = self.unreadNotificationsPredicate
+            let wikiPredicate = NSPredicate(format: "wiki == %@", project.notificationsApiWikiIdentifier)
+            let compoundPredicate = NSCompoundPredicate(andPredicateWithSubpredicates: [unreadPredicate, wikiPredicate])
+            
+            do {
+                
+                let notifications = try self.notifications(moc: moc, predicate: compoundPredicate)
+                
+                guard !notifications.isEmpty else {
+                    completion(.failure(ReadWriteError.missingNotifications))
+                    return
+                }
+                
+                notifications.forEach { notification in
+                    notification.isRead = true
+                }
+                
+                try self.save(moc: moc)
+                
+                NotificationCenter.default.post(name: Notification.Name.NotificationsCenterBadgeNeedsUpdate, object: nil)
+                completion(.success(()))
+            } catch let error {
+                completion(.failure(error))
+            }
+        }
+        
+    }
+
+    func markAsReadOrUnread(moc: NSManagedObjectContext, identifierGroups: Set<RemoteNotification.IdentifierGroup>, shouldMarkRead: Bool, completion: @escaping (Result<Void, Error>) -> Void) {
+        
+        let keys = identifierGroups.compactMap { $0.key }
+        moc.perform { [weak self] in
+            
+            guard let self = self else {
+                return
+            }
+            
+            let predicate = NSPredicate(format: "key IN %@", keys)
+            do {
+                let notifications = try self.notifications(moc: moc, predicate: predicate)
+                
+                notifications.forEach { notification in
+                    notification.isRead = shouldMarkRead
+                }
+                
+                try self.save(moc: moc)
+                
+                NotificationCenter.default.post(name: Notification.Name.NotificationsCenterBadgeNeedsUpdate, object: nil)
+                completion(.success(()))
+                
+            } catch let error {
+                completion(.failure(error))
             }
         }
     }
+    
+    // MARK: Fetch Distinct Wikis
 
-    // MARK: Validation
-
-    let validNotificationCategories: Set<RemoteNotificationCategory> = [.editReverted]
-
-    private func validateCategory(of notification: RemoteNotificationsAPIController.NotificationsResult.Notification) -> Bool {
-        guard let categoryString = notification.category else {
-            assertionFailure("Missing notification category")
+    func distinctWikisWithUnreadNotifications() throws -> Set<String> {
+        return try distinctWikis(predicate: unreadNotificationsPredicate)
+    }
+    
+    func distinctWikis(predicate: NSPredicate?) throws -> Set<String> {
+        assert(Thread.isMainThread)
+        return try distinctWikis(moc: viewContext, predicate: predicate)
+    }
+    
+    func distinctWikis(backgroundContext: NSManagedObjectContext, predicate: NSPredicate?, completion: @escaping (Result<Set<String>, Error>) -> Void) {
+        backgroundContext.perform { [weak self] in
+            
+            guard let self = self else {
+                return
+            }
+            
+            do {
+                let results = try self.distinctWikis(moc: backgroundContext, predicate: predicate)
+                completion(.success(results))
+            } catch let error {
+                completion(.failure(error))
+            }
+            
+        }
+    }
+    
+    // MARK: Filter Settings
+    
+    func getFilterSettingsFromLibrary() -> NSDictionary? {
+        return libraryValue(forKey: LibraryKey.filterSettings.rawValue) as? NSDictionary
+    }
+    
+    func setFilterSettingsToLibrary(dictionary: NSDictionary?) {
+        setLibraryValue(dictionary, forKey: LibraryKey.filterSettings.rawValue)
+    }
+    
+    // MARK: WMFLibraryValue Helpers
+    func libraryValue(forKey key: String) -> NSCoding? {
+        var result: NSCoding? = nil
+        let backgroundContext = newBackgroundContext()
+        backgroundContext.performAndWait {
+            result = backgroundContext.wmf_keyValue(forKey: key)?.value
+        }
+        
+        return result
+    }
+    
+    func setLibraryValue(_ value: NSCoding?, forKey key: String) {
+        let backgroundContext = newBackgroundContext()
+        backgroundContext.perform {
+            backgroundContext.wmf_setValue(value, forKey: key)
+            do {
+                try backgroundContext.save()
+            } catch let error {
+                DDLogError("Error saving RemoteNotifications backgroundContext for library keys: \(error)")
+            }
+        }
+    }
+    
+    func isProjectAlreadyImported(project: WikimediaProject) -> Bool {
+        
+        let key = LibraryKey.completedImportFlags.fullKeyForProject(project)
+        guard let nsNumber = libraryValue(forKey: key) as? NSNumber else {
             return false
         }
-        let category = RemoteNotificationCategory(stringValue: categoryString)
-        return validNotificationCategories.contains(category)
+        
+        return nsNumber.boolValue
+    }
+    
+    // MARK: Private
+    
+    private var unreadNotificationsPredicate: NSPredicate {
+        return NSPredicate(format: "isRead == %@", NSNumber(value: false))
     }
 
-    private func validateAge(ofNotificationDated date: Date) -> Bool {
-        let sinceNow = Int(date.timeIntervalSinceNow)
-        let hoursPassed = abs(sinceNow / 3600)
-        let maxHoursPassed = 24
-        return hoursPassed <= maxHoursPassed
-    }
-
-    public func createNewNotifications(from notificationsFetchedFromTheServer: Set<RemoteNotificationsAPIController.NotificationsResult.Notification>, completion: @escaping () -> Void) throws {
-        managedObjectContext.perform {
-            for notification in notificationsFetchedFromTheServer {
-                self.createNewNotification(from: notification)
-            }
-            self.save()
-            completion()
-        }
-    }
-
-    // Reminder: Methods that access managedObjectContext should perform their operations
-    // inside the perform(_:) or the performAndWait(_:) methods.
-    // https://developer.apple.com/documentation/coredata/using_core_data_in_the_background
-    private func createNewNotification(from notification: RemoteNotificationsAPIController.NotificationsResult.Notification) {
-        guard let date = date(from: notification.timestamp?.utciso8601) else {
+    private func createNewNotification(moc: NSManagedObjectContext, notification: RemoteNotificationsAPIController.NotificationsResult.Notification) throws {
+        guard let date = notification.date else {
             assertionFailure("Notification should have a date")
-            return
+            throw ReadWriteError.missingDateInNotification
         }
-        guard let id = notification.id else {
-            assertionFailure("Notification must have an id")
-            return
+
+        let isRead = notification.readString == nil ? NSNumber(booleanLiteral: false) : NSNumber(booleanLiteral: true)
+        moc.wmf_create(entityNamed: "RemoteNotification",
+                                                withKeysAndValues: [
+                                                    "wiki": notification.wiki,
+                                                    "id": notification.id,
+                                                    "key": notification.key,
+                                                    "typeString": notification.type,
+                                                    "categoryString" : notification.category,
+                                                    "section" : notification.section,
+                                                    "date": date,
+                                                    "utcUnixString": notification.timestamp.utcunix,
+                                                    "titleFull": notification.title?.full,
+                                                    "titleNamespace": notification.title?.namespace,
+                                                    "titleNamespaceKey": notification.title?.namespaceKey,
+                                                    "titleText": notification.title?.text,
+                                                    "agentId": notification.agent?.id,
+                                                    "agentName": notification.agent?.name,
+                                                    "isRead" : isRead,
+                                                    "revisionID": notification.revisionID,
+                                                    "messageHeader": notification.message?.header,
+                                                    "messageBody": notification.message?.body,
+                                                    "messageLinks": notification.message?.links])
+    }
+    
+    private func notifications(moc: NSManagedObjectContext, predicate: NSPredicate? = nil) throws -> [RemoteNotification] {
+        let fetchRequest = RemoteNotification.fetchRequest()
+        fetchRequest.predicate = predicate
+        return try moc.fetch(fetchRequest)
+    }
+    
+    private func distinctWikis(moc: NSManagedObjectContext, predicate: NSPredicate?) throws -> Set<String> {
+        guard let entityName = RemoteNotification.entity().name else {
+            throw ReadWriteError.unexpectedResultsForDistinctWikis
         }
-        guard self.validateCategory(of: notification) else {
-            return
+
+        let fetchRequest = NSFetchRequest<NSFetchRequestResult>(entityName: entityName)
+        fetchRequest.predicate = predicate
+        fetchRequest.resultType = .dictionaryResultType
+        fetchRequest.propertiesToFetch = ["wiki"]
+        fetchRequest.returnsDistinctResults = true
+        
+        let result = try moc.fetch(fetchRequest)
+        guard let dictionaries = result as? [[String: String]] else {
+            throw ReadWriteError.unexpectedResultsForDistinctWikis
         }
-        guard self.validateAge(ofNotificationDated: date) else {
-            return
-        }
-        let message = notification.message?.header?.wmf_stringByRemovingHTML()
-        let _ = managedObjectContext.wmf_create(entityNamed: "RemoteNotification",
-                                                withKeysAndValues: ["id": id,
-                                                                    "categoryString" : notification.category,
-                                                                    "typeString": notification.type,
-                                                                    "agent": notification.agent?.name,
-                                                                    "affectedPageID": notification.affectedPageID?.full,
-                                                                    "message": message,
-                                                                    "wiki": notification.wiki,
-                                                                    "date": date])
+        
+        let results = dictionaries.flatMap { $0.values }
+        return Set(results)
     }
 
-    private func date(from dateString: String?) -> Date? {
-        guard let dateString = dateString else {
-            return nil
-        }
-        return DateFormatter.wmf_iso8601()?.date(from: dateString)
-    }
-
-    public func updateNotifications(_ savedNotifications: Set<RemoteNotification>, with notificationsFetchedFromTheServer: Set<RemoteNotificationsAPIController.NotificationsResult.Notification>, completion: @escaping () -> Void) throws {
-        let savedIDs = Set(savedNotifications.compactMap { $0.id })
-        let fetchedIDs = Set(notificationsFetchedFromTheServer.compactMap { $0.id })
-        let commonIDs = savedIDs.intersection(fetchedIDs)
-        let moc = managedObjectContext
-
-        moc.perform {
-            // Delete notifications that were marked as read on the server
-            for notification in savedNotifications {
-                guard let id = notification.id, !commonIDs.contains(id) else {
-                    continue
-                }
-                moc.delete(notification)
-            }
-
-            for notification in notificationsFetchedFromTheServer {
-                guard let id = notification.id else {
-                    assertionFailure("Expected notification to have id")
-                    continue
-                }
-                guard !commonIDs.contains(id) else {
-                    if let savedNotification = savedNotifications.first(where: { $0.id == id }) {
-                        // Update notifications that weren't seen so that moc is notified of the update
-                        savedNotification.state = .read
-                    }
-                    continue
-                }
-                self.createNewNotification(from: notification)
-            }
-
-            self.save()
-            completion()
+    private func save(moc: NSManagedObjectContext) throws {
+        if moc.hasChanges {
+            try moc.save()
+            NotificationCenter.default.post(name: Notification.Name.NotificationsCenterContextDidSave, object: nil)
         }
     }
-
-    // MARK: Mark as read
-
-    public func markAsRead(_ notification: RemoteNotification) {
-        self.managedObjectContext.perform {
-            notification.state = .read
-            self.save()
-        }
-    }
-
-    public func markAsRead(notificationWithID notificationID: String) {
-        processNotificationWithID(notificationID) { (notification) in
-            notification.state = .read
-        }
-    }
-
-    // MARK: Mark as excluded
-
-    public func markAsExcluded(_ notification: RemoteNotification) {
-        let moc = managedObjectContext
-        moc.perform {
-            notification.state = .excluded
-            self.save()
-        }
-    }
-
-    // MARK: Mark as seen
-
-    public func markAsSeen(notificationWithID notificationID: String) {
-        processNotificationWithID(notificationID) { (notification) in
-            notification.state = .seen
-        }
-    }
-
-    private func processNotificationWithID(_ notificationID: String, handler: @escaping (RemoteNotification) -> Void) {
-        let moc = managedObjectContext
-        moc.perform {
-            let fetchRequest: NSFetchRequest<RemoteNotification> = RemoteNotification.fetchRequest()
-            fetchRequest.fetchLimit = 1
-            let predicate = NSPredicate(format: "id == %@", notificationID)
-            fetchRequest.predicate = predicate
-            guard let notifications = try? moc.fetch(fetchRequest), let notification = notifications.first else {
-                return
-            }
-            handler(notification)
-            self.save()
-        }
-    }
-
-    // MARK: Notifications
-
-    @objc private func managedObjectContextDidSave(_ note: Notification) {
-        guard let userInfo = note.userInfo else {
-            assertionFailure("Expected note with userInfo dictionary")
-            return
-        }
-        if let insertedObjects = userInfo[NSInsertedObjectsKey] as? Set<NSManagedObject>, !insertedObjects.isEmpty {
-            postModelDidChangeNotification(ofType: .addedNewNotifications, withNotificationsFromObjects: insertedObjects)
-        }
-        if let updatedObjects = userInfo[NSUpdatedObjectsKey] as? Set<NSManagedObject>, !updatedObjects.isEmpty {
-            postModelDidChangeNotification(ofType: .updatedExistingNotifications, withNotificationsFromObjects: updatedObjects)
-        }
-    }
-
-    private func postModelDidChangeNotification(ofType modelChangeType: RemoteNotificationsModelChangeType, withNotificationsFromObjects objects: Set<NSManagedObject>) {
-        let notifications = objects.compactMap { $0 as? RemoteNotification }.filter { $0.state == nil }
-        guard !notifications.isEmpty else {
-            return
-        }
-        let notificationsGroupedByCategoryNumber = Dictionary(grouping: notifications, by: { NSNumber(value: $0.category.rawValue) })
-        let modelChange = RemoteNotificationsModelChange(type: modelChangeType, notificationsGroupedByCategoryNumber: notificationsGroupedByCategoryNumber)
-        let responseCoordinator = RemoteNotificationsModelChangeResponseCoordinator(modelChange: modelChange, modelController: self)
-        DispatchQueue.main.async {
-            NotificationCenter.default.post(name: RemoteNotificationsModelController.modelDidChangeNotification, object: responseCoordinator)
-        }
-    }
-}
-
-
-@objc public class RemoteNotificationsModelControllerNotification: NSObject {
-    @objc public static let modelDidChange = RemoteNotificationsModelController.modelDidChangeNotification
 }

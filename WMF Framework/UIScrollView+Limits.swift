@@ -5,7 +5,7 @@ extension UIScrollView {
         return 0 - adjustedContentInset.top
     }
 
-    private var bottomOffsetY: CGFloat {
+    public var bottomOffsetY: CGFloat {
         return contentSize.height - bounds.size.height + adjustedContentInset.bottom
     }
 
@@ -18,21 +18,37 @@ extension UIScrollView {
     }
 
     public var isAtTop: Bool {
-        return contentOffset.y <= topOffsetY
+        // Rounded: Sometimes when we expect them to be equal, these are less than .2 different (due to rounding in earleir calculation) - and with multiple layout passes, it caused a large scrolling bug on a VC's launch.
+        return contentOffset.y.rounded(.up) <= topOffsetY.rounded(.up)
     }
 
     private var isAtBottom: Bool {
-        return contentOffset.y >= bottomOffsetY
+        // Rounded: Sometimes when we expect them to be equal, these are less than .2 different (due to rounding in earleir calculation) - and with multiple layout passes, it caused a large scrolling bug on a VC's launch.
+        return contentOffset.y.rounded(.up) >= bottomOffsetY.rounded(.up)
+    }
+    
+    public var verticalOffsetPercentage: CGFloat {
+        get {
+            let height = contentSize.height
+            guard height > 0 else {
+                return 0
+            }
+            return contentOffset.y / height
+        }
+        set {
+            let newOffsetY = contentSize.height * newValue
+            setContentOffset(CGPoint(x: contentOffset.x, y: newOffsetY), animated: false)
+        }
     }
 
-    @objc(wmf_setContentInset:scrollIndicatorInsets:preserveContentOffset:preserveAnimation:)
-    public func setContentInset(_ updatedContentInset: UIEdgeInsets, scrollIndicatorInsets updatedScrollIndicatorInsets: UIEdgeInsets, preserveContentOffset: Bool = true, preserveAnimation: Bool = false) -> Bool {
-        guard updatedContentInset != contentInset || updatedScrollIndicatorInsets != scrollIndicatorInsets else {
+    @objc(wmf_setContentInset:verticalScrollIndicatorInsets:preserveContentOffset:preserveAnimation:)
+    public func setContentInset(_ updatedContentInset: UIEdgeInsets, verticalScrollIndicatorInsets updatedVerticalScrollIndicatorInsets: UIEdgeInsets, preserveContentOffset: Bool = true, preserveAnimation: Bool = false) -> Bool {
+        guard updatedContentInset != contentInset || updatedVerticalScrollIndicatorInsets != verticalScrollIndicatorInsets else {
             return false
         }
         let wasAtTop = isAtTop
         let wasAtBottom = isAtBottom
-        scrollIndicatorInsets = updatedScrollIndicatorInsets
+        verticalScrollIndicatorInsets = updatedVerticalScrollIndicatorInsets
 
         if preserveAnimation {
             contentInset = updatedContentInset

@@ -12,11 +12,9 @@ fileprivate var fontSizeMultipliers: [Int] {
 }
 
 fileprivate var indexOfCurrentFontSize: Int {
-    get {
-        let fontSize = UserDefaults.wmf.wmf_articleFontSizeMultiplier()
-        let index = fontSizeMultipliers.firstIndex(of: fontSize.intValue) ?? fontSizeMultipliers.count / 2
-        return index
-    }
+    let fontSize = UserDefaults.standard.wmf_articleFontSizeMultiplier()
+    let index = fontSizeMultipliers.firstIndex(of: fontSize.intValue) ?? fontSizeMultipliers.count / 2
+    return index
 }
 
 protocol ReadingThemesControlsPresenting: UIPopoverPresentationControllerDelegate {
@@ -33,6 +31,7 @@ protocol ReadingThemesControlsResponding: WMFReadingThemesControlsViewController
 extension ReadingThemesControlsPresenting {
     
     func showReadingThemesControlsPopup(on viewController: UIViewController, responder: ReadingThemesControlsResponding, theme: Theme) {
+        readingThemesControlsViewController.loadViewIfNeeded()
         
         let fontSizes = fontSizeMultipliers
         let index = indexOfCurrentFontSize
@@ -85,7 +84,7 @@ extension WMFReadingThemesControlsViewControllerDelegate where Self: ReadingThem
         
         let multiplier = fontSizeMultipliers[value]
         let nsNumber = NSNumber(value: multiplier)
-        UserDefaults.wmf.wmf_setArticleFontSizeMultiplier(nsNumber)
+        UserDefaults.standard.wmf_setArticleFontSizeMultiplier(nsNumber)
         
         updateWebViewTextSize(textSize: multiplier)
     }
@@ -148,6 +147,6 @@ extension ReadingThemesControlsArticlePresenter: ReadingThemesControlsResponding
     }
     
     func toggleSyntaxHighlighting(_ controller: ReadingThemesControlsViewController) {
-        //do nothing
+        // do nothing
     }
 }

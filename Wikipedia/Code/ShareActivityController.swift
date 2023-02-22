@@ -35,12 +35,12 @@ extension ShareableArticlesProvider where Self: UIViewController & EventLoggingE
     func share(article: WMFArticle?, articleURL: URL?, at indexPath: IndexPath, dataStore: MWKDataStore, theme: Theme, eventLoggingCategory: EventLoggingCategory? = nil, eventLoggingLabel: EventLoggingLabel? = nil, sourceView: UIView?) -> Bool {
         if let article = article {
             return createAndPresentShareActivityController(for: article, at: indexPath, dataStore: dataStore, theme: theme, eventLoggingCategory: eventLoggingCategory, eventLoggingLabel: eventLoggingLabel, sourceView: sourceView)
-        } else if let articleURL = articleURL, let key = articleURL.wmf_databaseKey {
+        } else if let articleURL = articleURL, let key = articleURL.wmf_inMemoryKey {
             dataStore.articleSummaryController.updateOrCreateArticleSummaryForArticle(withKey: key) { (article, _) in
                 guard let article = article else {
                     return
                 }
-                let _ = self.createAndPresentShareActivityController(for: article, at: indexPath, dataStore: dataStore, theme: theme, eventLoggingCategory: eventLoggingCategory, eventLoggingLabel: eventLoggingLabel, sourceView: sourceView)
+                _ = self.createAndPresentShareActivityController(for: article, at: indexPath, dataStore: dataStore, theme: theme, eventLoggingCategory: eventLoggingCategory, eventLoggingLabel: eventLoggingLabel, sourceView: sourceView)
             }
             return true
         }
@@ -75,7 +75,6 @@ extension ShareableArticlesProvider where Self: UIViewController & EventLoggingE
             shareActivityController.popoverPresentationController?.sourceView = sourceView ?? view
             shareActivityController.popoverPresentationController?.sourceRect = sourceView?.bounds ?? view.bounds
         }
-        shareActivityController.excludedActivityTypes = [.addToReadingList]
         present(shareActivityController, animated: true, completion: nil)
         return true
     }
@@ -141,7 +140,7 @@ class ShareActivityController: UIActivityViewController {
         var items = [Any]()
         
         if let title = article.displayTitle {
-            let text = "\"\(title)\" on @Wikipedia"
+            let text = "\"\(title)\" on Wikipedia"
             items.append(text)
         }
         
@@ -155,40 +154,45 @@ class ShareActivityController: UIActivityViewController {
         
         articleApplicationActivities.append(contentsOf: customActivities)
         super.init(activityItems: items, applicationActivities: articleApplicationActivities)
+        excludedActivityTypes = [.addToReadingList]
+    }
+
+    @objc init(customActivities: [UIActivity], article: WMFArticle, textActivitySource: WMFArticleTextActivitySource) {
+        var items = [Any]()
+        items.append(WMFItemSourceWrapperExcludingActivityTypes(itemSource: textActivitySource, excludedActivityTypes: [.copyToPasteboard]))
+
+        // shareURL is the only item that should be included in the UIActivity.ActivityType.copyToPasteboard activity.
+        if let shareURL = article.url?.wmf_URLForTextSharing {
+            items.append(shareURL)
+        }
+
+        if let mapItem = article.mapItem {
+            items.append(WMFItemSourceExcludingActivityTypes(item: mapItem, excludedActivityTypes: [.copyToPasteboard]))
+        }
+
+        articleApplicationActivities.append(contentsOf: customActivities)
+        super.init(activityItems: items, applicationActivities: articleApplicationActivities)
+        excludedActivityTypes = [.addToReadingList]
     }
     
-    @objc init(customActivity: UIActivity, article: MWKArticle, textActivitySource: WMFArticleTextActivitySource) {
+    @objc init(article: WMFArticle, textActivitySource: WMFArticleTextActivitySource) {
         var items = [Any]()
-        items.append(textActivitySource)
+        items.append(WMFItemSourceWrapperExcludingActivityTypes(itemSource: textActivitySource, excludedActivityTypes: [.copyToPasteboard]))
         
+        // shareURL is the only item that should be included in the UIActivity.ActivityType.copyToPasteboard activity.
         if let shareURL = article.url?.wmf_URLForTextSharing {
             items.append(shareURL)
         }
         
         if let mapItem = article.mapItem {
-            items.append(mapItem)
-        }
-        
-        articleApplicationActivities.append(customActivity)
-        super.init(activityItems: items, applicationActivities: articleApplicationActivities)
-    }
-    
-    @objc init(article: MWKArticle, textActivitySource: WMFArticleTextActivitySource) {
-        var items = [Any]()
-        items.append(textActivitySource)
-        
-        if let shareURL = article.url?.wmf_URLForTextSharing {
-            items.append(shareURL)
-        }
-        
-        if let mapItem = article.mapItem {
-            items.append(mapItem)
+            items.append(WMFItemSourceExcludingActivityTypes(item: mapItem, excludedActivityTypes: [.copyToPasteboard]))
         }
         
         super.init(activityItems: items, applicationActivities: articleApplicationActivities)
+        excludedActivityTypes = [.addToReadingList]
     }
     
-    @objc init(article: MWKArticle, image: UIImage?, title: String) {
+    @objc init(article: WMFArticle, image: UIImage?, title: String) {
         var items = [Any]()
         
         items.append(title)
@@ -206,6 +210,7 @@ class ShareActivityController: UIActivityViewController {
         }
         
         super.init(activityItems: items, applicationActivities: [])
+        excludedActivityTypes = [.addToReadingList]
     }
     
     @objc init(imageInfo: MWKImageInfo, imageDownload: ImageDownload) {
@@ -217,6 +222,7 @@ class ShareActivityController: UIActivityViewController {
         items.append(contentsOf: [WMFImageTextActivitySource(info: imageInfo), WMFImageURLActivitySource(info: imageInfo), imageToShare])
         
         super.init(activityItems: items, applicationActivities: [])
+        excludedActivityTypes = [.addToReadingList]
     }
     
 }

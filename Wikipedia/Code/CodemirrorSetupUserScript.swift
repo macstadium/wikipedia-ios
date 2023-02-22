@@ -1,7 +1,7 @@
 import Foundation
 
 // sets the theme using wmf.applyTheme atDocumentEnd
-class CodemirrorSetupUserScript: WKUserScript, WKScriptMessageHandler {
+class CodemirrorSetupUserScript: PageUserScript, WKScriptMessageHandler {
     public enum CodemirrorDirection: String {
         case ltr
         case rtl
@@ -9,10 +9,10 @@ class CodemirrorSetupUserScript: WKUserScript, WKScriptMessageHandler {
     let messageHandlerName = "wmfCodemirrorReady"
     let completion: () -> Void
     
-    init(language: String, direction: CodemirrorDirection, theme: Theme, textSizeAdjustment: Int, isSyntaxHighlighted: Bool, completion: @escaping () -> Void) {
+    init(languageCode: String, direction: CodemirrorDirection, theme: Theme, textSizeAdjustment: Int, isSyntaxHighlighted: Bool, readOnly: Bool, completion: @escaping () -> Void) {
         self.completion = completion
         let source = """
-        wmf.setup('\(language)', '\(direction.rawValue)', '\(theme.webName)', \(textSizeAdjustment), \(isSyntaxHighlighted), () => {
+        wmf.setup('\(languageCode)', '\(direction.rawValue)', '\(theme.webName)', \(textSizeAdjustment), \(isSyntaxHighlighted), \(readOnly), () => {
             window.webkit.messageHandlers.\(messageHandlerName).postMessage({})
         })
         """

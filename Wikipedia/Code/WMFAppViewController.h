@@ -1,11 +1,13 @@
 @import UIKit;
 @import UserNotifications;
 @class WMFTheme;
-@class WMFArticleViewController;
 @class MWKDataStore;
 @class WMFTheme;
+@class ReadingList;
 
 NS_ASSUME_NONNULL_BEGIN
+
+extern NSString *const WMFLanguageVariantAlertsLibraryVersion; // NSNumber
 
 @interface WMFAppViewController : UITabBarController <UNUserNotificationCenterDelegate>
 
@@ -15,7 +17,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)launchAppInWindow:(UIWindow *)window waitToResumeApp:(BOOL)waitToResumeApp;
 
-- (void)showSplashViewIfNotShowing;
+- (void)showSplashView;
 
 - (void)hideSplashViewAnimated:(BOOL)animated;
 
@@ -27,12 +29,26 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)performBackgroundFetchWithCompletion:(void (^)(UIBackgroundFetchResult))completion;
 
+- (void)performDatabaseHousekeepingWithCompletion:(void (^)(NSError *))completion;
+
 - (void)applyTheme:(WMFTheme *)theme;
 
 - (void)showSearchInCurrentNavigationController;
 
-- (WMFArticleViewController *)showArticleForURL:(NSURL *)articleURL animated:(BOOL)animated completion:(nonnull dispatch_block_t)completion;
+- (void)showImportedReadingList:(ReadingList *)readingList;
 
+- (void)setRemoteNotificationRegistrationStatusWithDeviceToken: (nullable NSData *)deviceToken error: (nullable NSError *)error;
+
+/// Returning WMFArticleViewController (which is ArticleViewController in Swift) makes this not work from Swift
+- (void)swiftCompatibleShowArticleWithURL:(NSURL *)articleURL animated:(BOOL)animated completion:(nonnull dispatch_block_t)completion;
+
+@end
+
+// Methods exposed in header for use in WMFAppViewController+Extensions.swift
+@interface WMFAppViewController (SwiftInterfaces)
+- (void)dismissPresentedViewControllers;
+- (void)showSettingsAnimated:(BOOL)animated;
+- (void)logTappedSettingsFromExplore;
 @end
 
 NS_ASSUME_NONNULL_END

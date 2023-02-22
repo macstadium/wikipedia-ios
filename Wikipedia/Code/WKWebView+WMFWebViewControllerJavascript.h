@@ -1,18 +1,14 @@
 @import WebKit;
 
-@class MWKArticle, MWLanguageInfo;
-
 @interface WKWebView (WMFWebViewControllerJavascript)
 
 - (void)wmf_setTextSize:(NSInteger)textSize;
-
-- (void)wmf_scrollToFragment:(NSString *)fragment;
 
 - (void)wmf_accessibilityCursorToFragment:(NSString *)fragment;
 
 - (void)wmf_highlightLinkID:(NSString *)linkID;
 
-- (void)wmf_unHighlightLinkID:(NSString *)linkID;
+- (void)wmf_unHighlightAllLinkIDs;
 
 /**
  * Currently-selected text in the webview, if there is any.

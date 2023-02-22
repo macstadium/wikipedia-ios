@@ -22,58 +22,58 @@ private class FeedCard: ExploreFeedSettingsItem {
             title = CommonStrings.inTheNewsTitle
             singleLanguageDescription = WMFLocalizedString("explore-feed-preferences-in-the-news-description", value: "Articles about current events", comment: "Description of In the news section of Explore feed")
             iconName = "in-the-news-mini"
-            iconColor = .wmf_lightGray
-            iconBackgroundColor = .wmf_lighterGray
+            iconColor = .base50
+            iconBackgroundColor = .base80
         case .onThisDay:
             title = CommonStrings.onThisDayTitle
             singleLanguageDescription = WMFLocalizedString("explore-feed-preferences-on-this-day-description", value: "Events in history on this day", comment: "Description of On this day section of Explore feed")
             iconName = "on-this-day-mini"
-            iconColor = .wmf_blue
-            iconBackgroundColor = .wmf_lightBlue
+            iconColor = .accent50
+            iconBackgroundColor = .accent90
         case .featuredArticle:
             title = CommonStrings.featuredArticleTitle
             singleLanguageDescription = WMFLocalizedString("explore-feed-preferences-featured-article-description", value: "Daily featured article on Wikipedia", comment: "Description of Featured article section of Explore feed")
             iconName = "featured-mini"
-            iconColor = .wmf_yellow
-            iconBackgroundColor = .wmf_lightYellow
+            iconColor = .yellow50
+            iconBackgroundColor = .yellow90
         case .topRead:
             title = CommonStrings.topReadTitle
             singleLanguageDescription = WMFLocalizedString("explore-feed-preferences-top-read-description", value: "Daily most read articles", comment: "Description of Top read section of Explore feed")
             iconName = "trending-mini"
-            iconColor = .wmf_blue
-            iconBackgroundColor = .wmf_lightBlue
+            iconColor = .accent50
+            iconBackgroundColor = .accent90
         case .location:
             fallthrough
         case .locationPlaceholder:
             title = CommonStrings.placesTabTitle
             singleLanguageDescription = WMFLocalizedString("explore-feed-preferences-places-description", value: "Wikipedia articles near your location", comment: "Description of Places section of Explore feed")
             iconName = "nearby-mini"
-            iconColor = .wmf_green
-            iconBackgroundColor = .wmf_lightGreen
+            iconColor = .green50
+            iconBackgroundColor = .green90
         case .random:
             title = CommonStrings.randomizerTitle
             singleLanguageDescription = WMFLocalizedString("explore-feed-preferences-randomizer-description", value: "Generate random articles to read", comment: "Description of Randomizer section of Explore feed")
             iconName = "random-mini"
-            iconColor = .wmf_red
-            iconBackgroundColor = .wmf_lightRed
+            iconColor = .red50
+            iconBackgroundColor = .red90
         case .pictureOfTheDay:
             title = CommonStrings.pictureOfTheDayTitle
             singleLanguageDescription = WMFLocalizedString("explore-feed-preferences-potd-description", value: "Daily featured image from Commons", comment: "Description of Picture of the day section of Explore feed")
             iconName = "potd-mini"
-            iconColor = .wmf_purple
-            iconBackgroundColor = .wmf_lightPurple
+            iconColor = .purple50
+            iconBackgroundColor = .purple90
         case .continueReading:
             title = CommonStrings.continueReadingTitle
             singleLanguageDescription = WMFLocalizedString("explore-feed-preferences-continue-reading-description", value: "Quick link back to reading an open article", comment: "Description of Continue reading section of Explore feed")
             iconName = "today-mini"
-            iconColor = .wmf_lightGray
-            iconBackgroundColor = .wmf_lighterGray
+            iconColor = .base50
+            iconBackgroundColor = .base80
         case .relatedPages:
             title = CommonStrings.relatedPagesTitle
             singleLanguageDescription = WMFLocalizedString("explore-feed-preferences-related-pages-description", value: "Suggestions based on reading history", comment: "Description of Related pages section of Explore feed")
             iconName = "recent-mini"
-            iconColor = .wmf_lightGray
-            iconBackgroundColor = .wmf_lighterGray
+            iconColor = .base50
+            iconBackgroundColor = .base80
         default:
             assertionFailure("Group of kind \(contentGroupKind) is not customizable")
             title = ""
@@ -96,13 +96,13 @@ private class FeedCard: ExploreFeedSettingsItem {
 
     private func multipleLanguagesDisclosureText(for contentGroupKind: WMFContentGroupKind) -> String {
         guard contentGroupKind.isGlobal else {
-            let preferredLanguages = MWKLanguageLinkController.sharedInstance().preferredLanguages
-            let languageCodes = contentGroupKind.languageCodes
-            switch languageCodes.count {
+            let preferredLanguages = MWKDataStore.shared().languageLinkController.preferredLanguages
+            let contentLanguageCodes = contentGroupKind.contentLanguageCodes
+            switch contentLanguageCodes.count {
             case preferredLanguages.count:
                 return CommonStrings.onAllTitle
             case 1...:
-                return CommonStrings.onTitle(languageCodes.count)
+                return CommonStrings.onTitle(contentLanguageCodes.count)
             default:
                 return CommonStrings.offTitle
             }
@@ -132,12 +132,10 @@ private class FeedCard: ExploreFeedSettingsItem {
         if contentGroupKind.isGlobal {
             return WMFLocalizedString("explore-feed-preferences-global-cards-subtitle", value: "Not language specific", comment: "Subtitle describing non-language specific feed cards")
         } else {
-            let languageCodes = contentGroupKind.languageCodes
-            let existingLanguageCodes = subtitle?.lowercased().components(separatedBy: ", ")
-            guard existingLanguageCodes?.sorted() != languageCodes.sorted() else {
-                return subtitle ?? languageCodes.joined(separator: ", ").uppercased()
-            }
-            return languageCodes.joined(separator: ", ").uppercased()
+            let contentLanguageCodes = contentGroupKind.contentLanguageCodes
+            let preferredContentLanguageCodes = MWKDataStore.shared().languageLinkController.preferredLanguages.map { $0.contentLanguageCode }
+            let filteredLanguages = preferredContentLanguageCodes.filter { contentLanguageCodes.contains($0) }
+            return filteredLanguages.joined(separator: ", ").uppercased()
         }
     }
 
@@ -213,7 +211,7 @@ class ExploreFeedSettingsViewController: BaseExploreFeedSettingsViewController {
     }()
 
     private lazy var mainSection: ExploreFeedSettingsSection = {
-        return ExploreFeedSettingsSection(headerTitle: nil, footerTitle: WMFLocalizedString("explore-feed-preferences-turn-off-feed-disclosure", value: "Turning off the Explore tab will replace the Explore tab with a Settings tab.", comment: "Text for explaining the effects of turning off the Explore tab"), items: [ExploreFeedSettingsMaster(for: .entireFeed)])
+        return ExploreFeedSettingsSection(headerTitle: nil, footerTitle: WMFLocalizedString("explore-feed-preferences-turn-off-feed-disclosure", value: "Turning off the Explore tab will replace the Explore tab with a Settings tab.", comment: "Text for explaining the effects of turning off the Explore tab"), items: [ExploreFeedSettingsPrimary(for: .entireFeed)])
     }()
 
     private lazy var languagesSection: ExploreFeedSettingsSection? = {
@@ -295,18 +293,18 @@ extension ExploreFeedSettingsViewController {
             assertionFailure("feedContentController is nil")
             return
         }
-        guard controlTag != -1 else { // master switch
+        guard controlTag != -1 else { // main switch
             if sender.isOn {
                 present(turnOnExploreAlertController(turnedOn: {
                     self.dataStore?.feedContentController.toggleAllContentGroupKinds(true, updateFeed: false)
-                    UserDefaults.wmf.defaultTabType = .explore
+                    UserDefaults.standard.defaultTabType = .explore
                 }, cancelled: {
                     sender.setOn(false, animated: true)
                 }), animated: true)
             } else {
                 present(turnOffExploreAlertController(turnedOff: {
                     self.dataStore?.feedContentController.toggleAllContentGroupKinds(false, updateFeed: false)
-                    UserDefaults.wmf.defaultTabType = .settings
+                    UserDefaults.standard.defaultTabType = .settings
                 }, cancelled: {
                     sender.setOn(true, animated: true)
                 }), animated: true)

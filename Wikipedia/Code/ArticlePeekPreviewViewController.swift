@@ -4,10 +4,10 @@ import WMF
 @objc(WMFArticlePeekPreviewViewController)
 class ArticlePeekPreviewViewController: UIViewController, Peekable {
     
-    fileprivate let articleURL: URL
+    let articleURL: URL
     fileprivate let dataStore: MWKDataStore
     fileprivate var theme: Theme
-    fileprivate let activityIndicatorView: UIActivityIndicatorView = UIActivityIndicatorView(style: UIActivityIndicatorView.Style.whiteLarge)
+    fileprivate let activityIndicatorView: UIActivityIndicatorView = UIActivityIndicatorView(style: .large)
     fileprivate let expandedArticleView = ArticleFullWidthImageCollectionViewCell()
 
     @objc required init(articleURL: URL, dataStore: MWKDataStore, theme: Theme) {
@@ -29,27 +29,23 @@ class ArticlePeekPreviewViewController: UIViewController, Peekable {
             return
         }
         isFetched = true
-        guard let article = dataStore.fetchArticle(with: articleURL) else {
-            guard let key = articleURL.wmf_databaseKey else {
-                completion?()
-                return
-            }
-            dataStore.articleSummaryController.updateOrCreateArticleSummaryForArticle(withKey: key) { (article, _) in
-                defer {
-                    completion?()
-                }
-                guard let article = article else {
-                    return
-                }
-                self.updateView(with: article)
-            }
+        guard let key = articleURL.wmf_inMemoryKey else {
+            completion?()
             return
         }
-        updateView(with: article)
-        completion?()
+        dataStore.articleSummaryController.updateOrCreateArticleSummaryForArticle(withKey: key) { (article, _) in
+            defer {
+                completion?()
+            }
+            guard let article = article else {
+                self.activityIndicatorView.stopAnimating()
+                return
+            }
+            self.updateView(with: article)
+        }
     }
     
-    public func updatePreferredContentSize(for contentWidth: CGFloat) {
+    func updatePreferredContentSize(for contentWidth: CGFloat) {
         var updatedContentSize = expandedArticleView.sizeThatFits(CGSize(width: contentWidth, height: UIView.noIntrinsicMetric), apply: true)
         updatedContentSize.width = contentWidth // extra protection to ensure this stays == width
         parent?.preferredContentSize = updatedContentSize
@@ -71,14 +67,9 @@ class ArticlePeekPreviewViewController: UIViewController, Peekable {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = theme.colors.paperBackground
-        view.translatesAutoresizingMaskIntoConstraints = false
-        
-        activityIndicatorView.translatesAutoresizingMaskIntoConstraints = false
-        activityIndicatorView.style = theme.isDark ? .white : .gray
+        activityIndicatorView.color = theme.isDark ? .white : .gray
         activityIndicatorView.startAnimating()
         view.addSubview(activityIndicatorView)
-        
-        expandedArticleView.translatesAutoresizingMaskIntoConstraints = false
         expandedArticleView.isHidden = true
         view.addSubview(expandedArticleView)
         expandedArticleView.updateFonts(with: traitCollection)

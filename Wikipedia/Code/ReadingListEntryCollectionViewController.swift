@@ -1,4 +1,5 @@
 import UIKit
+import CocoaLumberjackSwift
 
 protocol ReadingListEntryCollectionViewControllerDelegate: NSObjectProtocol {
     func readingListEntryCollectionViewController(_ viewController: ReadingListEntryCollectionViewController, didUpdate collectionView: UICollectionView)
@@ -97,6 +98,9 @@ class ReadingListEntryCollectionViewController: ColumnarCollectionViewController
         cell.configure(article: article, index: indexPath.item, shouldShowSeparators: true, theme: theme, layoutOnly: layoutOnly)
         cell.isBatchEditable = true
         cell.layoutMargins = layout.itemLayoutMargins
+        cell.alertButtonCallback = { [weak self] in
+            self?.presentArticleErrorRecovery(with: article)
+        }
         editController.configureSwipeableCell(cell, forItemAt: indexPath, layoutOnly: layoutOnly)
     }
     
@@ -116,7 +120,7 @@ class ReadingListEntryCollectionViewController: ColumnarCollectionViewController
         guard let articleURL = url, dataStore.savedPageList.entry(for: articleURL) == nil else {
             return
         }
-        ReadingListsFunnel.shared.logUnsaveInReadingList(articlesCount: articlesCount, language: articleURL.wmf_language)
+        ReadingListsFunnel.shared.logUnsaveInReadingList(articlesCount: articlesCount, language: articleURL.wmf_languageCode)
     }
     
     // MARK: - Empty state
@@ -131,7 +135,38 @@ class ReadingListEntryCollectionViewController: ColumnarCollectionViewController
     
     override func refresh() {
         dataStore.readingListsController.fullSync {
-            self.endRefreshing()
+            assert(Thread.isMainThread)
+            self.retryFailedArticleDownloads {
+                DispatchQueue.main.async {
+                    self.endRefreshing()
+                    self.collectionView.reloadData()
+                }
+            }
+        }
+    }
+    
+    func retryFailedArticleDownloads(_ completion: @escaping () -> Void) {
+        guard let predicate = fetchedResultsController?.fetchRequest.predicate else {
+            completion()
+            return
+        }
+        dataStore.performBackgroundCoreDataOperation { (moc) in
+            defer {
+                completion()
+            }
+            let request: NSFetchRequest<ReadingListEntry> = ReadingListEntry.fetchRequest()
+            request.predicate = predicate
+            request.propertiesToFetch = ["articleKey"]
+            do {
+                let entries = try moc.fetch(request)
+                let keys = entries.compactMap { $0.articleKey }
+                guard !keys.isEmpty else {
+                    return
+                }
+                try moc.retryFailedArticleDownloads(with: keys)
+            } catch let error {
+                DDLogError("Error retrying failed articles: \(error)")
+            }
         }
     }
     
@@ -169,14 +204,14 @@ class ReadingListEntryCollectionViewController: ColumnarCollectionViewController
         }
         let entry = fetchedResultsController.object(at: indexPath)
         
-        guard let article = entry.articleKey.flatMap(dataStore.fetchArticle(withKey:)) else {
-            return nil
-        }
-        return article
+        return article(for: entry)
     }
     
     func article(for entry: ReadingListEntry) -> WMFArticle? {
-        return entry.articleKey.flatMap(dataStore.fetchArticle(withKey: ))
+        guard let inMemoryKey = entry.inMemoryKey else {
+            return nil
+        }
+        return dataStore.fetchArticle(withKey: inMemoryKey.databaseKey, variant: inMemoryKey.languageVariantCode)
     }
     
     override func scrollViewDidScroll(_ scrollView: UIScrollView) {
@@ -186,7 +221,7 @@ class ReadingListEntryCollectionViewController: ColumnarCollectionViewController
     
     override func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
         super.scrollViewWillBeginDragging(scrollView)
-        if (editController.isTextEditing) {
+        if editController.isTextEditing {
             editController.isTextEditing = false
         }
     }
@@ -231,7 +266,7 @@ class ReadingListEntryCollectionViewController: ColumnarCollectionViewController
         guard
             let article = note.object as? WMFArticle,
             article.hasChangedValuesForCurrentEventThatAffectSavedArticlePreviews,
-            let articleKey = article.key
+            let articleKey = article.inMemoryKey
             else {
                 return
         }
@@ -240,7 +275,7 @@ class ReadingListEntryCollectionViewController: ColumnarCollectionViewController
             guard let entry = entry(at: indexPath) else {
                 return false
             }
-            return entry.articleKey == articleKey
+            return entry.inMemoryKey == articleKey
         }
 
         guard !visibleIndexPathsWithChanges.isEmpty else {
@@ -386,34 +421,24 @@ extension ReadingListEntryCollectionViewController {
     }
 }
 
-// MARK: - UIViewControllerPreviewingDelegate
+// MARK: - CollectionViewContextMenuShowing
 
-extension ReadingListEntryCollectionViewController {
-    override func previewingContext(_ previewingContext: UIViewControllerPreviewing, viewControllerForLocation location: CGPoint) -> UIViewController? {
-        guard !editController.isActive else {
-            return nil // don't allow 3d touch when swipe actions are active
-        }
-        
-        guard
-            let indexPath = collectionViewIndexPathForPreviewingContext(previewingContext, location: location),
-            let articleURL = articleURL(at: indexPath)
-        else {
+extension ReadingListEntryCollectionViewController: CollectionViewContextMenuShowing {
+    func previewingViewController(for indexPath: IndexPath, at location: CGPoint) -> UIViewController? {
+        guard !editController.isActive, // don't allow previewing when swipe actions are active
+              let articleURL = articleURL(at: indexPath),
+              let articleViewController = ArticleViewController(articleURL: articleURL, dataStore: dataStore, theme: theme) else {
             return nil
         }
-        
-        let articleViewController = WMFArticleViewController(articleURL: articleURL, dataStore: dataStore, theme: theme)
-        articleViewController.articlePreviewingActionsDelegate = self
+
+        articleViewController.articlePreviewingDelegate = self
         articleViewController.wmf_addPeekableChildViewController(for: articleURL, dataStore: dataStore, theme: theme)
         return articleViewController
     }
-    
-    override func previewingContext(_ previewingContext: UIViewControllerPreviewing, commit viewControllerToCommit: UIViewController) {
-        viewControllerToCommit.wmf_removePeekableChildViewControllers()
-        if let articleViewController = viewControllerToCommit as? WMFArticleViewController {
-            wmf_push(articleViewController, animated: true)
-        } else {
-            wmf_push(viewControllerToCommit, animated: true)
-        }
+
+    var poppingIntoVCCompletion: () -> Void {
+        // Nothing custom needs to run for this VC
+        return {}
     }
 }
 
@@ -515,6 +540,3 @@ extension ReadingListEntryCollectionViewController: SavedViewControllerDelegate 
         navigationBar.isInteractiveHidingEnabled = true
     }
 }
-
-
-

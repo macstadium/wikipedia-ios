@@ -6,17 +6,17 @@ final class RelatedSearchFetcher: Fetcher {
         let pages: [ArticleSummary]?
     }
     
-    @objc func fetchRelatedArticles(forArticleWithURL articleURL: URL?, completion: @escaping (Error?, [String: ArticleSummary]?) -> Void) {
+    @objc func fetchRelatedArticles(forArticleWithURL articleURL: URL?, completion: @escaping (Error?, [WMFInMemoryURLKey: ArticleSummary]?) -> Void) {
         guard
             let articleURL = articleURL,
-            let articleTitle = articleURL.wmf_titleWithUnderscores?.addingPercentEncoding(withAllowedCharacters: .wmf_articleTitlePathComponentAllowed)
+            let articleTitle = articleURL.percentEncodedPageTitleForPathComponents
         else {
             completion(Fetcher.invalidParametersError, nil)
             return
         }
 
         let pathComponents = ["page", "related", articleTitle]
-        guard let taskURL = configuration.wikipediaMobileAppsServicesAPIURLComponentsForHost(articleURL.host, appending: pathComponents).url else {
+        guard let taskURL = configuration.pageContentServiceAPIURLForURL(articleURL, appending: pathComponents) else {
             completion(Fetcher.invalidParametersError, nil)
             return
         }
@@ -43,8 +43,9 @@ final class RelatedSearchFetcher: Fetcher {
                 return
             }
             
-            let summaryKeysWithValues: [(String, ArticleSummary)] = summaries.compactMap { (summary) -> (String, ArticleSummary)? in
-                guard let articleKey = summary.articleURL?.wmf_databaseKey else {
+            let summaryKeysWithValues: [(WMFInMemoryURLKey, ArticleSummary)] = summaries.compactMap { (summary) -> (WMFInMemoryURLKey, ArticleSummary)? in
+                summary.languageVariantCode = articleURL.wmf_languageVariantCode
+                guard let articleKey = summary.key else {
                     return nil
                 }
                 return (articleKey, summary)

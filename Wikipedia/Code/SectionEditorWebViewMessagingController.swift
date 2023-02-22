@@ -1,21 +1,21 @@
-protocol SectionEditorWebViewMessagingControllerButtonMessageDelegate: class {
+protocol SectionEditorWebViewMessagingControllerButtonMessageDelegate: AnyObject {
     func sectionEditorWebViewMessagingControllerDidReceiveSelectButtonMessage(_ sectionEditorWebViewMessagingController: SectionEditorWebViewMessagingController, button: SectionEditorButton)
     func sectionEditorWebViewMessagingControllerDidReceiveDisableButtonMessage(_ sectionEditorWebViewMessagingController: SectionEditorWebViewMessagingController, button: SectionEditorButton)
 }
 
-protocol SectionEditorWebViewMessagingControllerTextSelectionDelegate: class {
+protocol SectionEditorWebViewMessagingControllerTextSelectionDelegate: AnyObject {
     func sectionEditorWebViewMessagingControllerDidReceiveTextSelectionChangeMessage(_ sectionEditorWebViewMessagingController: SectionEditorWebViewMessagingController, isRangeSelected: Bool)
 }
 
-protocol SectionEditorWebViewMessagingControllerFindInPageDelegate: class {
+protocol SectionEditorWebViewMessagingControllerFindInPageDelegate: AnyObject {
     func sectionEditorWebViewMessagingControllerDidReceiveFindInPagesMatchesMessage(_ sectionEditorWebViewMessagingController: SectionEditorWebViewMessagingController, matchesCount: Int, matchIndex: Int, matchID: String?)
 }
 
-protocol SectionEditorWebViewMessagingControllerAlertDelegate: class {
+protocol SectionEditorWebViewMessagingControllerAlertDelegate: AnyObject {
     func sectionEditorWebViewMessagingControllerDidReceiveReplaceAllMessage(_ sectionEditorWebViewMessagingController: SectionEditorWebViewMessagingController, replacedCount: Int)
 }
 
-protocol SectionEditorWebViewMessagingControllerScrollDelegate: class {
+protocol SectionEditorWebViewMessagingControllerScrollDelegate: AnyObject {
     func sectionEditorWebViewMessagingController(_ sectionEditorWebViewMessagingController: SectionEditorWebViewMessagingController, didReceiveScrollMessageWithNewContentOffset newContentOffset: CGPoint)
 }
 
@@ -141,7 +141,7 @@ class SectionEditorWebViewMessagingController: NSObject, WKScriptMessageHandler 
 
     func setWikitext(_ wikitext: String, completionHandler: ((Error?) -> Void)? = nil) {
         assert(Thread.isMainThread)
-        let escapedWikitext = wikitext.wmf_stringBySanitizingForBacktickDelimitedJavascript()
+        let escapedWikitext = wikitext.sanitizedForJavaScriptTemplateLiterals
         completions[.wikitext] = completionHandler
         webView.evaluateJavaScript("window.wmf.setWikitext(`\(escapedWikitext)`, () => {  window.webkit.messageHandlers.didSetWikitextMessage.postMessage({}); });") { (_, error) in
             guard let error = error, let completionHandler = completionHandler else {
@@ -155,9 +155,9 @@ class SectionEditorWebViewMessagingController: NSObject, WKScriptMessageHandler 
 
     func highlightAndScrollToText(for selectedTextEditInfo: SelectedTextEditInfo, completionHandler: ((Error?) -> Void)? = nil) {
         let selectedAndAdjacentText = selectedTextEditInfo.selectedAndAdjacentText
-        let escapedSelectedText = selectedAndAdjacentText.selectedText.wmf_stringBySanitizingForBacktickDelimitedJavascript()
-        let escapedTextBeforeSelectedText = selectedAndAdjacentText.textBeforeSelectedText.wmf_stringBySanitizingForBacktickDelimitedJavascript()
-        let escapedTextAfterSelectedText = selectedAndAdjacentText.textAfterSelectedText.wmf_stringBySanitizingForBacktickDelimitedJavascript()
+        let escapedSelectedText = selectedAndAdjacentText.selectedText.sanitizedForJavaScriptTemplateLiterals
+        let escapedTextBeforeSelectedText = selectedAndAdjacentText.textBeforeSelectedText.sanitizedForJavaScriptTemplateLiterals
+        let escapedTextAfterSelectedText = selectedAndAdjacentText.textAfterSelectedText.sanitizedForJavaScriptTemplateLiterals
         webView.evaluateJavaScript("""
             window.wmf.highlightAndScrollToWikitextForSelectedAndAdjacentText(`\(escapedSelectedText)`, `\(escapedTextBeforeSelectedText)`, `\(escapedTextAfterSelectedText)`);
         """) { (_, error) in
@@ -254,37 +254,6 @@ class SectionEditorWebViewMessagingController: NSObject, WKScriptMessageHandler 
         execCommand(for: .template)
     }
 
-    struct Link {
-        let page: String
-        let label: String?
-        let exists: Bool
-
-        init?(page: String?, label: String?, exists: Bool?) {
-            guard let page = page else {
-                assertionFailure("Attempting to create a Link without a page")
-                return nil
-            }
-            guard let exists = exists else {
-                assertionFailure("Attempting to create a Link without information about whether it's an existing link")
-                return nil
-            }
-            self.page = page
-            self.label = label
-            self.exists = exists
-        }
-
-        var hasLabel: Bool {
-            return label != nil
-        }
-
-        func articleURL(for siteURL: URL) -> URL? {
-            guard exists else {
-                return nil
-            }
-            return siteURL.wmf_URL(withTitle: page)
-        }
-    }
-
     func getLink(completion: @escaping (Link?) -> Void) {
         execCommand(for: .getLink) { result, error in
             guard error == nil else {
@@ -294,7 +263,8 @@ class SectionEditorWebViewMessagingController: NSObject, WKScriptMessageHandler 
             guard let link = result as? [String: Any] else {
                 return
             }
-            let page = link["page"] as? String
+            let rawPage = link["page"] as? String
+            let page = (rawPage?.wmf_hasAlphanumericText == true) ? rawPage : ""
             let label = link["label"] as? String
             let exists = link["hasMarkup"] as? Bool
             completion(Link(page: page, label: label, exists: exists))
@@ -303,7 +273,7 @@ class SectionEditorWebViewMessagingController: NSObject, WKScriptMessageHandler 
 
     func insertOrEditLink(page: String, label: String?) {
         let labelOrNull = label.flatMap { "\"\($0)\"" } ?? "null"
-        let argument = "\"\(page)\", \(labelOrNull)".wmf_stringBySanitizingForBacktickDelimitedJavascript()
+        let argument = "\"\(page)\", \(labelOrNull)".sanitizedForJavaScriptTemplateLiterals
         execCommand(for: .insertOrEditLink, argument: argument)
     }
 
@@ -429,7 +399,7 @@ class SectionEditorWebViewMessagingController: NSObject, WKScriptMessageHandler 
     }
 
     func find(text: String) {
-        let escapedText = text.wmf_stringBySanitizingForBacktickDelimitedJavascript()
+        let escapedText = text.sanitizedForJavaScriptTemplateLiterals
         execCommand(for: .find, argument: "`\(escapedText)`")
     }
 
@@ -450,12 +420,12 @@ class SectionEditorWebViewMessagingController: NSObject, WKScriptMessageHandler 
     }
     
     func replaceAll(text: String) {
-        let escapedText = text.wmf_stringBySanitizingForBacktickDelimitedJavascript()
+        let escapedText = text.sanitizedForJavaScriptTemplateLiterals
         execCommand(for: .replaceAll, argument: "`\(escapedText)`")
     }
     
     func replaceSingle(text: String) {
-        let escapedText = text.wmf_stringBySanitizingForBacktickDelimitedJavascript()
+        let escapedText = text.sanitizedForJavaScriptTemplateLiterals
         execCommand(for: .replaceSingle, argument: "`\(escapedText)`")
     }
     
@@ -464,7 +434,7 @@ class SectionEditorWebViewMessagingController: NSObject, WKScriptMessageHandler 
     }
 
     func replaceSelection(text: String) {
-        let escapedText = text.wmf_stringBySanitizingForBacktickDelimitedJavascript()
+        let escapedText = text.sanitizedForJavaScriptTemplateLiterals
         execCommand(for: .replaceSelection, argument: "`\(escapedText)`")
     }
 

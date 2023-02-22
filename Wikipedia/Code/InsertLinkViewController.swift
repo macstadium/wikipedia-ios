@@ -9,7 +9,6 @@ class InsertLinkViewController: UIViewController {
     weak var delegate: InsertLinkViewControllerDelegate?
     private var theme = Theme.standard
     private let dataStore: MWKDataStore
-    typealias Link = SectionEditorWebViewMessagingController.Link
     private let link: Link
     private let siteURL: URL?
 
@@ -35,14 +34,15 @@ class InsertLinkViewController: UIViewController {
         searchViewController.dataStore = dataStore
         searchViewController.siteURL = siteURL
         searchViewController.searchTerm = link.page
-        searchViewController.areRecentSearchesEnabled = false
+        searchViewController.areRecentSearchesEnabled = true
         searchViewController.shouldBecomeFirstResponder = true
-        searchViewController.dataStore = SessionSingleton.sharedInstance()?.dataStore
+        searchViewController.dataStore = MWKDataStore.shared()
         searchViewController.shouldShowCancelButton = false
         searchViewController.delegate = self
         searchViewController.delegatesSelection = true
         searchViewController.showLanguageBar = false
-        searchViewController.search()
+        searchViewController.updateRecentlySearchedVisibility(searchText: link.page)
+        searchViewController.doResultsShowArticlePreviews = false
         return searchViewController
     }()
 
@@ -54,6 +54,11 @@ class InsertLinkViewController: UIViewController {
         navigationController.isNavigationBarHidden = true
         wmf_add(childController: navigationController, andConstrainToEdgesOfContainerView: view)
         apply(theme: theme)
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        searchViewController.search()
     }
 
     @objc private func delegateCloseButtonTap(_ sender: UIBarButtonItem) {
@@ -86,4 +91,8 @@ extension InsertLinkViewController: Themeable {
         closeButton.tintColor = theme.colors.primaryText
         searchViewController.apply(theme: theme)
     }
+}
+
+extension InsertLinkViewController: EditingFlowViewController {
+    
 }

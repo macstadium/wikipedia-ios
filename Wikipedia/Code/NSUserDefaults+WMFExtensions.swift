@@ -2,17 +2,6 @@ let WMFAppResignActiveDateKey = "WMFAppResignActiveDateKey"
 let WMFShouldRestoreNavigationStackOnResume = "WMFShouldRestoreNavigationStackOnResume"
 let WMFAppSiteKey = "Domain"
 let WMFSearchURLKey = "WMFSearchURLKey"
-let WMFMigrateHistoryListKey = "WMFMigrateHistoryListKey"
-let WMFMigrateToSharedContainerKey = "WMFMigrateToSharedContainerKey"
-let WMFMigrateSavedPageListKey = "WMFMigrateSavedPageListKey"
-let WMFMigrateBlackListKey = "WMFMigrateBlackListKey"
-let WMFMigrateToFixArticleCacheKey = "WMFMigrateToFixArticleCacheKey3"
-let WMFDidMigrateToGroupKey = "WMFDidMigrateToGroup"
-let WMFDidMigrateToCoreDataFeedKey = "WMFDidMigrateToCoreDataFeedKey"
-let WMFMostRecentInTheNewsNotificationDateKey = "WMFMostRecentInTheNewsNotificationDate"
-let WMFInTheNewsMostRecentDateNotificationCountKey = "WMFInTheNewsMostRecentDateNotificationCount"
-let WMFDidShowNewsNotificatonInFeedKey = "WMFDidShowNewsNotificatonInFeedKey"
-let WMFInTheNewsNotificationsEnabled = "WMFInTheNewsNotificationsEnabled"
 let WMFFeedRefreshDateKey = "WMFFeedRefreshDateKey"
 let WMFLocationAuthorizedKey = "WMFLocationAuthorizedKey"
 let WMFPlacesDidPromptForLocationAuthorization = "WMFPlacesDidPromptForLocationAuthorization"
@@ -34,6 +23,15 @@ let WMFDidShowTitleDescriptionEditingIntro = "WMFDidShowTitleDescriptionEditingI
 let WMFDidShowFirstEditPublishedPanelKey = "WMFDidShowFirstEditPublishedPanelKey"
 let WMFIsSyntaxHighlightingEnabled = "WMFIsSyntaxHighlightingEnabled"
 let WMFSearchLanguageKey = "WMFSearchLanguageKey"
+let WMFAppInstallId = "WMFAppInstallId"
+let WMFSendUsageReports = "WMFSendUsageReports"
+let WMFShowNotificationsExploreFeedCard = "WMFShowNotificationsExploreFeedCard"
+let WMFUserHasOnboardedToNotificationsCenter = "WMFUserHasOnboardedToNotificationsCenter"
+let WMFUserHasOnboardedToContributingToTalkPages = "WMFUserHasOnboardedToContributingToTalkPages"
+let WMFDidShowNotificationsCenterPushOptInPanel = "WMFDidShowNotificationsCenterPushOptInPanel"
+let WMFSubscribedToEchoNotifications = "WMFSubscribedToEchoNotifications"
+let WMFTappedToImportSharedReadingListSurvey = "WMFTappedToImportSharedReadingListSurvey"
+public let WMFAlwaysDisplayEditNotices = "WMFAlwaysDisplayEditNotices"
 
 @objc public enum WMFAppDefaultTabType: Int {
     case explore
@@ -47,36 +45,7 @@ let WMFSearchLanguageKey = "WMFSearchLanguageKey"
         static let didShowDescriptionPublishedPanel = "WMFDidShowDescriptionPublishedPanel"
         static let didShowEditingOnboarding = "WMFDidShowEditingOnboarding"
         static let autoSignTalkPageDiscussions = "WMFAutoSignTalkPageDiscussions"
-        static let shouldCheckForArticleAnnouncements = "WMFShouldCheckForArticleAnnouncements"
-    }
-
-    @objc static let wmf: UserDefaults = {
-#if WMF_NO_APP_GROUP
-        return UserDefaults.standard
-#else
-        guard let defaults = UserDefaults(suiteName: WMFApplicationGroupIdentifier) else {
-            assertionFailure("Defaults not found!")
-            return UserDefaults.standard
-        }
-        return defaults
-#endif
-    }()
-    
-    @objc class func wmf_migrateToWMFGroupUserDefaultsIfNecessary() {
-        let newDefaults = self.wmf
-        let didMigrate = newDefaults.bool(forKey: WMFDidMigrateToGroupKey)
-        if (!didMigrate) {
-            let oldDefaults = UserDefaults.standard
-            let oldDefaultsDictionary = oldDefaults.dictionaryRepresentation()
-            for (key, value) in oldDefaultsDictionary {
-                let lowercaseKey = key.lowercased()
-                if lowercaseKey.hasPrefix("apple") || lowercaseKey.hasPrefix("ns") {
-                    continue
-                }
-                newDefaults.set(value, forKey: key)
-            }
-            newDefaults.set(true, forKey: WMFDidMigrateToGroupKey)
-        }
+        static let talkPageForceRefreshRevisionIDs = "WMFTalkPageForceRefreshRevisionIDs"
     }
 
     @objc func wmf_dateForKey(_ key: String) -> Date? {
@@ -90,7 +59,7 @@ let WMFSearchLanguageKey = "WMFSearchLanguageKey"
     @objc func wmf_setAppResignActiveDate(_ date: Date?) {
         if let date = date {
             self.set(date, forKey: WMFAppResignActiveDateKey)
-        }else{
+        } else {
             self.removeObject(forKey: WMFAppResignActiveDateKey)
         }
     }
@@ -113,6 +82,38 @@ let WMFSearchLanguageKey = "WMFSearchLanguageKey"
         }
     }
     
+    @objc var wmf_appInstallId: String? {
+        get {
+            var appInstallId = string(forKey: WMFAppInstallId)
+            if appInstallId == nil {
+                appInstallId = UUID().uuidString
+                set(appInstallId, forKey: WMFAppInstallId)
+            }
+            return appInstallId
+        }
+        set {
+            set(newValue, forKey: WMFAppInstallId)
+        }
+    }
+
+    @objc var wmf_sendUsageReports: Bool {
+        get {
+            return bool(forKey: WMFSendUsageReports)
+        }
+        set {
+            set(newValue, forKey: WMFSendUsageReports)
+        }
+    }
+
+    @objc var wmf_isSubscribedToEchoNotifications: Bool {
+        get {
+            return bool(forKey: WMFSubscribedToEchoNotifications)
+        }
+        set {
+            set(newValue, forKey: WMFSubscribedToEchoNotifications)
+        }
+    }
+
     @objc func wmf_setFeedRefreshDate(_ date: Date) {
         self.set(date, forKey: WMFFeedRefreshDateKey)
     }
@@ -127,10 +128,16 @@ let WMFSearchLanguageKey = "WMFSearchLanguageKey"
     
     @objc var themeAnalyticsName: String {
         let name = string(forKey: WMFAppThemeName)
+        let systemDarkMode = systemDarkModeEnabled
         guard name != nil, name != Theme.defaultThemeName else {
+            return systemDarkMode ? Theme.black.analyticsName : Theme.light.analyticsName
+        }
+        
+        if Theme.withName(name)?.name == Theme.light.name {
             return Theme.defaultAnalyticsThemeName
         }
-        return Theme.withName(name)?.name ?? Theme.light.name
+        
+        return Theme.withName(name)?.analyticsName ?? Theme.light.analyticsName
     }
     
     @objc var themeDisplayName: String {
@@ -144,12 +151,10 @@ let WMFSearchLanguageKey = "WMFSearchLanguageKey"
     @objc(themeCompatibleWith:)
     func theme(compatibleWith traitCollection: UITraitCollection) -> Theme {
         let name = string(forKey: WMFAppThemeName)
+        let systemDarkMode = traitCollection.userInterfaceStyle == .dark
+        systemDarkModeEnabled = systemDarkMode
         guard name != nil, name != Theme.defaultThemeName else {
-            if #available(iOSApplicationExtension 13.0, *) {
-                return traitCollection.userInterfaceStyle == .dark ? Theme.black.withDimmingEnabled(wmf_isImageDimmingEnabled) : .light
-            } else {
-                return .light
-            }
+                return systemDarkMode ? Theme.black.withDimmingEnabled(wmf_isImageDimmingEnabled) : .light
         }
         let theme = Theme.withName(name) ?? Theme.light
         return theme.isDark ? theme.withDimmingEnabled(wmf_isImageDimmingEnabled) : theme
@@ -176,7 +181,7 @@ let WMFSearchLanguageKey = "WMFSearchLanguageKey"
     @objc var wmf_IsSyntaxHighlightingEnabled: Bool {
         get {
             if object(forKey: WMFIsSyntaxHighlightingEnabled) == nil {
-                return true //default to highlighting enabled
+                return true // default to highlighting enabled
             }
             
             return bool(forKey: WMFIsSyntaxHighlightingEnabled)
@@ -250,7 +255,7 @@ let WMFSearchLanguageKey = "WMFSearchLanguageKey"
     @objc func wmf_showSearchLanguageBar() -> Bool {
         if let enabled = self.object(forKey: "ShowLanguageBar") as? NSNumber {
             return enabled.boolValue
-        }else{
+        } else {
             return false
         }
     }
@@ -264,28 +269,16 @@ let WMFSearchLanguageKey = "WMFSearchLanguageKey"
         }
     }
     
-    @objc func wmf_currentSearchLanguageDomain() -> URL? {
-        if let url = self.url(forKey: WMFSearchURLKey) {
-            return url
-        }else if let language = self.object(forKey: WMFSearchLanguageKey) as? String {
-            let url = NSURL.wmf_URL(withDefaultSiteAndlanguage: language)
-            self.wmf_setCurrentSearchLanguageDomain(url)
-            return url
-        }else{
-            return nil
-        }
+    @objc func wmf_currentSearchContentLanguageCode() -> String? {
+        self.string(forKey: WMFSearchLanguageKey)
     }
     
-    @objc func wmf_setCurrentSearchLanguageDomain(_ url: URL?) {
-        guard let url = url else{
-            self.removeObject(forKey: WMFSearchURLKey)
-            return
+    @objc func wmf_setCurrentSearchContentLanguageCode(_ code: String?) {
+        if let code = code {
+            set(code, forKey: WMFSearchLanguageKey)
+        } else {
+            removeObject(forKey: WMFSearchLanguageKey)
         }
-        guard !url.wmf_isNonStandardURL else{
-            return;
-        }
-        
-        self.set(url, forKey: WMFSearchURLKey)
     }
     
     @objc func wmf_setDidShowWIconPopover(_ shown: Bool) {
@@ -295,7 +288,7 @@ let WMFSearchLanguageKey = "WMFSearchLanguageKey"
     @objc func wmf_didShowWIconPopover() -> Bool {
         if let enabled = self.object(forKey: "ShowWIconPopover") as? NSNumber {
             return enabled.boolValue
-        }else{
+        } else {
             return false
         }
     }
@@ -307,7 +300,7 @@ let WMFSearchLanguageKey = "WMFSearchLanguageKey"
     @objc func wmf_didShowMoreLanguagesTooltip() -> Bool {
         if let enabled = self.object(forKey: "ShowMoreLanguagesTooltip") as? NSNumber {
             return enabled.boolValue
-        }else{
+        } else {
             return false
         }
     }
@@ -319,7 +312,7 @@ let WMFSearchLanguageKey = "WMFSearchLanguageKey"
     @objc func wmf_isTableOfContentsVisibleInline() -> Bool {
         if let enabled = self.object(forKey: "TableOfContentsIsVisibleInline") as? NSNumber {
             return enabled.boolValue
-        }else{
+        } else {
             return true
         }
     }
@@ -330,86 +323,6 @@ let WMFSearchLanguageKey = "WMFSearchLanguageKey"
     
     @objc func wmf_didFinishLegacySavedArticleImageMigration() -> Bool {
         return self.bool(forKey: "DidFinishLegacySavedArticleImageMigration2")
-    }
-    
-    @objc func wmf_setDidMigrateHistoryList(_ didFinish: Bool) {
-        self.set(didFinish, forKey: WMFMigrateHistoryListKey)
-    }
-    
-    @objc func wmf_didMigrateHistoryList() -> Bool {
-        return self.bool(forKey: WMFMigrateHistoryListKey)
-    }
-
-    @objc func wmf_setDidMigrateSavedPageList(_ didFinish: Bool) {
-        self.set(didFinish, forKey: WMFMigrateSavedPageListKey)
-    }
-    
-    @objc func wmf_didMigrateSavedPageList() -> Bool {
-        return self.bool(forKey: WMFMigrateSavedPageListKey)
-    }
-
-    @objc func wmf_setDidMigrateBlackList(_ didFinish: Bool) {
-        self.set(didFinish, forKey: WMFMigrateBlackListKey)
-    }
-    
-    @objc func wmf_didMigrateBlackList() -> Bool {
-        return self.bool(forKey: WMFMigrateBlackListKey)
-    }
-    
-    @objc func wmf_setDidMigrateToFixArticleCache(_ didFinish: Bool) {
-        self.set(didFinish, forKey: WMFMigrateToFixArticleCacheKey)
-    }
-    
-    @objc func wmf_didMigrateToFixArticleCache() -> Bool {
-        return self.bool(forKey: WMFMigrateToFixArticleCacheKey)
-    }
-    
-    @objc func wmf_setDidMigrateToSharedContainer(_ didFinish: Bool) {
-        self.set(didFinish, forKey: WMFMigrateToSharedContainerKey)
-    }
-    
-    @objc func wmf_didMigrateToSharedContainer() -> Bool {
-        return self.bool(forKey: WMFMigrateToSharedContainerKey)
-    }
-
-    @objc func wmf_setDidMigrateToNewFeed(_ didMigrate: Bool) {
-        self.set(didMigrate, forKey: WMFDidMigrateToCoreDataFeedKey)
-    }
-    
-    @objc func wmf_didMigrateToNewFeed() -> Bool {
-        return self.bool(forKey: WMFDidMigrateToCoreDataFeedKey)
-    }
-    
-    @objc func wmf_mostRecentInTheNewsNotificationDate() -> Date? {
-        return self.wmf_dateForKey(WMFMostRecentInTheNewsNotificationDateKey)
-    }
-    
-    @objc func wmf_setMostRecentInTheNewsNotificationDate(_ date: Date) {
-        self.set(date, forKey: WMFMostRecentInTheNewsNotificationDateKey)
-    }
-    
-    @objc func wmf_inTheNewsMostRecentDateNotificationCount() -> Int {
-        return self.integer(forKey: WMFInTheNewsMostRecentDateNotificationCountKey)
-    }
-    
-    @objc func wmf_setInTheNewsMostRecentDateNotificationCount(_ count: Int) {
-        self.set(count, forKey: WMFInTheNewsMostRecentDateNotificationCountKey)
-    }
-    
-    @objc func wmf_inTheNewsNotificationsEnabled() -> Bool {
-        return self.bool(forKey: WMFInTheNewsNotificationsEnabled)
-    }
-    
-    @objc func wmf_setInTheNewsNotificationsEnabled(_ enabled: Bool) {
-        self.set(enabled, forKey: WMFInTheNewsNotificationsEnabled)
-    }
-
-    @objc func wmf_setDidShowNewsNotificationCardInFeed(_ didShow: Bool) {
-        self.set(didShow, forKey: WMFDidShowNewsNotificatonInFeedKey)
-    }
-    
-    @objc func wmf_didShowNewsNotificationCardInFeed() -> Bool {
-        return self.bool(forKey: WMFDidShowNewsNotificatonInFeedKey)
     }
 
     @objc func wmf_setDidShowEnableReadingListSyncPanel(_ didShow: Bool) {
@@ -499,6 +412,33 @@ let WMFSearchLanguageKey = "WMFSearchLanguageKey"
         self.set(didShow, forKey: WMFDidShowTitleDescriptionEditingIntro)
     }
 
+    @objc var wmf_userHasOnboardedToNotificationsCenter: Bool {
+        get {
+            return bool(forKey: WMFUserHasOnboardedToNotificationsCenter)
+        }
+        set {
+            set(newValue, forKey: WMFUserHasOnboardedToNotificationsCenter)
+        }
+    }
+
+    @objc var wmf_userHasOnboardedToContributingToTalkPages: Bool {
+        get {
+            return bool(forKey: WMFUserHasOnboardedToContributingToTalkPages)
+        }
+        set {
+            set(newValue, forKey: WMFUserHasOnboardedToContributingToTalkPages)
+        }
+    }
+
+    @objc var wmf_didShowNotificationsCenterPushOptInPanel: Bool {
+        get {
+            return bool(forKey: WMFDidShowNotificationsCenterPushOptInPanel)
+        }
+        set {
+            set(newValue, forKey: WMFDidShowNotificationsCenterPushOptInPanel)
+        }
+    }
+
     var isUserUnawareOfLogout: Bool {
         get {
             return bool(forKey: UserDefaults.Key.isUserUnawareOfLogout)
@@ -534,15 +474,68 @@ let WMFSearchLanguageKey = "WMFSearchLanguageKey"
             set(newValue, forKey: UserDefaults.Key.autoSignTalkPageDiscussions)
         }
     }
-
-    @objc var shouldCheckForArticleAnnouncements: Bool {
+    
+    var talkPageForceRefreshRevisionIDs: Set<Int>? {
         get {
-            return bool(forKey: UserDefaults.Key.shouldCheckForArticleAnnouncements)
+            guard let arrayValue = array(forKey: UserDefaults.Key.talkPageForceRefreshRevisionIDs) as? [Int],
+                !arrayValue.isEmpty else {
+                return nil
+            }
+            return Set<Int>(arrayValue)
         }
         set {
-            set(newValue, forKey: UserDefaults.Key.shouldCheckForArticleAnnouncements)
+            
+            guard let newValue = newValue,
+                !newValue.isEmpty else {
+                removeObject(forKey: UserDefaults.Key.talkPageForceRefreshRevisionIDs)
+                return
+            }
+            
+            let arrayValue = Array(newValue)
+            set(arrayValue, forKey: UserDefaults.Key.talkPageForceRefreshRevisionIDs)
         }
     }
+    
+    private var systemDarkModeEnabled: Bool {
+        get {
+            return bool(forKey: "SystemDarkMode")
+        }
+        set {
+            set(newValue, forKey: "SystemDarkMode")
+        }
+    }
+    
+    @objc var wmf_shouldShowNotificationsExploreFeedCard: Bool {
+        get {
+           return bool(forKey: WMFShowNotificationsExploreFeedCard)
+        }
+        set {
+            set(newValue, forKey: WMFShowNotificationsExploreFeedCard)
+        }
+    }
+    
+    @objc var wmf_tappedToImportSharedReadingListSurvey: Bool {
+        get {
+           return bool(forKey: WMFTappedToImportSharedReadingListSurvey)
+        }
+        set {
+            set(newValue, forKey: WMFTappedToImportSharedReadingListSurvey)
+        }
+    }
+
+    @objc var wmf_alwaysDisplayEditNotices: Bool {
+        get {
+            if object(forKey: WMFAlwaysDisplayEditNotices) == nil {                
+                return true
+            }
+            return bool(forKey: WMFAlwaysDisplayEditNotices)
+        }
+        set {
+            set(newValue, forKey: WMFAlwaysDisplayEditNotices)
+        }
+    }
+
+
 #if UI_TEST
     @objc func wmf_isFastlaneSnapshotInProgress() -> Bool {
         return bool(forKey: "FASTLANE_SNAPSHOT")

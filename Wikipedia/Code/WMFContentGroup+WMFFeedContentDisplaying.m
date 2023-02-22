@@ -32,6 +32,9 @@ NS_ASSUME_NONNULL_BEGIN
             return WMFLocalizedStringWithDefaultValue(@"in-the-news-title", nil, nil, @"In the news", @"Title for the 'In the news' notification & feed section");
         case WMFContentGroupKindOnThisDay:
             return WMFCommonStrings.onThisDayTitle;
+        case WMFContentGroupKindNotification:
+            return WMFLocalizedStringWithDefaultValue(@"notifications-center-feed-card-title", nil, nil, @"Editing notifications now available", @"Title for the 'Notification' explore feed card");
+            ;
         default:
             break;
     }
@@ -40,7 +43,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (NSString *)stringWithLocalizedCurrentSiteLanguageReplacingPlaceholderInString:(NSString *)string fallingBackOnGenericString:(NSString *)genericString {
     // fall back to language code if it can't be localized
-    NSString *language = [[NSLocale currentLocale] wmf_localizedLanguageNameForCode:self.siteURL.wmf_language];
+    NSString *language = [[NSLocale currentLocale] localizedStringForLanguageCode:self.siteURL.wmf_languageCode];
 
     NSString *result = nil;
 
@@ -89,7 +92,7 @@ NS_ASSUME_NONNULL_BEGIN
         case WMFContentGroupKindNews:
             return [self stringWithLocalizedCurrentSiteLanguageReplacingPlaceholderInString:WMFLocalizedStringWithDefaultValue(@"in-the-news-sub-title-from-language-wikipedia", nil, nil, @"From %1$@ Wikipedia", @"Subtext beneath the 'In the news' header when describing which specific Wikipedia. %1$@ will be replaced with the language - for example, 'From English Wikipedia'") fallingBackOnGenericString:WMFLocalizedStringWithDefaultValue(@"in-the-news-sub-title-from-wikipedia", nil, nil, @"From Wikipedia", @"Subtext beneath the 'In the news' header when the specific language wikipedia is unknown.")];
         case WMFContentGroupKindOnThisDay: {
-            NSString *language = [[NSLocale currentLocale] wmf_localizedLanguageNameForCode:self.siteURL.wmf_language];
+            NSString *language = [[NSLocale currentLocale] localizedStringForLanguageCode:self.siteURL.wmf_languageCode];
             if (language) {
                 return
                     [NSString localizedStringWithFormat:WMFLocalizedStringWithDefaultValue(@"on-this-day-sub-title-for-date-from-language-wikipedia", nil, nil, @"%1$@ from %2$@ Wikipedia", @"Subtext beneath the 'On this day' header when describing the date and which specific Wikipedia. %1$@ will be substituted with the date. %2$@ will be replaced with the language - for example, 'June 8th from English Wikipedia'"), [[NSDateFormatter wmf_utcMonthNameDayOfMonthNumberDateFormatter] stringFromDate:self.midnightUTCDate], language];
@@ -97,6 +100,8 @@ NS_ASSUME_NONNULL_BEGIN
                 return [[NSDateFormatter wmf_utcMonthNameDayOfMonthNumberDateFormatter] stringFromDate:self.midnightUTCDate];
             }
         }
+        case WMFContentGroupKindNotification:
+            return [[NSDateFormatter wmf_utcDayNameMonthNameDayOfMonthNumberDateFormatter] stringFromDate:self.midnightUTCDate];
         default:
             break;
     }
@@ -133,18 +138,6 @@ NS_ASSUME_NONNULL_BEGIN
             break;
     }
     return WMFFeedHeaderActionTypeOpenFirstItem;
-}
-
-- (WMFFeedBlacklistOption)blackListOptions {
-    switch (self.contentGroupKind) {
-        case WMFContentGroupKindRelatedPages:
-            return WMFFeedBlacklistOptionContent;
-        case WMFContentGroupKindLocationPlaceholder:
-            return WMFFeedBlacklistOptionSection;
-        default:
-            break;
-    }
-    return WMFFeedBlacklistOptionNone;
 }
 
 - (WMFFeedDisplayType)displayTypeForItemAtIndex:(NSInteger)index {
@@ -213,7 +206,7 @@ NS_ASSUME_NONNULL_BEGIN
         case WMFContentGroupKindMainPage:
             break;
         case WMFContentGroupKindRelatedPages:
-            return YES /*FBTweakValue(@"Explore", @"General", @"Put 'Because You Read' in Wider Column", YES)*/;
+            return YES;
         case WMFContentGroupKindLocation:
             break;
         case WMFContentGroupKindLocationPlaceholder:
@@ -364,7 +357,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (WMFFeedHeaderType)headerType {
     switch (self.contentGroupKind) {
         case WMFContentGroupKindNotification:
-            return WMFFeedHeaderTypeNone;
+            return WMFFeedHeaderTypeStandard;
         case WMFContentGroupKindTheme:
             return WMFFeedHeaderTypeNone;
         case WMFContentGroupKindReadingList:
@@ -391,7 +384,7 @@ NS_ASSUME_NONNULL_BEGIN
  *  String to display to the user for the receiver's date.
  *
  *  "Most read" articles are computed for UTC dates. UTC time zone is used because converting to the user's time zone
- *  might accidentally change the "day" the app displays based on the the offset between UTC & the device's default time
+ *  might accidentally change the "day" the app displays based on the offset between UTC & the device's default time
  *  zone.  For example: 02/12/2016 01:26 UTC converted to EST is 02/11/2016 20:26, one day off!
  *
  *  @return A string formatted with the current locale, in the UTC time zone.

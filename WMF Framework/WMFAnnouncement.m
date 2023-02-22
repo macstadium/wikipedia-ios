@@ -6,6 +6,8 @@
 
 @implementation WMFAnnouncement
 
+@synthesize actionURL = _actionURL;
+
 + (NSDictionary *)JSONKeyPathsByPropertyKey {
     return @{
         WMF_SAFE_KEYPATH(WMFAnnouncement.new, identifier): @"id",
@@ -17,14 +19,18 @@
         WMF_SAFE_KEYPATH(WMFAnnouncement.new, placement): @"placement",
         WMF_SAFE_KEYPATH(WMFAnnouncement.new, text): @"text",
         WMF_SAFE_KEYPATH(WMFAnnouncement.new, actionTitle): @"action.title",
-        WMF_SAFE_KEYPATH(WMFAnnouncement.new, actionURL): @"action.url",
+        WMF_SAFE_KEYPATH(WMFAnnouncement.new, actionURLString): @"action.url",
         WMF_SAFE_KEYPATH(WMFAnnouncement.new, captionHTML): @"caption_HTML",
         WMF_SAFE_KEYPATH(WMFAnnouncement.new, imageURL): @[@"image", @"image_url"],
         WMF_SAFE_KEYPATH(WMFAnnouncement.new, imageHeight): @"image_height",
         WMF_SAFE_KEYPATH(WMFAnnouncement.new, negativeText): @"negative_text",
         WMF_SAFE_KEYPATH(WMFAnnouncement.new, loggedIn): @"logged_in",
         WMF_SAFE_KEYPATH(WMFAnnouncement.new, readingListSyncEnabled): @"reading_list_sync_enabled",
-        WMF_SAFE_KEYPATH(WMFAnnouncement.new, beta): @"beta"
+        WMF_SAFE_KEYPATH(WMFAnnouncement.new, beta): @"beta",
+        WMF_SAFE_KEYPATH(WMFAnnouncement.new, domain): @"domain",
+        WMF_SAFE_KEYPATH(WMFAnnouncement.new, articleTitles): @"articleTitles",
+        WMF_SAFE_KEYPATH(WMFAnnouncement.new, displayDelay): @"displayDelay",
+        WMF_SAFE_KEYPATH(WMFAnnouncement.new, percentReceivingExperiment): @"percent_receiving_experiment"
     };
 }
 
@@ -32,18 +38,12 @@
     return 4;
 }
 
-+ (NSValueTransformer *)actionURLJSONTransformer {
-    return [MTLValueTransformer
-        transformerUsingForwardBlock:^NSURL *(NSString *urlString,
-                                              BOOL *success,
-                                              NSError *__autoreleasing *error) {
-            return [NSURL wmf_optionalURLWithString:urlString];
-        }
-        reverseBlock:^NSString *(NSURL *URL,
-                                 BOOL *success,
-                                 NSError *__autoreleasing *error) {
-            return [URL absoluteString];
-        }];
+- (NSURL *)actionURL {
+    if (!_actionURL) {
+        _actionURL = [NSURL wmf_optionalURLWithString: self.actionURLString];
+    }
+    
+    return _actionURL;
 }
 
 + (NSValueTransformer *)imageURLJSONTransformer {
@@ -77,6 +77,34 @@
         NSDate *date = [[NSDateFormatter wmf_iso8601Formatter] dateFromString:value];
         return date;
     }];
+}
+
++ (NSDictionary *)allowedSecureCodingClassesByPropertyKey {
+    
+    //Add NSString to list of allowed classes for NSArray properties.
+    //This fixes the "[NSKeyedUnarchiver validateAllowedClass:forKey:] allowed unarchiving safe plist type 'NSString' for key 'NS.objects', even though it was not explicitly included in the client allowed classes set" console error in iOS 15
+    NSDictionary *superAllowedClassesDict = [super allowedSecureCodingClassesByPropertyKey];
+    NSMutableDictionary *allowedClassesDict = [[NSMutableDictionary alloc] initWithDictionary:superAllowedClassesDict];
+
+    NSArray *keysToCheck = @[@"countries", @"platforms", @"articleTitles"];
+
+    for (NSString *key in keysToCheck) {
+        NSObject *object = [allowedClassesDict objectForKey:key];
+        if ([object isKindOfClass:[NSArray class]]) {
+            NSMutableArray *allowedClasses = [NSMutableArray arrayWithArray:(NSArray *)object];
+            [allowedClasses addObject:[NSString class]];
+            [allowedClassesDict setObject:[NSArray arrayWithArray:allowedClasses] forKey:key];
+        }
+    }
+
+    return [NSDictionary dictionaryWithDictionary:allowedClassesDict];
+}
+
+// No languageVariantCodePropagationSubelementKeys
+
++ (NSArray<NSString *> *)languageVariantCodePropagationURLKeys {
+    return @[@"imageURL",
+             @"actionURL"];
 }
 
 @end

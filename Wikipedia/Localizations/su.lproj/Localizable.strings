@@ -26,20 +26,6 @@
 "about-translators-details" = "Ditarjamahkeun ku rélawan di $1";
 "about-wikimedia-foundation" = "Yayasan Wikimédia";
 "about-wikipedia" = "Wikipédia";
-// Fuzzy
-"abuse-filter-disallow-heading" = "Anjeun teu bisa medalkeun ieu éditan. Pék balik deui tuluy robah.";
-// Fuzzy
-"abuse-filter-disallow-unconstructive" = "Panyaring otomatis geus ngidéntifikasi ieu éditan minangka poténsial teu konstruktif, atawa tarékah vandalismeu.";
-// Fuzzy
-"abuse-filter-warning-blanking" = "Ngosongkeun artikel atawa spam";
-// Fuzzy
-"abuse-filter-warning-caps" = "Ngetik ku HURUP KAPITAL KABÉH";
-"abuse-filter-warning-heading" = "Kawasna mah ieu éditan téh teu konstruktif, anjeun yakin rék medalkeunna?";
-"abuse-filter-warning-irrelevant" = "Tutumbu luar atawa gambar teu luyu";
-// Fuzzy
-"abuse-filter-warning-repeat" = "Karakter puuuulang anting";
-// Fuzzy
-"abuse-filter-warning-subheading" = "Éditan anjeun bisa waé ngandung hiji atawa leuwih hal ieu:";
 "account-creation-captcha-cannot-see-image" = "Teu bisa nempo gambar? $1";
 "account-creation-captcha-obtaining" = "Nyokot CAPTCHA anyar...";
 "account-creation-captcha-request-account" = "Ménta akun.";
@@ -73,7 +59,6 @@
 // Fuzzy
 "appearance-settings-text-sizing-example-text" = "Sérét gégéséran di luhur pikeun ngarobah ukuran téks artikel. Mangpaatkeun ukuran téks sistim anjeun pikeun ngarobah ukuran aréa téks lian dina aplikasi.";
 "appearance-settings-theme-options" = "Opsi téma";
-"article-about-title" = "Ngeunaan ieu artikel";
 "article-delete" = "Pupus";
 // Fuzzy
 "article-deleted-accessibility-notification" = "Artikel kapupus";
@@ -81,10 +66,8 @@
 "article-languages-label" = "Pilih basa";
 "article-languages-others" = "Basa séjén";
 "article-languages-yours" = "Basa anjeun";
-"article-read-more-title" = "Baca leuwih jero";
 "article-share" = "Bagikeun";
 "article-toolbar-reading-themes-controls-toolbar-item" = "Kontrol Téma Bacaan";
-"article-unable-to-load-section" = "Teu bisa muat ieu bagéan. Coba segerkeun deui artikel pikein nempoan mun éta tarékah bisa menerkeun masalah.";
 "back-button-accessibility-label" = "Balik deui";
 "button-next" = "Saterusna";
 "button-ok" = "Heug";
@@ -136,8 +119,6 @@
 "explore-potd-heading" = "Gambar poé ieu";
 "explore-random-article-heading" = "Artikel acak";
 "explore-randomizer" = "Kaca acak";
-"feed-news-notification-button-text" = "Pareuman iber";
-"feed-news-notification-text" = "Hurungkeun iber nu bakal dibéwarakan ku Wikipédia nalika artikel nu keur trén di kajadian kiwari.";
 "field-alert-captcha-invalid" = "CAPTCHA salah";
 "field-alert-password-confirm-mismatch" = "Kecap sandi teu akur";
 "field-alert-token-invalid" = "Kodeu salah";
@@ -187,18 +168,10 @@
 "icon-shortcut-random-title" = "Artikel acak";
 "icon-shortcut-search-title" = "Paluruh Wikipédia";
 "image-gallery-unknown-owner" = "Nu nyieun teu dipikanyaho.";
-"in-the-news-currently-trending" = "Kiwari ngetrén";
-"in-the-news-notification-read-now-action-title" = "Baca ayeuna";
-"in-the-news-notification-save-for-later-action-title" = "Simpen jang engké";
-"in-the-news-notification-share-action-title" = "Bagikeun...";
 "in-the-news-title" = "Dina warta";
-"info-box-close-text" = "Tutup";
-"info-box-title" = "Fakta Singget";
 "insert-media-image-preview-select-image-action-title" = "Pilih gambar";
 "languages-title" = "Robah basa";
 "languages-wikipedia" = "Basa Wikipédia";
-"license-footer-name" = "CC BY-SA 3.0";
-"license-footer-text" = "Eusi nu nyangkaruk ditangtayungan ku $1 iwal lamun disebutkeun béda.";
 "login-forgot-password" = "Poho kecap sandi?";
 "login-join-wikipedia" = "Gabung ka Wikipédia";
 "login-no-account" = "Teu boga akun? $1";
@@ -209,8 +182,6 @@
 "main-menu-account-logout-are-you-sure" = "Anjeun yakin rék kaluar log?";
 "main-menu-account-logout-cancel" = "Bolay";
 "main-menu-account-title-logged-in" = "Geus asup log minangka $1";
-"main-menu-debug-tweaks" = "Pangaturan pangembang";
-"main-menu-heading-debug" = "Debug";
 "main-menu-heading-legal" = "Privasi jeung Katangtuan";
 "main-menu-nearby" = "Sabudeureun";
 "main-menu-privacy-policy" = "Kawijakan privasi";
@@ -228,6 +199,8 @@
 "new-password-title" = "Atur kecap sandi anjeun";
 "no-email-account-alert" = "Pék siapkeun hiji akun surélék di pakakas anjeun sarta cobaan deui.";
 "no-internet-connection-article-reload-button" = "Balik deui ka vérsi kabucit";
+// Fuzzy
+"notifications-center-feed-news-notification-button-text" = "Pareuman iber";
 "number-billions" = "$1 milyar";
 "number-millions" = "$1 yuta";
 "number-thousands" = "$1 rébu";
@@ -235,20 +208,11 @@
 "on-this-day-detail-header-title" = "{{PLURAL:$1|$1 kajadian sajarah|$1 kajadian sajarah}}";
 "on-this-day-footer" = "Kajadian sajarah lianna dina poé ieu";
 "on-this-day-title" = "Dina poé ieu";
-"page-edit-history" = "Sakumna jujutan édit";
-"page-issues" = "Masalah kaca";
-// Fuzzy
-"page-last-edited" = "Diédit $1 poé katukang";
-"page-location" = "Tempo dina péta";
 "page-protected-autoconfirmed" = "Ieu kaca geus rada-dilindungan";
 "page-protected-can-not-edit" = "Anjeun teu miboga hak pikeun ngédit ieu kaca";
 "page-protected-can-not-edit-title" = "Ieu kaca dilindungan";
 "page-protected-other" = "Ieu kaca geus dilinsungan pikeun lévél di handap: $1";
 "page-protected-sysop" = "Ieu kaca geus dilindungan sagemblengna";
-// Fuzzy
-"page-read-in-other-languages" = "Nyangkaruk dina $1 basa séjén";
-"page-similar-titles" = "Kaca nu sarua";
-"page-talk-page" = "Tempo kaca obrolan";
 "pictured" = "gambar";
 "places-accessibility-clear-saved-searches" = "Bersihkeun pamaluruhan kasimpen";
 "places-accessibility-group" = "$1 artikel";
@@ -283,8 +247,6 @@
 "potd-empty-error-description" = "Gagal pikeun nampa gambar poé ieu dina $1";
 "preference-summary-eventlogging-opt-in" = "Heugbaékeun Wikimédia pikeun ngumpulkeun info ngeunaan cara anjeun migunakeun aplikasi nu leuwih hadé";
 "preference-title-eventlogging-opt-in" = "Kirim laporan pamakéan";
-"rank-accessibility-label" = "Réngking $1";
-"readers-accessibility-label" = "$1 pamaca";
 "reading-list-limit-hit-for-unsorted-articles-button-title" = "Runtuykeun artikel";
 "reading-list-sync-enable-button-title" = "Hurungkeun singkronan";
 "reading-lists-sort-saved-articles" = "Runtuykeun artikel kasimpen";
@@ -301,7 +263,6 @@
 // Fuzzy
 "relative-date-years-ago" = "{{PLURAL:$1|0=Taun ieu|Taun kamari|$1 taun kaliwat}}";
 "replace-method-button-accessibility" = "Ganti métodeu. Setél ka $1. Pilih jang ngarobah.";
-"request-feedback-on-error" = "Ieu aplikasi ngalaman masalah nu nyumebabkeun pangembang kami hayng mikanyaho leuwih jero. Pék totog di dieu pikeun ngirimkeun surélék kalawan wincikan kasalahan.";
 "saved-pages-image-download-error" = "Gagal ngundeur gambar pikeun ieu kaca kasimpen.";
 "saved-search-default-text" = "Paluruh artikel kasimpen";
 "saved-title" = "Kasimpen";
@@ -325,6 +286,7 @@
 "settings-help-and-feedback" = "Pitulung jeung eupan balik";
 "settings-language-bar" = "Témbongkeun basa dina pamaluruhan";
 "settings-my-languages" = "Basa kami";
+// Fuzzy
 "settings-notifications" = "Iber";
 "settings-notifications-info" = "Meunangkeun iber ngeunaan artikel nu keur trén sarta bacaan pangluhurna di Wikipédia kalawan iber otomatis kami. Sakumna sayaga patalian jeung privasi sarta nepi ka data menit.";
 "settings-notifications-learn-more" = "Tungtik leuwih jero ngeunaan iber";
@@ -337,39 +299,34 @@
 "settings-support" = "Rojong Wikipédia";
 "settings-title" = "Pangaturan";
 "share-a-fact-made-with" = "Dijieun maké aplikasi Wikipédia";
+// Fuzzy
 "share-article-name-on-wikipedia" = "\"$1\" na @Wikipédia:";
 "share-building" = "Ngawangun kartu Bagikeun-fakta...";
-"share-custom-menu-item" = "Bagikeun...";
 "share-default-format" = "“$1” ti “$2”: $3";
 "share-email-format" = "“$1”\n\nti “$2”\n\n$3";
 "share-get-directions-in-maps" = "Beunangkeun pituduh arah";
 "share-menu-item" = "Bagikeun...";
 "share-message-format" = "“$1” $2";
+// Fuzzy
 "share-on-twitter-sign-off" = "liwat @Wikipedia";
 "share-open-in-maps" = "Buka dina Péta";
 "share-social-format" = "“$1” liwat Wikipedia: $2";
+// Fuzzy
 "share-social-mention-format" = "“$1” liwat @Wikipedia: $2";
 "sort-by-title-action" = "Judul";
-"status-saved-for-later" = "Disimpen jang engké";
-"status-saving-for-later" = "Nyimpen jang engké...";
 "table-of-contents-button-label" = "Daptar Eusi";
 "table-of-contents-close-accessibility-hint" = "Tutup";
 "table-of-contents-close-accessibility-label" = "Tutup daptar eusi";
 "table-of-contents-heading" = "Eusi";
-"table-title-other" = "Informasi leuwih jero";
 "theme-black-display-name" = "Hideung";
 "theme-dark-display-name" = "Poék";
 "theme-default-display-name" = "Bawaan";
 "theme-sepia-display-name" = "Sépia";
-"top-read-header-generic" = "Wikipédia";
-"top-read-header-with-language" = "$1 Wikipédia";
-"top-read-see-more" = "Ilikan bacaan pangluhurna séjén";
 "two-factor-login-continue" = "Tuluykeun asup log";
 "two-factor-login-instructions" = "Sok asupkeun kodeu vérifikasi dua faktor";
 "two-factor-login-title" = "Asup log kana akun anjeun";
 "two-factor-login-with-backup-code" = "Paké kode cadangan anjeun";
 "two-factor-login-with-regular-code" = "Paké kodeu vérifikasi";
-"view-in-browser-footer-link" = "Tempo artikel di panyungsi";
 "welcome-exploration-explore-feed-description" = "Bacaan nu disarankeun jeung artikel poéan ti komunitas kami";
 "welcome-exploration-explore-feed-title" = "Langlang eupan";
 "welcome-exploration-on-this-day-description" = "Liar deui ka bihari pikeun nyangkem naon nu kajadian poé ayeuna dina sejarah";
@@ -379,6 +336,7 @@
 "welcome-explore-continue-button" = "Mitembeyan";
 "welcome-explore-new-ways-title" = "Cara anyar pikeun ngalanglang";
 "welcome-explore-tell-me-more-done-button" = "Ngarti";
+// Fuzzy
 "welcome-intro-free-encyclopedia-description" = "Wikipédia ditulis sacara kolaboratif ku sukarélawan jeung ngawengku leuwih ti 40 yuta artikel dina ampir 300 basa.";
 "welcome-intro-free-encyclopedia-more" = "Teuleuman ngeunaan Wikipédia";
 "welcome-intro-free-encyclopedia-more-about" = "Ngeunaan Wikipedia";
@@ -387,6 +345,7 @@
 "welcome-languages-add-button" = "Tambahkeun basa lianna";
 "welcome-languages-add-or-edit-button" = "Tambahan atawa édit basa pinilih";
 "welcome-languages-description" = "Kami geus manggihan basa di handap dina pakakas anjeun:";
+// Fuzzy
 "welcome-languages-search-title" = "Paluruh di ampir 300 basa";
 "welcome-notifications-tell-me-more-creation" = "Iber dijieun sarta ditepikeun kana parangkat anjeun ku aplikasi, lain tina sérver kami (atawa pihak katiga).";
 "welcome-notifications-tell-me-more-storage" = "Préférénsi iber disimpen di parangkat sarta teu dumasar kana informasi atawa aktivitas pribadi.";
@@ -395,7 +354,6 @@
 "welcome-send-data-learn-more" = "Teuleuman ngeunaan data nu dikumpulkeun";
 "welcome-send-data-sub-title" = "Bantu ngaropéa aplikasi ku cara méré nyaho Wikimedia Foundation kumaha cara anjeun dina maké aplikasi. Data nu dikumpulkeun miwatek anonim";
 "welcome-volunteer-send-usage-reports" = "Kirim laporan pamakéan";
-"wikitext-download-failed" = "Teu bisa nampa révisi panganyarna.";
 "wikitext-downloading" = "Muatkeun kontén...";
 "wikitext-preview-changes" = "Nganteur pramidang tina parobahan ajeun...";
 "wikitext-preview-changes-none" = "Taya parobahan nu dijieun pikeun némbongan pramidang.";

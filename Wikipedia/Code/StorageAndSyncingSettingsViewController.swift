@@ -101,6 +101,7 @@ class StorageAndSyncingSettingsViewController: SubSettingsViewController {
         if isSyncEnabled {
             showReadingListsSyncAlert()
         } else { // user logged in to an account that has sync disabled, prompt them to enable sync
+            
             wmf_showEnableReadingListSyncPanel(theme: theme, oncePerLogin: false, didNotPresentPanelCompletion: nil) {
                 self.shouldShowReadingListsSyncAlertWhenSyncEnabled = true
             }
@@ -148,7 +149,7 @@ class StorageAndSyncingSettingsViewController: SubSettingsViewController {
                 assertionFailure("dataStore is nil")
                 return
             }
-            dataStore.clearCachesForUnsavedArticles()
+            
             dataStore.readingListsController.eraseAllSavedArticlesAndReadingLists()
             self.tableView.reloadData()
         }
@@ -176,6 +177,7 @@ class StorageAndSyncingSettingsViewController: SubSettingsViewController {
         view.backgroundColor = theme.colors.baseBackground
         tableView.backgroundColor = theme.colors.baseBackground
         eraseSavedArticlesView?.apply(theme: theme)
+        tableView.reloadData()
     }
 }
 
@@ -202,9 +204,8 @@ extension StorageAndSyncingSettingsViewController {
             cell.selectionStyle = .none
             cell.backgroundColor = theme.colors.paperBackground
             if let eraseSavedArticlesView = eraseSavedArticlesView {
-                let temporaryCacheSize = ImageController.shared.temporaryCacheSize
-                let sitesDirectorySize = Int64(dataStore?.sitesDirectorySize() ?? 0)
-                let dataSizeString = ByteCountFormatter.string(fromByteCount: temporaryCacheSize + sitesDirectorySize, countStyle: .file)
+                let cacheSize = CacheController.totalCacheSizeInBytes
+                let dataSizeString = ByteCountFormatter.string(fromByteCount: cacheSize, countStyle: .file)
                 let format = WMFLocalizedString("settings-storage-and-syncing-erase-saved-articles-footer-text", value: "Erasing your saved articles will remove them from your user account if you have syncing turned on as well as from this device.\n\nErasing your saved articles will free up about %1$@ of space.", comment: "Footer text of the settings option that enables erasing saved articles. %1$@ will be replaced with a number and a system provided localized unit indicator for MB or KB.")
                 eraseSavedArticlesView.footerLabel.text = String.localizedStringWithFormat(format, dataSizeString)
                 eraseSavedArticlesView.translatesAutoresizingMaskIntoConstraints = false
@@ -238,10 +239,11 @@ extension StorageAndSyncingSettingsViewController {
                 self.dataStore?.readingListsController.fullSync({})
                 self.shouldShowReadingListsSyncAlertWhenViewAppears = true
             }
-            if WMFAuthenticationManager.sharedInstance.isLoggedIn && isSyncEnabled {
+            let isLoggedIn = dataStore?.authenticationManager.isLoggedIn ?? false
+            if isLoggedIn && isSyncEnabled {
                 dataStore?.readingListsController.fullSync({})
                 showReadingListsSyncAlert()
-            } else if !WMFAuthenticationManager.sharedInstance.isLoggedIn {
+            } else if !isLoggedIn {
                 wmf_showLoginOrCreateAccountToSyncSavedArticlesToReadingListPanel(theme: theme, dismissHandler: nil, loginSuccessCompletion: loginSuccessCompletion, loginDismissedCompletion: nil)
             } else {
                 wmf_showEnableReadingListSyncPanel(theme: theme, oncePerLogin: false, didNotPresentPanelCompletion: nil) {
@@ -258,19 +260,13 @@ extension StorageAndSyncingSettingsViewController {
 
 extension StorageAndSyncingSettingsViewController {
     @objc func tableView(_ tableView: UITableView, viewForFooterInSection section: Int) -> UIView? {
-        guard let footer = tableView.dequeueReusableHeaderFooterView(withIdentifier: WMFTableHeaderFooterLabelView.identifier) as? WMFTableHeaderFooterLabelView else {
-            return nil
-        }
-        footer.setShortTextAsProse(sections[section].footerText)
-        footer.type = .footer
-        if let footer = footer as Themeable? {
-            footer.apply(theme: theme)
-        }
-        return footer
+        let text = sections[safeIndex: section]?.footerText
+        return WMFTableHeaderFooterLabelView.headerFooterViewForTableView(tableView, text: text, type: .footer, setShortTextAsProse: true, theme: theme)
     }
     
     @objc func tableView(_ tableView: UITableView, heightForFooterInSection section: Int) -> CGFloat {
-        guard let _ = self.tableView(tableView, viewForFooterInSection: section) as? WMFTableHeaderFooterLabelView else {
+        guard let text = sections[safeIndex: section]?.footerText,
+              !text.isEmpty else {
             return 0
         }
         return UITableView.automaticDimension
@@ -294,7 +290,7 @@ extension StorageAndSyncingSettingsViewController: WMFSettingsTableViewCellDeleg
         let isSwitchOn = sender.isOn
         
         switch settingsItemType {
-        case .syncSavedArticlesAndLists where !WMFAuthenticationManager.sharedInstance.isLoggedIn:
+        case .syncSavedArticlesAndLists where !dataStore.authenticationManager.isLoggedIn:
             assert(!isSyncEnabled, "Sync cannot be enabled if user is not logged in")
             let dismissHandler = {
                 sender.setOn(false, animated: true)
@@ -304,7 +300,7 @@ extension StorageAndSyncingSettingsViewController: WMFSettingsTableViewCellDeleg
                 SettingsFunnel.shared.logSyncEnabledInSettings()
             }
             wmf_showLoginOrCreateAccountToSyncSavedArticlesToReadingListPanel(theme: theme, dismissHandler: dismissHandler, loginSuccessCompletion: loginSuccessCompletion, loginDismissedCompletion: dismissHandler)
-        case .syncSavedArticlesAndLists where WMFAuthenticationManager.sharedInstance.isLoggedIn:
+        case .syncSavedArticlesAndLists where dataStore.authenticationManager.isLoggedIn:
             let setSyncEnabled = {
                 dataStore.readingListsController.setSyncEnabled(isSwitchOn, shouldDeleteLocalLists: false, shouldDeleteRemoteLists: !isSwitchOn)
                 if isSwitchOn {

@@ -47,15 +47,13 @@
 "announcements-dismiss" = "Paslēpt";
 "app-store-subtitle" = "Brīvā enciklopēdija";
 "appearance-settings-set-automatic-table-opening" = "Tabulu iestatījumi";
-"article-about-title" = "Par šo rakstu";
 "article-delete" = "Dzēst";
 "article-languages-filter-placeholder" = "Atrast valodu";
 "article-languages-label" = "Izvēlies valodu";
 "article-languages-others" = "Citas valodas";
 "article-languages-yours" = "Tavas valodas";
-"article-read-more-title" = "Lasīt vairāk";
+"article-reference-view-title" = "Atsauce $1";
 "article-share" = "Dalīties";
-"article-title" = "Raksts";
 "back-button-accessibility-label" = "Atpakaļ";
 "button-next" = "Tālāk";
 "button-ok" = "Labi";
@@ -96,7 +94,6 @@
 "explore-potd-heading" = "Dienas attēls";
 "explore-random-article-heading" = "Nejauša lapa";
 "explore-randomizer" = "Nejauša lapa";
-"feed-news-notification-button-text" = "Ieslēgt paziņojumus";
 "field-alert-captcha-invalid" = "Nederīgs CAPTCHA";
 "field-alert-token-invalid" = "Nederīgs kods";
 "field-captcha-placeholder" = "CAPTCHA teksts";
@@ -121,12 +118,7 @@
 "icon-shortcut-random-title" = "Nejauša lapa";
 "icon-shortcut-search-title" = "Meklēt Vikipēdijā";
 "image-gallery-unknown-owner" = "Autors nezināms.";
-"in-the-news-notification-read-now-action-title" = "Lasīt tagad";
-"in-the-news-notification-save-for-later-action-title" = "Saglabāt vēlākam laikam";
-"in-the-news-notification-share-action-title" = "Dalīties...";
 "in-the-news-title" = "Ziņās";
-"info-box-close-text" = "Aizvērt";
-"info-box-title" = "Ātrie fakti";
 "insert-action-title" = "Ievietot";
 "insert-link-title" = "Ievietot saiti";
 "insert-media-caption-title" = "Paraksts";
@@ -136,12 +128,10 @@
 "insert-media-image-position-settings-title" = "Attēla pozīcija";
 "insert-media-image-preview-more-information-action-title" = "Vairāk informācijas";
 "languages-title" = "Mainīt valodu";
-"license-footer-name" = "CC-BY-SA 3.0";
 "main-menu-about" = "Par lietotni";
 "main-menu-account-login" = "Pieslēgties";
 "main-menu-account-logout" = "Iziet";
 "main-menu-account-logout-cancel" = "Atcelt";
-"main-menu-debug-tweaks" = "Izstrādātāja iestatījumi";
 "main-menu-heading-legal" = "Privātuma politika un nosacījumi";
 "main-menu-nearby" = "Tuvumā";
 "main-menu-privacy-policy" = "Privātuma politika";
@@ -150,6 +140,7 @@
 "main-menu-title" = "Vairāk";
 "main-menu-zero-faq" = "Vikipēdija Zero BUJ";
 "menu-cancel-accessibility-label" = "Atcelt";
+// Fuzzy
 "more-languages-tooltip-description" = "Meklē Vikipēdijā gandrīz 300 valodās";
 "more-languages-tooltip-title" = "Pievienot valodas";
 "navbar-title-mode-edit-wikitext-preview" = "Priekšskatījums";
@@ -157,7 +148,13 @@
 "nearby-distance-label-km" = "$1 km";
 "nearby-distance-label-meters" = "$1 m";
 "nearby-distance-label-miles" = "$1 jūdzes";
-"page-edit-history" = "Pilna labojumu vēsture";
+// Fuzzy
+"notifications-center-feed-news-notification-button-text" = "Ieslēgt paziņojumus";
+"notifications-center-mark" = "Atzīmēt";
+"notifications-center-mark-all-as-read" = "Atzīmēt visus kā izlasītus";
+"notifications-center-swipe-mark-as-read" = "Atzīmēt kā lasītu";
+"notifications-center-swipe-mark-as-unread" = "Atzīmēt kā nelasītu";
+"notifications-center-swipe-more" = "Vairāk";
 "page-history-compare-title" = "Salīdzināt";
 "page-history-revision-author-accessibility-label" = "Autors: $1";
 "page-history-revision-comment-accessibility-label" = "Komentārs $1";
@@ -166,8 +163,6 @@
 "page-history-stats-text" = "{{PLURAL:$1|$1 labojumi|$1 labojums|$1 labojumi}} kopš $2";
 "page-protected-can-not-edit-title" = "Šī lapa ir aizsargāta";
 "page-protected-sysop" = "Šī lapa ir pilnībā aizsargāta.";
-"page-similar-titles" = "Līdzīgas lapas";
-"page-talk-page" = "Skatīt diskusiju lapu";
 "panel-compare-revisions-title" = "Versiju salīdzināšana";
 "places-accessibility-group" = "$1 rakstu";
 "places-enable-location-action-button-title" = "Iespējot atrašanās vietu";
@@ -180,7 +175,6 @@
 "places-title" = "Vietas";
 "places-unknown-distance" = "nezināms attālums";
 "preference-title-eventlogging-opt-in" = "Sūtīt lietošanas ziņojumus";
-"readers-accessibility-label" = "$1 lasītāji";
 "reading-list-create-new-list-description" = "Apraksts";
 "reading-list-limit-hit-for-unsorted-articles-button-title" = "Kārtot rakstus";
 "reading-list-sync-disabled-panel-title" = "Sinhronizācija izslēgta";
@@ -195,11 +189,7 @@
 "replace-infolabel-method-replace-all" = "Aizvietot visus";
 "replace-textfield-accessibility" = "Aizvietot";
 "replace-textfield-placeholder" = "Aizvietot ar...";
-"reverted-edit-back-to-article-button-title" = "Atpakaļ uz rakstu";
-"reverted-edit-notification-read-more-action-title" = "Lasīt vairāk";
-"reverted-edit-thanks-for-editing-title" = "Paldies par Vikipēdijas labošanu!";
 "reverted-edit-title" = "Atcelts labojums";
-"reverted-edit-view-guidelines-text" = "Skatīt vadlīnijas";
 "saved-all-articles-title" = "Visi raksti";
 // Fuzzy
 "saved-search-default-text" = "Meklēt";
@@ -216,6 +206,7 @@
 "settings-help-and-feedback" = "Palīdzība un atsauksmes";
 "settings-language-bar" = "Rādīt valodas meklēšanā";
 "settings-my-languages" = "Manas valodas";
+// Fuzzy
 "settings-notifications" = "Paziņojumi";
 "settings-notifications-learn-more" = "Uzziniet vairāk par paziņojumiem";
 "settings-notifications-system-turn-on" = "Ieslēgt paziņojumus";
@@ -225,29 +216,24 @@
 "settings-storage-and-syncing-server-sync-title" = "Sinhronizēt ar serveri";
 "settings-support" = "Atbalsti Vikipēdiju";
 "settings-title" = "Iestatījumi";
-"share-custom-menu-item" = "Dalīties...";
 "share-get-directions-in-maps" = "Saņemt norādes";
 "share-menu-item" = "Dalīties...";
 "share-open-in-maps" = "Atvērt iekš Maps";
-"status-saved-for-later" = "Saglabāts vēlākam laikam";
-"status-saving-for-later" = "Saglabā vēlākam laikam...";
 "table-of-contents-button-label" = "Satura rādītājs";
 "table-of-contents-close-accessibility-hint" = "Aizvērt";
 "table-of-contents-close-accessibility-label" = "Aizvērt satura rādītāju";
 "table-of-contents-heading" = "Saturs";
-"table-title-other" = "Vairāk informācijas";
 "talk-page-new-banner-title" = "Lūdzu, esi jauks";
 "talk-page-new-subject-clear-button-accessibility" = "Notīrīt tematu";
 "talk-page-new-subject-placeholder-text" = "Temats";
 "talk-page-new-subject-textfield-accessibility-label" = "Temats";
 "talk-page-new-topic-title" = "Jauna diskusija";
 "talk-page-reply-title" = "Atbildēt";
+// Fuzzy
 "talk-page-title-article-talk" = "raksta diskusija";
 "talk-page-topic-title" = "Diskusija";
 "theme-default-display-name" = "Noklusējuma";
 "theme-sepia-display-name" = "Sēpija";
-"top-read-header-generic" = "Vikipēdija";
-"top-read-header-with-language" = "$1 Vikipēdija";
 "welcome-exploration-on-this-day-title" = "Šajā dienā";
 "welcome-explore-tell-me-more-done-button" = "Sapratu";
 "welcome-intro-free-encyclopedia-more" = "Uzzini vairāk par Vikipēdiju";

@@ -5,9 +5,6 @@
 #import <WMF/WMFNumberOfExtractCharacters.h>
 #import <WMF/WMFLegacySerializer.h>
 
-//Networking
-#import <WMF/MWNetworkActivityIndicatorManager.h>
-
 //Models
 #import <WMF/WMFLocationSearchResults.h>
 #import <WMF/MWKLocationSearchResult.h>
@@ -41,7 +38,7 @@ NSString *const WMFLocationSearchErrorDomain = @"org.wikimedia.location.search";
 
     NSDictionary *params = [self params:region searchTerm:searchTerm resultLimit:resultLimit sortStyle:sortStyle];
 
-    NSURL *url = [[self.configuration mediaWikiAPIURLComponentsForHost:siteURL.host withQueryParameters:params] URL];
+    NSURL *url = [self.configuration mediaWikiAPIURLForURL:siteURL withQueryParameters:params];
 
     assert(url);
 
@@ -82,7 +79,7 @@ NSString *const WMFLocationSearchErrorDomain = @"org.wikimedia.location.search";
                              }];
 
                              NSError *serializerError = nil;
-                             NSArray<MWKLocationSearchResult *> *results = [MTLJSONAdapter modelsOfClass:[MWKLocationSearchResult class] fromJSONArray:JSONDictionaries error:&serializerError];
+        NSArray<MWKLocationSearchResult *> *results = [MTLJSONAdapter modelsOfClass:[MWKLocationSearchResult class] fromJSONArray:JSONDictionaries languageVariantCode: url.wmf_languageVariantCode error:&serializerError];
                              if (serializerError) {
                                  failure(serializerError);
                                  return;

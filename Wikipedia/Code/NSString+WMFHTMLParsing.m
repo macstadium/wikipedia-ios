@@ -1,10 +1,10 @@
 #import <WMF/NSString+WMFHTMLParsing.h>
-#import <hpple/TFHpple.h>
 #import <WMF/NSString+WMFExtras.h>
 #import <WMF/WMFNumberOfExtractCharacters.h>
 #import <WMF/WMFComparison.h>
 #import <WMF/NSRegularExpression+HTML.h>
 #import <WMF/NSCharacterSet+WMFExtras.h>
+#import <WMF/NSCharacterSet+WMFLinkParsing.h>
 #import "WMF/WMFHTMLElement.h"
 @import CoreText;
 
@@ -14,26 +14,11 @@
 
 @implementation NSString (WMFHTMLParsing)
 
-- (NSArray *)wmf_htmlTextNodes {
-    return [[[[TFHpple alloc]
-        initWithHTMLData:[self dataUsingEncoding:NSUTF8StringEncoding]]
-        searchWithXPathQuery:@"//text()"]
-        valueForKey:WMF_SAFE_KEYPATH([TFHppleElement new], content)];
-}
-
 - (NSString *)wmf_getCollapsedWhitespaceStringAdjustedForTerminalPunctuation {
     NSString *result = [self wmf_stringByCollapsingAllWhitespaceToSingleSpaces];
     result = [result wmf_stringByRemovingWhiteSpaceBeforePeriodsCommasSemicolonsAndDashes];
     result = [result stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
     return result;
-}
-
-- (NSString *)wmf_joinedHtmlTextNodes {
-    return [self wmf_joinedHtmlTextNodesWithDelimiter:@" "];
-}
-
-- (NSString *)wmf_joinedHtmlTextNodesWithDelimiter:(NSString *)delimiter {
-    return [[self wmf_htmlTextNodes] componentsJoinedByString:delimiter];
 }
 
 #pragma mark - String simplification and cleanup
@@ -241,7 +226,7 @@
     static NSDictionary *entityReplacements;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        entityReplacements = @{@"amp": @"&", @"nbsp": @" ", @"gt": @">", @"lt": @"<", @"apos": @"'", @"quot": @"\"", @"ndash": @"\u2013", @"mdash": @"\u2014"};
+        entityReplacements = @{@"amp": @"&", @"nbsp": @" ", @"gt": @">", @"lt": @"<", @"apos": @"'", @"quot": @"\"", @"ndash": @"\u2013", @"mdash": @"\u2014", @"#8722": @"\u2212"};
     });
     NSMutableString *mutableSelf = [self mutableCopy];
     __block NSInteger offset = 0;
@@ -255,15 +240,45 @@
     return mutableSelf;
 }
 
-- (nonnull NSString *)wmf_stringByRemovingHTMLWithParsingBlock:(nullable void (^)(NSString *lowercasedHTMLTagName, NSString *HTMLTagAttributes, NSInteger offset, NSInteger currentLocation))parsingBlock {
+- (nonnull NSString *)wmf_stringByRemovingHTMLWithParsingBlock:(nullable void (^)(NSString *lowercasedHTMLTagName, BOOL isEndTag, NSString *HTMLTagAttributes, NSInteger offset, NSInteger currentLocation))parsingBlock {
     __block NSInteger offset = 0;
 
     NSMutableString *cleanedString = [self mutableCopy];
 
     __block NSInteger plainTextStartLocation = 0;
+    __block NSInteger tagToRemoveStartLocation = NSNotFound;
+
+    static NSSet<NSString *> *tagsToRemove;
+    static dispatch_once_t tagsToRemoveOnceToken;
+    dispatch_once(&tagsToRemoveOnceToken, ^{
+        tagsToRemove = [NSSet setWithObjects:@"script", @"style", nil];
+    });
 
     [self wmf_enumerateHTMLTagsWithBlock:^(NSString *HTMLTagName, NSString *HTMLTagAttributes, NSRange range) {
         HTMLTagName = [HTMLTagName lowercaseString];
+        BOOL isEnd = false;
+        if ([HTMLTagName hasPrefix:@"/"]) {
+            isEnd = true;
+            HTMLTagName = [HTMLTagName substringFromIndex:1];
+        }
+        if ([tagsToRemove containsObject:HTMLTagName]) {
+            if (isEnd) {
+                if (tagToRemoveStartLocation != NSNotFound) {
+                    NSInteger length = range.location + range.length - tagToRemoveStartLocation;
+                    [cleanedString replaceCharactersInRange:NSMakeRange(tagToRemoveStartLocation + offset, length) withString:@""];
+                    offset -= length;
+                    tagToRemoveStartLocation = NSNotFound;
+                    return;
+                }
+                return;
+            } else {
+                tagToRemoveStartLocation = range.location;
+                return;
+            }
+        }
+        if (tagToRemoveStartLocation != NSNotFound) {
+            return;
+        }
         NSString *replacement = [HTMLTagName isEqualToString:@"br"] || [HTMLTagName isEqualToString:@"br/"] ? @"\n" : @"";
         [cleanedString replaceCharactersInRange:NSMakeRange(range.location + offset, range.length) withString:replacement];
         offset -= (range.length - replacement.length);
@@ -282,7 +297,7 @@
         }
 
         if (parsingBlock) {
-            parsingBlock(HTMLTagName, HTMLTagAttributes, offset, currentLocation);
+            parsingBlock(HTMLTagName, isEnd, HTMLTagAttributes, offset, currentLocation);
         }
     }];
 
@@ -299,11 +314,7 @@
     return [self wmf_stringByRemovingHTMLWithParsingBlock:NULL];
 }
 
-- (NSMutableAttributedString *)wmf_attributedStringFromHTMLWithFont:(UIFont *)font boldFont:(nullable UIFont *)boldFont italicFont:(nullable UIFont *)italicFont boldItalicFont:(nullable UIFont *)boldItalicFont color:(nullable UIColor *)color linkColor:(nullable UIColor *)linkColor handlingLists:(BOOL)handlingLists handlingSuperSubscripts:(BOOL)handlingSuperSubscripts withAdditionalBoldingForMatchingSubstring:(nullable NSString *)stringToBold {
-    return [self wmf_attributedStringFromHTMLWithFont:font boldFont:boldFont italicFont:italicFont boldItalicFont:boldItalicFont color:color linkColor:linkColor handlingLists:handlingLists handlingSuperSubscripts:handlingSuperSubscripts withAdditionalBoldingForMatchingSubstring:stringToBold tagMapping:nil additionalTagAttributes:nil];
-}
-
-- (NSMutableAttributedString *)wmf_attributedStringFromHTMLWithFont:(UIFont *)font boldFont:(nullable UIFont *)boldFont italicFont:(nullable UIFont *)italicFont boldItalicFont:(nullable UIFont *)boldItalicFont color:(nullable UIColor *)color linkColor:(nullable UIColor *)linkColor handlingLists:(BOOL)handlingLists handlingSuperSubscripts:(BOOL)handlingSuperSubscripts withAdditionalBoldingForMatchingSubstring:(nullable NSString *)stringToBold tagMapping:(nullable NSDictionary<NSString *, NSString *> *)tagMapping additionalTagAttributes:(nullable NSDictionary<NSString *, NSDictionary<NSAttributedStringKey, id> *> *)additionalTagAttributes {
+- (NSMutableAttributedString *)wmf_attributedStringFromHTMLWithFont:(UIFont *)font boldFont:(nullable UIFont *)boldFont italicFont:(nullable UIFont *)italicFont boldItalicFont:(nullable UIFont *)boldItalicFont color:(nullable UIColor *)color linkColor:(nullable UIColor *)linkColor handlingLinks:(BOOL)handlingLinks handlingLists:(BOOL)handlingLists handlingSuperSubscripts:(BOOL)handlingSuperSubscripts tagMapping:(nullable NSDictionary<NSString *, NSString *> *)tagMapping additionalTagAttributes:(nullable NSDictionary<NSString *, NSDictionary<NSAttributedStringKey, id> *> *)additionalTagAttributes {
     boldFont = boldFont ?: font;
     italicFont = italicFont ?: font;
     boldItalicFont = boldItalicFont ?: font;
@@ -324,7 +335,7 @@
 
     NSMutableArray<NSValue *> *ranges = [NSMutableArray arrayWithCapacity:1];
     __block NSInteger startLocation = NSNotFound;
-    NSString *cleanedString = [self wmf_stringByRemovingHTMLWithParsingBlock:^(NSString *HTMLTagName, NSString *HTMLTagAttributes, NSInteger offset, NSInteger currentLocation) {
+    NSString *cleanedString = [self wmf_stringByRemovingHTMLWithParsingBlock:^(NSString *HTMLTagName, BOOL isEndTag, NSString *HTMLTagAttributes, NSInteger offset, NSInteger currentLocation) {
         NSString *mapping = tagMapping[HTMLTagName];
         if (mapping) {
             HTMLTagName = mapping;
@@ -334,16 +345,15 @@
             [tags addObject:[currentTags copy]];
             [links addObject:[currentLinks copy]];
         }
-        if ([HTMLTagName hasPrefix:@"/"]) {
-            NSString *closeTagName = [HTMLTagName substringFromIndex:1];
-            if ([closeTagName isEqualToString:@"a"]) {
+        if (isEndTag) {
+            if ([HTMLTagName isEqualToString:@"a"]) {
                 [currentLinks removeAllObjects];
-            } else if (handlingLists && ([closeTagName isEqualToString:@"ul"] || [closeTagName isEqualToString:@"ol"] || [closeTagName isEqualToString:@"li"])) {
+            } else if (handlingLists && ([HTMLTagName isEqualToString:@"ul"] || [HTMLTagName isEqualToString:@"ol"] || [HTMLTagName isEqualToString:@"li"])) {
                 WMFHTMLElement *lastUnclosedListElement = nil;
                 NSInteger index = unclosedListElements.count;
                 for (WMFHTMLElement *unclosedListElement in [unclosedListElements reverseObjectEnumerator]) {
                     index -= 1;
-                    if ([unclosedListElement.tagName isEqualToString:closeTagName]) {
+                    if ([unclosedListElement.tagName isEqualToString:HTMLTagName]) {
                         lastUnclosedListElement = unclosedListElement;
                         break;
                     }
@@ -355,7 +365,7 @@
                     assert(false);
                 }
             }
-            [currentTags removeObject:closeTagName];
+            [currentTags removeObject:HTMLTagName];
             if ([currentTags count] > 0) {
                 startLocation = currentLocation;
             } else {
@@ -364,12 +374,15 @@
         } else {
             startLocation = currentLocation;
             [currentTags addObject:HTMLTagName];
-            if ([HTMLTagName isEqualToString:@"a"]) {
+            if (handlingLinks && [HTMLTagName isEqualToString:@"a"]) {
                 [hrefRegex enumerateMatchesInString:HTMLTagAttributes
                                             options:0
                                               range:NSMakeRange(0, HTMLTagAttributes.length)
                                          usingBlock:^(NSTextCheckingResult *_Nullable result, NSMatchingFlags flags, BOOL *_Nonnull stop) {
                                              NSString *URLString = [hrefRegex replacementStringForResult:result inString:HTMLTagAttributes offset:0 template:@"$1"];
+                                             if ([URLString hasPrefix:@"."] || [URLString hasPrefix:@"/"]) {
+                                                 URLString = [URLString stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet wmf_relativePathAndFragmentAllowedCharacterSet]];
+                                             }
                                              NSURL *linkURL = [NSURL URLWithString:URLString];
                                              if (linkURL) {
                                                  [currentLinks addObject:linkURL];
@@ -414,22 +427,16 @@
         }
     }];
 
-    NSMutableDictionary *attribtues = [NSMutableDictionary dictionaryWithCapacity:2];
+    NSMutableDictionary *attributes = [NSMutableDictionary dictionaryWithCapacity:2];
     if (font) {
-        [attribtues setObject:font forKey:NSFontAttributeName];
+        [attributes setObject:font forKey:NSFontAttributeName];
     }
     if (color) {
-        [attribtues setObject:color forKey:NSForegroundColorAttributeName];
+        [attributes setObject:color forKey:NSForegroundColorAttributeName];
     }
-    NSMutableAttributedString *attributedString = [[NSMutableAttributedString alloc] initWithString:cleanedString attributes:attribtues];
+    NSMutableAttributedString *attributedString = [[NSMutableAttributedString alloc] initWithString:cleanedString attributes:attributes];
 
     NSRange matchingRange = NSMakeRange(NSNotFound, 0);
-    if (stringToBold) {
-        matchingRange = [cleanedString rangeOfString:stringToBold options:NSCaseInsensitiveSearch];
-        if (matchingRange.location != NSNotFound) {
-            [attributedString addAttribute:NSFontAttributeName value:boldFont range:matchingRange];
-        }
-    }
 
     [ranges enumerateObjectsUsingBlock:^(NSValue *_Nonnull obj, NSUInteger idx, BOOL *_Nonnull stop) {
         NSRange range = [obj rangeValue];
@@ -439,6 +446,8 @@
         BOOL isBold = [tagsForRange containsObject:@"b"];
         BOOL isSubscript = [tagsForRange containsObject:@"sub"];
         BOOL isSuperscript = [tagsForRange containsObject:@"sup"];
+        BOOL isStrikethrough = [tagsForRange containsObject:@"del"] || [tagsForRange containsObject:@"s"];
+        BOOL isUnderline = [tagsForRange containsObject:@"u"];
         if (isItalic && isBold) {
             [attributedString addAttribute:NSFontAttributeName value:boldItalicFont range:range];
         } else if (isItalic) {
@@ -461,6 +470,14 @@
             if (isSuperscript) {
                 [attributedString addAttribute:(NSString *)kCTSuperscriptAttributeName value:[NSNumber numberWithInt:1] range:range];
             }
+
+            if (isStrikethrough) {
+                [attributedString addAttribute:NSStrikethroughStyleAttributeName value:@2 range:range];
+            }
+
+            if (isUnderline) {
+                [attributedString addAttribute:NSUnderlineStyleAttributeName value:@1 range:range];
+            }
         }
 
         NSURL *linkURL = [linksForRange anyObject];
@@ -479,16 +496,17 @@
             if (attributes.count == 0) {
                 continue;
             }
-            [attributedString addAttributes:attributes range:range];
+            [attributedString addAttributes:attributes
+                                      range:range];
         }
     }];
 
-    NSDictionary *listAttributes = @{NSFontAttributeName: font};
+    NSDictionary *listAttributes = font != nil ? @{NSFontAttributeName: font} : @{};
     __block NSInteger offset = 0;
     [lists enumerateObjectsUsingBlock:^(WMFHTMLElement *_Nonnull list, NSUInteger idx, BOOL *_Nonnull stop) {
         offset += [attributedString performReplacementsForListElement:list currentList:list withAttributes:listAttributes listIndex:0 replacementOffset:offset];
         NSString *newline = @"\n";
-        NSAttributedString *attributedNewline = [[NSAttributedString alloc] initWithString:newline attributes:attribtues];
+        NSAttributedString *attributedNewline = [[NSAttributedString alloc] initWithString:newline attributes:attributes];
         [attributedString insertAttributedString:attributedNewline atIndex:list.endLocation + offset];
         offset += attributedNewline.length;
     }];

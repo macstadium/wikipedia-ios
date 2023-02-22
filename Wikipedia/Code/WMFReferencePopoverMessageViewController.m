@@ -1,7 +1,8 @@
 #import "WMFReferencePopoverMessageViewController.h"
-#import "WebViewController+WMFReferencePopover.h"
 #import "Wikipedia-Swift.h"
 @import WMF.Swift;
+
+NSString *const WMFReferenceLinkTappedNotification = @"WMFReferenceLinkTappedNotification";
 
 @interface WMFReferencePopoverMessageViewController () <UITextViewDelegate>
 
@@ -45,14 +46,20 @@
     [self.widthConstraint setConstant:self.width];
 
     [self applyTheme:self.theme];
+
+    self.closeButton.accessibilityLabel = [WMFCommonStrings closeButtonAccessibilityLabel];
+}
+
+- (void)viewDidAppear:(BOOL)animated {
+    [super viewDidAppear:animated];
+    UIAccessibilityPostNotification(UIAccessibilityScreenChangedNotification, self.view);
 }
 
 - (NSString *)referenceHTMLWithSurroundingHTML {
-    NSNumber *fontSize = [[NSUserDefaults wmf] wmf_articleFontSizeMultiplier];
+    NSNumber *fontSize = [[NSUserDefaults standardUserDefaults] wmf_articleFontSizeMultiplier];
 
-    NSString *domain = [SessionSingleton sharedInstance].currentArticleSiteURL.wmf_language;
-    MWLanguageInfo *languageInfo = [MWLanguageInfo languageInfoForCode:domain];
-    NSString *baseUrl = [NSString stringWithFormat:@"https://%@.wikipedia.org/", languageInfo.code];
+    NSString *baseUrl = [self.articleURL absoluteString];
+    NSString *layoutDirection = [MWKLanguageLinkController layoutDirectionForContentLanguageCode:self.articleURL.wmf_contentLanguageCode];
 
     return
         [NSString stringWithFormat:@""
@@ -83,7 +90,7 @@
                                     "%@"
                                     "</body>"
                                     "</html>",
-                                   baseUrl, (long)fontSize.integerValue, [self.theme.colors.primaryText wmf_hexStringIncludingAlpha:NO], languageInfo.dir, self.reference.html];
+                                   baseUrl, (long)fontSize.integerValue, [self.theme.colors.primaryText wmf_hexStringIncludingAlpha:NO], layoutDirection, self.reference.html];
 }
 
 - (NSAttributedString *)attributedStringForHTML:(NSString *)html {

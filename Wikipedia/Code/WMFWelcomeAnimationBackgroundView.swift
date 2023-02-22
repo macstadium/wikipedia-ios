@@ -23,7 +23,7 @@ open class WMFWelcomeAnimationBackgroundView: WMFWelcomeAnimationView {
             assertionFailure("Expected models")
             return nil
         }
-        return imageModels.map{ (model) in
+        return imageModels.map { (model) in
             let imgView = UIImageView()
             imgView.image = UIImage(named: model.name)
             imgView.contentMode = UIView.ContentMode.scaleAspectFit
@@ -32,13 +32,13 @@ open class WMFWelcomeAnimationBackgroundView: WMFWelcomeAnimationView {
         }
     }()
     
-    override open func addAnimationElementsScaledToCurrentFrameSize(){
+    override open func addAnimationElementsScaledToCurrentFrameSize() {
         super.addAnimationElementsScaledToCurrentFrameSize()
         removeExistingSubviewsAndSublayers()
         guard let imageViewsAndModels = imageViewsAndModels else {
             return
         }
-        imageViewsAndModels.forEach{ (imageViewAndModel) in
+        imageViewsAndModels.forEach { (imageViewAndModel) in
             addSubview(imageViewAndModel.imageView)
             // Start all images in the center. imageModel unitDestination assumes center origin.
             imageViewAndModel.imageView.center = CGPoint(x: bounds.midX, y: bounds.midY)
@@ -55,7 +55,7 @@ open class WMFWelcomeAnimationBackgroundView: WMFWelcomeAnimationView {
          // print unit coords for easy re-positioning
          let point = gestureRecognizer.location(in: self)
          let unitDestination = CGPoint(x: (point.x - (bounds.size.width * 0.5)) / bounds.size.width, y: (point.y - (bounds.size.height * 0.5)) / bounds.size.height)
-         print("unitDestination \(unitDestination)")
+         DDLogDebug("unitDestination \(unitDestination)")
      
          // preview the item at the tap location
          let imageViewAndModel = imageViewsAndModels![0] // <-- Adjust to pick which image is being tweaked.
@@ -69,7 +69,7 @@ open class WMFWelcomeAnimationBackgroundView: WMFWelcomeAnimationView {
              return
          }
          let imageUnitSize = CGSize(width: image.size.width / bounds.size.width, height: image.size.height / bounds.size.width) // "bounds.size.width" for both cases is deliberate here
-         print("unitSize \(imageUnitSize)")
+         DDLogDebug("unitSize \(imageUnitSize)")
      }
     */
     override open func beginAnimations() {
@@ -78,7 +78,7 @@ open class WMFWelcomeAnimationBackgroundView: WMFWelcomeAnimationView {
         guard let imageViewsAndModels = imageViewsAndModels else {
             return
         }
-        imageViewsAndModels.forEach{ (imageViewAndModel) in
+        imageViewsAndModels.forEach { (imageViewAndModel) in
             let dest = imageViewAndModel.model.unitDestination.wmf_denormalizeUsingSize(frame.size)
             let tx = CATransform3DMakeTranslation(dest.x, dest.y, 1.0)
             imageViewAndModel.imageView.layer.wmf_animateToOpacity(1.0, transform: tx, delay: imageViewAndModel.model.delay, duration: imageViewAndModel.model.duration)

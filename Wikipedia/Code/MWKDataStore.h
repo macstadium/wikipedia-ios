@@ -1,21 +1,23 @@
 @import Foundation;
 #import <WMF/WMFBlockDefinitions.h>
 
-@class MWKArticle;
-@class MWKSection;
-@class MWKImage;
-@class MWKHistoryEntry;
-@class MWKHistoryList;
 @class MWKSavedPageList;
 @class MWKRecentSearchList;
-@class MWKImageInfo;
-@class MWKImageList;
 @class WMFArticle;
 @class WMFExploreFeedContentController;
 @class WMFReadingListsController;
-@class WikidataDescriptionEditingController;
 @class RemoteNotificationsController;
 @class WMFArticleSummaryController;
+@class MobileviewToMobileHTMLConverter;
+@class MWKLanguageLinkController;
+@class WMFSession;
+@class WMFConfiguration;
+@class WMFPermanentCacheController;
+@class WMFNotificationsController;
+@class WMFAuthenticationManager;
+@class WMFABTestsController;
+
+@protocol ABTestsPersisting;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -38,6 +40,7 @@ extern NSString *const WMFArticleDeletedNotificationUserInfoArticleKeyKey; // Us
 extern NSString *const WMFBackgroundContextDidSave;
 extern NSString *const WMFFeedImportContextDidSave;
 extern NSString *const WMFViewContextDidSave;
+extern NSString *const WMFViewContextDidResetNotification;
 
 typedef NS_OPTIONS(NSUInteger, RemoteConfigOption) {
     RemoteConfigOptionReadingLists = 1 << 0,
@@ -45,6 +48,9 @@ typedef NS_OPTIONS(NSUInteger, RemoteConfigOption) {
 };
 
 @interface MWKDataStore : NSObject
+
+/// The current library version as used in migrations
+@property (class, nonatomic, readonly) NSInteger currentLibraryVersion;
 
 /**
  *  Initialize with sharedInstance database and legacyDataBasePath
@@ -55,29 +61,44 @@ typedef NS_OPTIONS(NSUInteger, RemoteConfigOption) {
 
 - (instancetype)initWithContainerURL:(NSURL *)containerURL NS_DESIGNATED_INITIALIZER;
 
-@property (readonly, strong, nonatomic) NSURL *containerURL;
+/// Call to cancel any async tasks and wait for completion
+- (void)teardown:(nullable dispatch_block_t)completion;
 
-+ (BOOL)migrateToSharedContainer:(NSError **)error;
-- (BOOL)migrateToCoreData:(NSError **)error;
-- (void)performCoreDataMigrations:(dispatch_block_t)completion;
-- (void)performLibraryUpdates:(dispatch_block_t)completion;
-- (void)performUpdatesFromLibraryVersion:(NSUInteger)currentLibraryVersion inManagedObjectContext:(NSManagedObjectContext *)moc;
-- (void)migrateToQuadKeyLocationIfNecessaryWithCompletion:(nonnull void (^)(NSError *nullable))completion;
+@property (readonly, strong, nonatomic) NSURL *containerURL;
+@property (readonly, strong, nonatomic) WMFSession *session;
+@property (readonly, strong, nonatomic) WMFConfiguration *configuration;
+@property (readonly, strong, nonatomic) WMFPermanentCacheController *cacheController;
+
+- (void)performLibraryUpdates:(dispatch_block_t)completion needsMigrateBlock:(dispatch_block_t)needsMigrateBlock;
+- (void)performInitialLibrarySetup;
+#if TEST
+- (void)performTestLibrarySetup;
+#endif
 
 - (void)updateLocalConfigurationFromRemoteConfigurationWithCompletion:(nullable void (^)(NSError *nullable))completion;
 @property (readwrite, nonatomic) BOOL isLocalConfigUpdateAllowed;
 @property (readonly, nonatomic) RemoteConfigOption remoteConfigsThatFailedUpdate;
 
-@property (readonly, strong, nonatomic) MWKHistoryList *historyList;
+@property (readonly, strong, nonatomic) WMFAuthenticationManager *authenticationManager;
 @property (readonly, strong, nonatomic) MWKSavedPageList *savedPageList;
 @property (readonly, strong, nonatomic) MWKRecentSearchList *recentSearchList;
 @property (readonly, strong, nonatomic) WMFReadingListsController *readingListsController;
-@property (readonly, strong, nonatomic) WikidataDescriptionEditingController *wikidataDescriptionEditingController;
 @property (readonly, strong, nonatomic) RemoteNotificationsController *remoteNotificationsController;
 @property (readonly, strong, nonatomic) WMFArticleSummaryController *articleSummaryController;
+@property (readonly, strong, nonatomic) MWKLanguageLinkController *languageLinkController;
+@property (readonly, strong, nonatomic) WMFNotificationsController *notificationsController;
 
 @property (nonatomic, strong, readonly) NSManagedObjectContext *viewContext;
 @property (nonatomic, strong, readonly) NSManagedObjectContext *feedImportContext;
+
+/**
+ * Returns the siteURL of the user's first preferred language.
+ */
+@property (readonly, copy, nonatomic, nullable) NSURL *primarySiteURL;
+
+#pragma mark - Caching
+
+@property (readonly, strong, nonatomic) MobileviewToMobileHTMLConverter *mobileviewConverter;
 
 - (void)performBackgroundCoreDataOperationOnATemporaryContext:(nonnull void (^)(NSManagedObjectContext *moc))mocBlock;
 
@@ -88,189 +109,46 @@ typedef NS_OPTIONS(NSUInteger, RemoteConfigOption) {
 - (void)prefetchArticles; // fill the article cache to speed up initial feed load
 
 - (nullable WMFArticle *)fetchArticleWithURL:(NSURL *)URL inManagedObjectContext:(NSManagedObjectContext *)moc;
-- (nullable WMFArticle *)fetchArticleWithKey:(NSString *)key inManagedObjectContext:(NSManagedObjectContext *)moc;
 - (nullable WMFArticle *)fetchOrCreateArticleWithURL:(NSURL *)URL inManagedObjectContext:(NSManagedObjectContext *)moc;
+- (nullable WMFArticle *)fetchArticleWithKey:(NSString *)key variant:(nullable NSString *)variant inManagedObjectContext:(NSManagedObjectContext *)moc;
 
 - (nullable WMFArticle *)fetchArticleWithURL:(NSURL *)URL;         //uses the view context
-- (nullable WMFArticle *)fetchArticleWithKey:(NSString *)key;      //uses the view context
 - (nullable WMFArticle *)fetchOrCreateArticleWithURL:(NSURL *)URL; //uses the view context
+- (nullable WMFArticle *)fetchArticleWithKey:(NSString *)key variant:(nullable NSString *)variant; //uses the view context
+- (nullable WMFArticle *)fetchArticleWithKey:(NSString *)key; // Temporary shim for areas like reading lists that are not yet variant-aware
 
 - (nullable WMFArticle *)fetchArticleWithWikidataID:(NSString *)wikidataID; //uses the view context
 
-- (BOOL)isArticleWithURLExcludedFromFeed:(NSURL *)articleURL inManagedObjectContext:(NSManagedObjectContext *)moc;
-- (void)setIsExcludedFromFeed:(BOOL)isExcludedFromFeed withArticleURL:(NSURL *)articleURL inManagedObjectContext:(NSManagedObjectContext *)moc;
-
-- (void)setIsExcludedFromFeed:(BOOL)isExcludedFromFeed withArticleURL:(NSURL *)articleURL;
-- (BOOL)isArticleWithURLExcludedFromFeed:(NSURL *)articleURL;
-
 - (BOOL)save:(NSError **)error;
+
+- (void)clearMemoryCache;
+
+/// Clears both the memory cache and the URLSession cache
+- (void)clearTemporaryCache;
 
 #pragma mark - Legacy Datastore methods
 
-/**
- *  Save the @c article asynchronously. If an existing save operation exists for this article or an article with the same URL, it will be cancelled and re-added with this copy of the article.
- *
- *  @param article    The article to save.
- **/
-- (void)cacheArticle:(MWKArticle *)article toDisk:(BOOL)toDisk error:(NSError **)error;
-
 @property (readonly, copy, nonatomic) NSString *basePath;
 
-/**
- *  Path for the default main data store.
- *  Use this to intitialize a data store with the default path
- *
- *  @return The path
- */
-+ (NSString *)mainDataStorePath;
-+ (NSString *)appSpecificMainDataStorePath; // deprecated, use mainDataStorePath
+/// Deprecated: Use dependency injection
++ (MWKDataStore *)shared;
 
-// Path methods
-- (NSString *)joinWithBasePath:(NSString *)path;
-- (NSString *)pathForSites; // Excluded from iCloud Backup. Includes every site, article, title.
-- (NSString *)pathForDomainInURL:(NSURL *)url;
-- (NSString *)pathForArticlesInDomainFromURL:(NSURL *)url;
+/// Deprecated: Used only for mobile-html conversion
 - (NSString *)pathForArticleURL:(NSURL *)url;
-
-/**
- * Path to the directory which contains data for the specified article.
- * @see -pathForArticleURL:
- */
-- (NSString *)pathForArticle:(MWKArticle *)article;
-- (NSString *)pathForSectionsInArticleWithURL:(NSURL *)url;
-- (NSString *)pathForSectionId:(NSUInteger)sectionId inArticleWithURL:(NSURL *)url;
-- (NSString *)pathForSection:(MWKSection *)section;
-- (NSString *)pathForImagesWithArticleURL:(NSURL *)url;
-- (NSString *)pathForImageURL:(NSString *)imageURL forArticleURL:(NSURL *)articleURL;
-
-- (NSString *)pathForImage:(MWKImage *)image;
-
-/**
- * The path where the image info is stored for a given article.
- * @param url The @c NSURL for the MWKArticle which contains the desired image info.
- * @return The path to the <b>.plist</b> file where image info for an article would be stored.
- */
-- (NSString *)pathForImageInfoForArticleWithURL:(NSURL *)url;
-
-// Raw save methods
-
-/**
- *  Saves the article to the store
- *
- *  @param article the article to save
- *  @param error out error
- *  @returns whether or not the save succeeded
- */
-- (BOOL)saveArticle:(MWKArticle *)article error:(NSError **)error;
-
-/**
- *  Adds the article to the memory cache
- *
- *  @param article the article to add to the memory cache
- */
-- (void)addArticleToMemoryCache:(MWKArticle *)article;
-
-/**
- *  Saves the section to the store
- *  This is a non-op if the section.article is a main page
- *
- *  @param section the section to save
- *  @param error out error
- *  @returns whether or not the save succeeded
- */
-- (BOOL)saveSection:(MWKSection *)section error:(NSError **)error;
-
-/**
- *  Saves the section to the store
- *  This is a non-op if the section.article is a main page
- *
- *  @param html    The text to save
- *  @param section the section to save
- *  @param error out error
- *  @returns whether or not the save succeeded
- */
-- (BOOL)saveSectionText:(NSString *)html section:(MWKSection *)section error:(NSError **)error;
 
 - (BOOL)saveRecentSearchList:(MWKRecentSearchList *)list error:(NSError **)error;
 
-- (void)removeArticleWithURL:(NSURL *)articleURL fromDiskWithCompletion:(dispatch_block_t)completion;
-
-/**
- * Save an array of image info objects which belong to the specified article.
- * @param imageInfo An array of @c MWKImageInfo objects belonging to the specified article.
- * @param url   The url for the article which contains the specified images.
- * @discussion Image info objects are stored under an article so they can be easily referenced and removed alongside
- *             the article.
- */
-- (void)saveImageInfo:(NSArray *)imageInfo forArticleURL:(NSURL *)url;
-
-///
-/// @name Article Load Methods
-///
-
-/**
- *  Retrieves an existing article from the receiver.
- *
- *  This will check memory cache first, falling back to disk if necessary. If data is read from disk, it is inserted
- *  into the memory cache before returning, allowing subsequent calls to this method to hit the memory cache.
- *
- *  @param url The url under which article data was previously stored.
- *
- *  @return An article, or @c nil if none was found.
- */
-- (nullable MWKArticle *)existingArticleWithURL:(NSURL *)url;
-
-/**
- *  Attempt to create an article object from data on disk.
- *
- *  @param url The url under which article data was previously stored.
- *
- *  @return An article, or @c nil if none was found.
- */
-- (nullable MWKArticle *)articleFromDiskWithURL:(NSURL *)url;
-
-/**
- *  Get or create an article with a given title.
- *
- *  If an article already exists for this title return it. Otherwise, create a new object and return it without saving
- *  it.
- *
- *  @param url The url related to the article data.
- *
- *  @return An article object with the given title.
- *
- *  @see -existingArticleWithURL:
- */
-- (MWKArticle *)articleWithURL:(NSURL *)url;
-
-- (MWKSection *)sectionWithId:(NSUInteger)sectionId article:(MWKArticle *)article;
-- (NSString *)sectionTextWithId:(NSUInteger)sectionId article:(MWKArticle *)article;
-- (nullable MWKImage *)imageWithURL:(NSString *)url article:(MWKArticle *)article;
-- (NSArray *)imageInfoForArticleWithURL:(NSURL *)url;
-
-- (NSArray *)historyListData;
-- (NSDictionary *)savedPageListData;
 - (NSArray *)recentSearchListData;
 
 // Storage helper methods
 
-- (NSInteger)sitesDirectorySize;
-
 - (NSError *)removeFolderAtBasePath;
 
-- (BOOL)hasHTMLFileForSection:(MWKSection *)section;
+#pragma mark - ABTestsController
 
-- (void)clearMemoryCache;
+@property (readonly, strong, nonatomic) WMFABTestsController *abTestsController;
 
-- (void)clearCachesForUnsavedArticles;
-
-- (void)removeUnreferencedArticlesFromDiskCacheWithFailure:(WMFErrorHandler)failure success:(WMFSuccessHandler)success;
-- (void)removeArticlesWithURLsFromCache:(NSArray<NSURL *> *)titlesToRemove;
-
-- (void)startCacheRemoval:(dispatch_block_t)completion;
-- (void)stopCacheRemoval;
-
-- (NSArray *)legacyImageURLsForArticle:(MWKArticle *)article;
+- (void)setupAbTestsControllerWithPersistenceService: (id<ABTestsPersisting>)persistenceService;
 
 @end
 

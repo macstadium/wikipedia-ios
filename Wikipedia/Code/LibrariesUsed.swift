@@ -53,7 +53,7 @@ class LibrariesUsedViewController: UIViewController, UITableViewDelegate, UITabl
         super.viewDidLoad()
         
         self.apply(theme: self.theme)
-        view.backgroundColor = .wmf_lightGray
+        view.backgroundColor = .base50
         tableView.register(UITableViewCell.self, forCellReuseIdentifier: LibrariesUsedViewController.cellReuseIdentifier)
         tableView.estimatedRowHeight = 41
         tableView.rowHeight = UITableView.automaticDimension
@@ -76,7 +76,7 @@ class LibrariesUsedViewController: UIViewController, UITableViewDelegate, UITabl
     private func librariesUsed(from plistPath: String) -> [LibraryUsed] {
         guard
             let dict = NSDictionary(contentsOfFile: plistPath) as? [String: Any],
-            let librariesUsedDataArray = dict[LibrariesUsedViewController.plistLibrariesUsedKey] as? Array<Dictionary<String, Any>>
+            let librariesUsedDataArray = dict[LibrariesUsedViewController.plistLibrariesUsedKey] as? [[String: Any]]
         else {
             assertionFailure("\n\nUnexpected items found in '\(plistPath)' or its '\(LibrariesUsedViewController.plistLibrariesUsedKey)' array.\n\n")
             return []
@@ -91,7 +91,7 @@ class LibrariesUsedViewController: UIViewController, UITableViewDelegate, UITabl
                     assertionFailure("\n\nOne of the following required keys not found in '\(LibrariesUsedViewController.plistLibrariesUsedKey)' array in '\(LibrariesUsedViewController.dataFileName)': '\(LibrariesUsedViewController.plistTitleKey)', '\(LibrariesUsedViewController.plistLicenseNameKey)', '\(LibrariesUsedViewController.plistLicenseTextKey)'\n\n")
                     return nil
                 }
-                return LibraryUsed.init(title: title.wmf_stringByCapitalizingFirstCharacter(usingWikipediaLanguage: "en"), licenseName: licenseName, licenseText: licenseText)
+                return LibraryUsed.init(title: title.wmf_stringByCapitalizingFirstCharacter(usingWikipediaLanguageCode: "en"), licenseName: licenseName, licenseText: licenseText)
             }
             .sorted(by: {
                 $0.title < $1.title
@@ -112,14 +112,14 @@ class LibrariesUsedViewController: UIViewController, UITableViewDelegate, UITabl
         cell.textLabel?.semanticContentAttribute = .forceLeftToRight
         cell.textLabel?.textAlignment = .left
         
-        cell.backgroundColor = theme.colors.paperBackground;
-        cell.textLabel?.textColor = theme.colors.primaryText;
+        cell.backgroundColor = theme.colors.paperBackground
+        cell.textLabel?.textColor = theme.colors.primaryText
         
         cell.selectionStyle = .default
         cell.selectedBackgroundView = UIView()
         cell.selectedBackgroundView?.backgroundColor = theme.colors.midBackground
         
-        let library:LibraryUsed = self.libraries[indexPath.row];
+        let library:LibraryUsed = self.libraries[indexPath.row]
         cell.textLabel?.text = library.title
         return cell
     }
@@ -128,7 +128,7 @@ class LibrariesUsedViewController: UIViewController, UITableViewDelegate, UITabl
         tableView.deselectRow(at: indexPath, animated: true)
         let libraryVC = LibraryUsedViewController.wmf_viewControllerFromStoryboardNamed(LibrariesUsedViewController.storyboardName)
         libraryVC.apply(theme: self.theme)
-        let library = self.libraries[indexPath.row];
+        let library = self.libraries[indexPath.row]
         libraryVC.library = library
         libraryVC.title = library.title
         navigationController?.pushViewController(libraryVC, animated: true)

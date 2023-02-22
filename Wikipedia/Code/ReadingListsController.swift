@@ -1,4 +1,5 @@
 import Foundation
+import CocoaLumberjackSwift
 
 // Sync keys
 let WMFReadingListSyncStateKey = "WMFReadingListsSyncState"
@@ -29,7 +30,8 @@ struct ReadingListSyncState: OptionSet {
     static let needsLocalListClear    = ReadingListSyncState(rawValue: 1 << 6) // remove all lists
     
     static let needsRandomLists = ReadingListSyncState(rawValue: 1 << 7) // for debugging, populate random lists
-    static let needsRandomEntries = ReadingListSyncState(rawValue: 1 << 8) // for debugging, populate with random entries
+    static let needsRandomEntries = ReadingListSyncState(rawValue: 1 << 8) // for debugging, populate with random entries in any language
+    static let needsRandomEnEntries = ReadingListSyncState(rawValue: 1 << 9) // for debugging, populate with random english wikipedia entries
     
     static let needsEnable: ReadingListSyncState = [.needsRemoteEnable, .needsSync]
     static let needsLocalClear: ReadingListSyncState = [.needsLocalArticleClear, .needsLocalListClear]
@@ -82,7 +84,7 @@ public enum ReadingListError: Error, Equatable {
     }
     
     public static func ==(lhs: ReadingListError, rhs: ReadingListError) -> Bool {
-        return lhs.localizedDescription == rhs.localizedDescription //shrug
+        return lhs.localizedDescription == rhs.localizedDescription // shrug
     }
 }
 
@@ -107,7 +109,7 @@ public typealias ReadingListsController = WMFReadingListsController
     @objc public static let userDidSaveOrUnsaveArticleNotification = NSNotification.Name(rawValue: "WMFUserDidSaveOrUnsaveArticleNotification")
 
     internal weak var dataStore: MWKDataStore!
-    internal let apiController = ReadingListsAPIController()
+    public let apiController: ReadingListsAPIController
         
     private let operationQueue = OperationQueue()
     
@@ -125,6 +127,7 @@ public typealias ReadingListsController = WMFReadingListsController
     
     @objc init(dataStore: MWKDataStore) {
         self.dataStore = dataStore
+        self.apiController = ReadingListsAPIController(session: dataStore.session, configuration: dataStore.configuration)
         super.init()
         operationQueue.maxConcurrentOperationCount = 1
     }
@@ -295,17 +298,26 @@ public typealias ReadingListsController = WMFReadingListsController
         guard !articles.isEmpty else {
             return
         }
-
+        
+        // We should not add the same article in multiple variants.
+        // Keying on articleKey instead of inMemoryKey matches any variant of an article
         var existingKeys = Set(readingList.articleKeys)
         
         for article in articles {
             guard let key = article.key, !existingKeys.contains(key) else {
                 continue
             }
+
+            // Need this to add to default reading list, otherwise article doesn't show up in "All articles" on SavedVC
+            if !article.isSaved, let articleUrl = article.url {
+                dataStore.savedPageList.toggleSavedPage(for: articleUrl)
+            }
+
             guard let entry = moc.wmf_create(entityNamed: "ReadingListEntry", withValue: key, forKey: "articleKey") as? ReadingListEntry else {
                 return
             }
             existingKeys.insert(key)
+            entry.variant = article.variant
             entry.createdDate = NSDate()
             entry.updatedDate = entry.createdDate
             entry.isUpdatedLocally = true
@@ -344,7 +356,7 @@ public typealias ReadingListsController = WMFReadingListsController
         }
     }
     
-    public func debugSync(createLists: Bool, listCount: Int64, addEntries: Bool, entryCount: Int64, deleteLists: Bool, deleteEntries: Bool, doFullSync: Bool, completion: @escaping () -> Void) {
+    public func debugSync(createLists: Bool, listCount: Int64, addEntries: Bool, randomizeLanguageEntries: Bool, entryCount: Int64, deleteLists: Bool, deleteEntries: Bool, doFullSync: Bool, completion: @escaping () -> Void) {
         dataStore.viewContext.wmf_setValue(NSNumber(value: listCount), forKey: "WMFCountOfListsToCreate")
         dataStore.viewContext.wmf_setValue(NSNumber(value: entryCount), forKey: "WMFCountOfEntriesToCreate")
         let oldValue = syncState
@@ -354,11 +366,15 @@ public typealias ReadingListsController = WMFReadingListsController
         } else {
             newValue.remove(.needsRandomLists)
         }
-        if addEntries {
+        if randomizeLanguageEntries {
             newValue.insert(.needsRandomEntries)
+        } else if addEntries {
+            newValue.insert(.needsRandomEnEntries)
         } else {
             newValue.remove(.needsRandomEntries)
+            newValue.remove(.needsRandomEnEntries)
         }
+        
         if deleteLists {
             newValue.insert(.needsLocalListClear)
         } else {
@@ -571,6 +587,9 @@ public typealias ReadingListsController = WMFReadingListsController
     }
     
     @objc public func sync() {
+        guard !Bundle.main.isAppExtension else {
+            return
+        }
         #if TEST
         #else
             assert(Thread.isMainThread)
@@ -579,6 +598,10 @@ public typealias ReadingListsController = WMFReadingListsController
         #endif
     }
     
+    /// Note that the predicate does not take the article language variant into account. This is intentional.
+    /// Only one variant of an article can be added to a reading list. However *all* variants of the same article appear saved in the user interface.
+    /// The 'unsave' button can be tapped by the user on *any* variant of the article.
+    /// By only searching for article key, the saved article variant is removed regardless of which variant of the article was tapped.
     public func remove(articles: [WMFArticle], readingList: ReadingList) throws {
         assert(Thread.isMainThread)
         let moc = dataStore.viewContext
@@ -623,17 +646,27 @@ public typealias ReadingListsController = WMFReadingListsController
         assert(Thread.isMainThread)
         do {
             let moc = dataStore.viewContext
-            unsave([article], in: moc)
+            guard let savedArticleVariant = article.savedVariant else {
+                assertionFailure("An article without a saved variant should never be passed to \(#function).")
+                return
+            }
+            unsave([savedArticleVariant], in: moc)
             if moc.hasChanges {
                 try moc.save()
             }
-            NotificationCenter.default.post(name: WMFReadingListsController.userDidSaveOrUnsaveArticleNotification, object: article)
+            // The notification needs to include the exact article acted on.
+            // Getting the savedVariant ensures we pass the correct variant.
+            NotificationCenter.default.post(name: WMFReadingListsController.userDidSaveOrUnsaveArticleNotification, object: savedArticleVariant)
             sync()
         } catch let error {
             DDLogError("Error unsaving article: \(error)")
         }
     }
     
+    /// Note that the predicate does not take the article language variant into account. This is intentional.
+    /// Only one variant of an article can be saved. However *all* variants of the same article appear saved in the user interface.
+    /// The 'unsave' button can be tapped by the user on *any* variant of the article.
+    /// By only searching for article key, the saved article variant is removed regardless of which variant of the article was tapped.
     public func unsave(_ articles: [WMFArticle], in moc: NSManagedObjectContext) {
         do {
             let keys = articles.compactMap { $0.key }
@@ -645,48 +678,10 @@ public typealias ReadingListsController = WMFReadingListsController
             DDLogError("Error removing article from default list: \(error)")
         }
     }
-    
-    
-    @objc public func removeArticlesWithURLsFromDefaultReadingList(_ articleURLs: [URL]) {
-        assert(Thread.isMainThread)
-        do {
-            let moc = dataStore.viewContext
-            for url in articleURLs {
-                guard let article = dataStore.fetchArticle(with: url) else {
-                    continue
-                }
-                unsave([article], in: moc)
-            }
-            if moc.hasChanges {
-                try moc.save()
-            }
-            sync()
-        } catch let error {
-            DDLogError("Error removing all articles from default list: \(error)")
-        }
-    }
-}
-
-public extension WMFArticle {
-    func fetchReadingListEntries() throws -> [ReadingListEntry] {
-        guard let moc = managedObjectContext, let key = key else {
-            return []
-        }
-        let entryFetchRequest: NSFetchRequest<ReadingListEntry> = ReadingListEntry.fetchRequest()
-        entryFetchRequest.predicate = NSPredicate(format: "articleKey == %@", key)
-        return try moc.fetch(entryFetchRequest)
-    }
-    
-    func fetchDefaultListEntry() throws -> ReadingListEntry? {
-        let readingListEntries = try fetchReadingListEntries()
-        return readingListEntries.first(where: { (entry) -> Bool in
-            return (entry.list?.isDefault ?? false) && !entry.isDeletedLocally
-        })
-    }
 }
 
 extension WMFArticle {
-    func addToDefaultReadingList() throws {
+    fileprivate func addToDefaultReadingList() throws {
         guard let moc = self.managedObjectContext else {
             return
         }
@@ -695,7 +690,8 @@ extension WMFArticle {
             return
         }
         
-        guard let defaultReadingList = moc.wmf_fetchDefaultReadingList() else {
+        guard let defaultReadingList = moc.fetchOrCreateDefaultReadingList() else {
+            assert(false, "Default reading list should exist")
             return
         }
         
@@ -705,10 +701,31 @@ extension WMFArticle {
         defaultListEntry.createdDate = NSDate()
         defaultListEntry.updatedDate = defaultListEntry.createdDate
         defaultListEntry.articleKey = self.key
+        defaultListEntry.variant = self.variant
         defaultListEntry.list = defaultReadingList
         defaultListEntry.displayTitle = displayTitle
         defaultListEntry.isUpdatedLocally = true
         try defaultReadingList.updateArticlesAndEntries()
+    }
+    
+    /// The purpose of these two methods is to answer the question 'is included in default reading list?'.
+    /// Since only one language variant per article can be included, searching for articleKey will
+    /// find any variant of the article that is on the default reading list.
+    /// This is the intended behavior.
+    private func fetchReadingListEntries() throws -> [ReadingListEntry] {
+        guard let moc = managedObjectContext, let key = key else {
+            return []
+        }
+        let entryFetchRequest: NSFetchRequest<ReadingListEntry> = ReadingListEntry.fetchRequest()
+        entryFetchRequest.predicate = NSPredicate(format: "articleKey == %@", key)
+        return try moc.fetch(entryFetchRequest)
+    }
+    
+    private func fetchDefaultListEntry() throws -> ReadingListEntry? {
+        let readingListEntries = try fetchReadingListEntries()
+        return readingListEntries.first(where: { (entry) -> Bool in
+            return (entry.list?.isDefault ?? false) && !entry.isDeletedLocally
+        })
     }
     
     func readingListsDidChange() {
@@ -720,7 +737,7 @@ extension WMFArticle {
         }
     }
 
-    @objc public var isInDefaultList: Bool {
+    private var isInDefaultList: Bool {
         guard let readingLists = self.readingLists else {
             return false
         }
@@ -731,11 +748,7 @@ extension WMFArticle {
         return (readingLists ?? []).count == 1 && isInDefaultList
     }
     
-    @objc public var readingListsCount: Int {
-        return (readingLists ?? []).count
-    }
-    
-    @objc public var userCreatedReadingLists: [ReadingList] {
+    private var userCreatedReadingLists: [ReadingList] {
         return (readingLists ?? []).filter { !$0.isDefault }
     }
     
@@ -746,13 +759,24 @@ extension WMFArticle {
 
 public extension NSManagedObjectContext {
     // use with caution, fetching is expensive
-    @objc func wmf_fetchDefaultReadingList() -> ReadingList? {
-        var defaultList = wmf_fetch(objectForEntityName: "ReadingList", withValue: NSNumber(value: true), forKey: "isDefault") as? ReadingList
+    @objc(wmf_fetchOrCreateDefaultReadingList)
+    @discardableResult func fetchOrCreateDefaultReadingList() -> ReadingList? {
+        assert(Thread.isMainThread, "Only create the default reading list on the view context to avoid duplicates")
+        var defaultList = defaultReadingList
         if defaultList == nil { // failsafe
-            defaultList = wmf_fetch(objectForEntityName: "ReadingList", withValue: ReadingList.defaultListCanonicalName, forKey: "canonicalName") as? ReadingList
+            defaultList = wmf_fetchOrCreate(objectForEntityName: "ReadingList", withValue: ReadingList.defaultListCanonicalName, forKey: "canonicalName") as? ReadingList
             defaultList?.isDefault = true
+            do {
+                try save()
+            } catch let error {
+                DDLogError("Error creating default reading list: \(error)")
+            }
         }
         return defaultList
+    }
+    
+    var defaultReadingList: ReadingList? {
+        return wmf_fetch(objectForEntityName: "ReadingList", withValue: NSNumber(value: true), forKey: "isDefault") as? ReadingList
     }
     
     // is sync available or is it shut down server-side

@@ -9,19 +9,27 @@
         case createList = "createlist"
         case deleteList = "deletelist"
         case readStart = "read_start"
+        case receiveStart = "receive_start"
+        case receiveCancel = "receive_cancel"
+        case receiveFinish = "receive_finish"
+        case surveyShown = "survey_shown"
+        case surveyClicked = "survey_clicked"
     }
     
     private override init() {
-        super.init(schema: "MobileWikiAppiOSReadingLists", version: 18280648)
+        super.init(schema: "MobileWikiAppiOSReadingLists", version: 24086844)
     }
     
-    private func event(category: EventLoggingCategory, label: EventLoggingLabel?, action: Action, measure: Int = 1, measureAge: Int? = nil, measurePosition: Int? = nil) -> Dictionary<String, Any> {
+    private func event(category: EventLoggingCategory, label: EventLoggingLabel?, action: Action, measure: Int? = nil, measureAge: Int? = nil, measurePosition: Int? = nil) -> [String: Any] {
         let category = category.rawValue
         let action = action.rawValue
         
-        var event: [String: Any] = ["category": category, "action": action, "measure": measure, "primary_language": primaryLanguage(), "is_anon": isAnon]
+        var event: [String: Any] = ["category": category, "action": action, "primary_language": primaryLanguage(), "is_anon": isAnon]
         if let label = label?.rawValue {
             event["label"] = label
+        }
+        if let measure = measure {
+            event["measure"] = measure
         }
         if let measurePosition = measurePosition {
             event["measure_position"] = measurePosition
@@ -97,15 +105,15 @@
     }
     
     private func logSave(category: EventLoggingCategory, label: EventLoggingLabel? = nil, measure: Int = 1, articleURL: URL, measureAge: Int? = nil, measurePosition: Int? = nil) {
-        log(event(category: category, label: label, action: .save, measure: measure, measureAge: measureAge, measurePosition: measurePosition), language: articleURL.wmf_language)
+        log(event(category: category, label: label, action: .save, measure: measure, measureAge: measureAge, measurePosition: measurePosition), language: articleURL.wmf_languageCode)
     }
     
     @objc public func logSave(category: EventLoggingCategory, label: EventLoggingLabel?, articleURL: URL?) {
-        log(event(category: category, label: label, action: .save, measure: 1), language: articleURL?.wmf_language)
+        log(event(category: category, label: label, action: .save, measure: 1), language: articleURL?.wmf_languageCode)
     }
     
     @objc public func logUnsave(category: EventLoggingCategory, label: EventLoggingLabel?, articleURL: URL?) {
-        log(event(category: category, label: label, action: .unsave, measure: 1), language: articleURL?.wmf_language)
+        log(event(category: category, label: label, action: .unsave, measure: 1), language: articleURL?.wmf_languageCode)
     }
     
     private func logUnsave(category: EventLoggingCategory, label: EventLoggingLabel? = nil, measure: Int = 1, language: String?, measureAge: Int? = nil, measurePosition: Int? = nil) {
@@ -113,15 +121,15 @@
     }
     
     private func logUnsave(category: EventLoggingCategory, label: EventLoggingLabel? = nil, measure: Int = 1, articleURL: URL, measureAge: Int? = nil, measurePosition: Int? = nil) {
-        log(event(category: category, label: label, action: .unsave, measure: measure, measureAge: measureAge, measurePosition: measurePosition), language: articleURL.wmf_language)
+        log(event(category: category, label: label, action: .unsave, measure: measure, measureAge: measureAge, measurePosition: measurePosition), language: articleURL.wmf_languageCode)
     }
 
     public func logUnsave(category: EventLoggingCategory, label: EventLoggingLabel? = nil, measure: Int = 1, articleURL: URL, date: Date?, measurePosition: Int) {
-        log(event(category: category, label: label, action: .unsave, measure: measure, measureAge: daysSince(date), measurePosition: measurePosition), language: articleURL.wmf_language)
+        log(event(category: category, label: label, action: .unsave, measure: measure, measureAge: daysSince(date), measurePosition: measurePosition), language: articleURL.wmf_languageCode)
     }
 
     public func logSave(category: EventLoggingCategory, label: EventLoggingLabel? = nil, measure: Int = 1, articleURL: URL, date: Date?, measurePosition: Int) {
-        log(event(category: category, label: label, action: .save, measure: measure, measureAge: daysSince(date), measurePosition: measurePosition), language: articleURL.wmf_language)
+        log(event(category: category, label: label, action: .save, measure: measure, measureAge: daysSince(date), measurePosition: measurePosition), language: articleURL.wmf_languageCode)
     }
     
     // - MARK: Saved - default reading list
@@ -131,7 +139,7 @@
     }
     
     public func logReadStartIReadingList(_ articleURL: URL) {
-        log(event(category: .saved, label: .items, action: .readStart), language: articleURL.wmf_language)
+        log(event(category: .saved, label: .items, action: .readStart, measure: 1), language: articleURL.wmf_languageCode)
     }
     
     // - MARK: Saved - reading lists
@@ -141,7 +149,7 @@
     }
     
     public func logCreateInReadingLists() {
-        log(event(category: .saved, label: .lists, action: .createList))
+        log(event(category: .saved, label: .lists, action: .createList, measure: 1))
     }
     
     // - MARK: Add articles to reading list
@@ -151,6 +159,28 @@
     }
     
     public func logCreateInAddToReadingList() {
-        log(event(category: .addToList, label: nil, action: .createList))
+        log(event(category: .addToList, label: nil, action: .createList, measure: 1))
+    }
+    
+    // - MARK: Import Shared Reading Lists
+    
+    public func logStartImport(articlesCount: Int) {
+        log(event(category: .shared, label: nil, action: .receiveStart, measure: articlesCount))
+    }
+    
+    public func logCancelImport() {
+        log(event(category: .shared, label: nil, action: .receiveCancel))
+    }
+    
+    public func logCompletedImport(articlesCount: Int) {
+        log(event(category: .shared, label: nil, action: .receiveFinish, measure: articlesCount))
+    }
+    
+    public func logPresentedSurveyPrompt() {
+        log(event(category: .shared, label: nil, action: .surveyShown))
+    }
+    
+    public func logTappedTakeSurvey() {
+        log(event(category: .shared, label: nil, action: .surveyClicked))
     }
 }

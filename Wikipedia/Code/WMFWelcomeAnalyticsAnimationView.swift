@@ -28,7 +28,7 @@ open class WMFWelcomeAnalyticsAnimationView : WMFWelcomeAnimationView {
         return imgView
     }()
     
-    override open func addAnimationElementsScaledToCurrentFrameSize(){
+    override open func addAnimationElementsScaledToCurrentFrameSize() {
         super.addAnimationElementsScaledToCurrentFrameSize()
         removeExistingSubviewsAndSublayers()
         addSubview(phoneImgView)
@@ -40,7 +40,7 @@ open class WMFWelcomeAnalyticsAnimationView : WMFWelcomeAnimationView {
     }
     /*
     @objc func handleTapGestureRecognizer(_ gestureRecognizer: UITapGestureRecognizer) {
-        print("chartImgView anchorPoint \(gestureRecognizer.location(in: self).wmf_normalizeUsingSize(frame.size))")
+        DDLogDebug("chartImgView anchorPoint \(gestureRecognizer.location(in: self).wmf_normalizeUsingSize(frame.size))")
     }
     */
     override open func beginAnimations() {

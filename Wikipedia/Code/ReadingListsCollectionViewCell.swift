@@ -29,11 +29,9 @@ class ReadingListsCollectionViewCell: ArticleCollectionViewCell {
             default:
                 break
             }
-            alertLabel.text = alertLabelText
-            
-            if !isAlertIconHidden {
-                alertIcon.image = UIImage(named: "error-icon")
-            }
+            alertButton.setTitle(alertLabelText, for: .normal)
+            alertButton.setImage(UIImage(named: "error-icon"), for: .normal)
+            setNeedsLayout()
         }
     }
     
@@ -118,9 +116,9 @@ class ReadingListsCollectionViewCell: ArticleCollectionViewCell {
         if !isImageGridHidden || !isImageViewHidden {
             widthMinusMargins = widthMinusMargins - spacing - imageViewDimension - labelsAdditionalSpacing
         }
-        
+
         var x = layoutMargins.left
-        if isDeviceRTL {
+        if isArticleRTL {
             x = size.width - x - widthMinusMargins
         }
         var origin = CGPoint(x: x, y: layoutMargins.top)
@@ -128,7 +126,7 @@ class ReadingListsCollectionViewCell: ArticleCollectionViewCell {
         if displayType == .readingListsTab {
             let articleCountLabelSize = articleCountLabel.intrinsicContentSize
             var x = origin.x
-            if isDeviceRTL {
+            if isArticleRTL {
                 x = size.width - articleCountLabelSize.width - layoutMargins.left
             }
             let articleCountLabelFrame = articleCountLabel.wmf_preferredFrame(at: CGPoint(x: x, y: origin.y), maximumSize: articleCountLabelSize, alignedBy: articleSemanticContentAttribute, apply: apply)
@@ -138,7 +136,7 @@ class ReadingListsCollectionViewCell: ArticleCollectionViewCell {
             articleCountLabel.isHidden = true
         }
         
-        let labelHorizontalAlignment: HorizontalAlignment = isDeviceRTL ? .right : .left
+        let labelHorizontalAlignment: HorizontalAlignment = isArticleRTL ? .right : .left
         
         if displayType == .addArticlesToReadingList {
             if isDefault {
@@ -150,7 +148,7 @@ class ReadingListsCollectionViewCell: ArticleCollectionViewCell {
                 let titleLabelFrame = titleLabel.wmf_preferredFrame(at: CGPoint(x: origin.x, y: layoutMargins.top), maximumSize: CGSize(width: widthMinusMargins, height: UIView.noIntrinsicMetric), minimumSize: CGSize(width: UIView.noIntrinsicMetric, height: minHeightMinusMargins), horizontalAlignment: labelHorizontalAlignment, verticalAlignment: .center, apply: apply)
                 origin.y += titleLabelFrame.layoutHeight(with: 0)
             }
-        } else if (descriptionLabel.wmf_hasText || !isImageGridHidden || !isImageViewHidden) {
+        } else if descriptionLabel.wmf_hasText || !isImageGridHidden || !isImageViewHidden {
             let titleLabelFrame = titleLabel.wmf_preferredFrame(at: origin, maximumWidth: widthMinusMargins, alignedBy: articleSemanticContentAttribute, apply: apply)
             origin.y += titleLabelFrame.layoutHeight(with: spacing)
             
@@ -159,7 +157,7 @@ class ReadingListsCollectionViewCell: ArticleCollectionViewCell {
         } else {
             let titleLabelFrame = titleLabel.wmf_preferredFrame(at: origin, maximumSize: CGSize(width: widthMinusMargins, height: UIView.noIntrinsicMetric), minimumSize: CGSize(width: UIView.noIntrinsicMetric, height: minHeightMinusMargins), horizontalAlignment: labelHorizontalAlignment, verticalAlignment: .center, apply: apply)
             origin.y += titleLabelFrame.layoutHeight(with: 0)
-            if !isAlertIconHidden || !isAlertLabelHidden {
+            if !isAlertButtonHidden {
                 origin.y += titleLabelFrame.layoutHeight(with: spacing) + spacing * 2
             }
         }
@@ -171,71 +169,56 @@ class ReadingListsCollectionViewCell: ArticleCollectionViewCell {
         let separatorXPositon: CGFloat = 0
         let separatorWidth = size.width
 
-        if (apply) {
-            if (!bottomSeparator.isHidden) {
+        if apply {
+            if !bottomSeparator.isHidden {
                 bottomSeparator.frame = CGRect(x: separatorXPositon, y: height - singlePixelDimension, width: separatorWidth, height: singlePixelDimension)
             }
             
-            if (!topSeparator.isHidden) {
+            if !topSeparator.isHidden {
                 topSeparator.frame = CGRect(x: separatorXPositon, y: 0, width: separatorWidth, height: singlePixelDimension)
             }
         }
         
-        if (apply) {
+        if apply {
             let imageViewY = floor(0.5*height - 0.5*imageViewDimension)
             var x = layoutMargins.right
-            if !isDeviceRTL {
+            if !isArticleRTL {
                 x = size.width - x - imageViewDimension
             }
             imageGrid.frame = CGRect(x: x, y: imageViewY, width: imageViewDimension, height: imageViewDimension)
             imageGrid.isHidden = isImageGridHidden
         }
         
-        if (apply && !isImageViewHidden) {
+        if apply && !isImageViewHidden {
             let imageViewY = floor(0.5*height - 0.5*imageViewDimension)
             var x = layoutMargins.right
-            if !isDeviceRTL {
+            if !isArticleRTL {
                 x = size.width - x - imageViewDimension
             }
             imageView.frame = CGRect(x: x, y: imageViewY, width: imageViewDimension, height: imageViewDimension)
         }
         
         let yAlignedWithImageBottom = imageGrid.frame.maxY - layoutMargins.bottom - (0.5 * spacing)
-        
-        if !isAlertIconHidden {
-            var x = origin.x
-            if isDeviceRTL {
-                x = size.width - alertIconDimension - layoutMargins.right
-            }
-            alertIcon.frame = CGRect(x: x, y: yAlignedWithImageBottom, width: alertIconDimension, height: alertIconDimension)
-            origin.y += alertIcon.frame.layoutHeight(with: 0)
-        }
-        
-        if !isAlertLabelHidden {
-            var xPosition = alertIcon.frame.maxX + spacing
-            var yPosition = alertIcon.frame.midY - 0.5 * alertIconDimension
-            var availableWidth = widthMinusMargins - alertIconDimension - spacing
-            if isDeviceRTL {
-                xPosition = alertIcon.frame.minX - availableWidth - spacing
-            }
-            if isAlertIconHidden {
-                xPosition = origin.x
-                yPosition = yAlignedWithImageBottom
-                availableWidth = widthMinusMargins
-            }
-            let alertLabelFrame = alertLabel.wmf_preferredFrame(at: CGPoint(x: xPosition, y: yPosition), maximumWidth: availableWidth, alignedBy: articleSemanticContentAttribute, apply: apply)
-            origin.y += alertLabelFrame.layoutHeight(with: 0)
+
+        if apply && !isAlertButtonHidden {
+            let effectiveImageDimension = isImageViewHidden ? 0 : imageViewDimension + spacing
+            let xPosition = isArticleRTL ? layoutMargins.right + effectiveImageDimension : layoutMargins.left
+            let maxButtonHeight: CGFloat = 44
+            let yPosition = height - layoutMargins.bottom - maxButtonHeight
+            let availableWidth = layoutWidth(for: size) - spacing - effectiveImageDimension // don't reuse widthMinusMargins
+            let origin = CGPoint(x: xPosition, y: yPosition)
+            alertButton.wmf_preferredFrame(at: origin, maximumSize: CGSize(width: availableWidth, height: maxButtonHeight), minimumSize: .zero, horizontalAlignment: isArticleRTL ? .right : .left, verticalAlignment: .bottom, apply: apply)
         }
         
         if displayType == .readingListsTab && isDefault {
             let defaultListTagSize = defaultListTag.intrinsicContentSize
             var x = origin.x
-            if isDeviceRTL {
+            if isArticleRTL {
                 x = size.width - defaultListTagSize.width - layoutMargins.right
             }
             var y = yAlignedWithImageBottom
-            if !isAlertIconHidden || !isAlertLabelHidden {
-                let alertMinY = isAlertIconHidden ? alertLabel.frame.minY : alertIcon.frame.minY
+            if !isAlertButtonHidden {
+                let alertMinY = alertButton.frame.minY
                 y = descriptionLabel.frame.maxY + ((alertMinY - descriptionLabel.frame.maxY) * 0.25)
             }
             _ = defaultListTag.wmf_preferredFrame(at: CGPoint(x: x, y: y), maximumSize: defaultListTagSize, alignedBy: articleSemanticContentAttribute, apply: apply)
@@ -270,21 +253,17 @@ class ReadingListsCollectionViewCell: ArticleCollectionViewCell {
         
         switch error {
         case .listLimit:
-            isAlertLabelHidden = false
-            isAlertIconHidden = false
+            isAlertButtonHidden = false
             alertType = .listLimitExceeded(limit: listLimit)
         case .entryLimit:
-            isAlertLabelHidden = false
-            isAlertIconHidden = false
+            isAlertButtonHidden = false
             alertType = .entryLimitExceeded(limit: entryLimit)
         default:
-            isAlertLabelHidden = true
-            isAlertIconHidden = true
+            isAlertButtonHidden = true
         }
         
         let isAddArticlesToReadingListDisplayType = displayType == .addArticlesToReadingList
-        isAlertIconHidden = isAddArticlesToReadingListDisplayType
-        isAlertLabelHidden = isAddArticlesToReadingListDisplayType
+        isAlertButtonHidden = isAddArticlesToReadingListDisplayType
     }
     
     func configure(readingList: ReadingList, isDefault: Bool = false, index: Int, shouldShowSeparators: Bool = false, theme: Theme, for displayType: ReadingListsDisplayType, articleCount: Int64, lastFourArticlesWithLeadImages: [WMFArticle], layoutOnly: Bool) {
@@ -313,7 +292,7 @@ class ReadingListsCollectionViewCell: ArticleCollectionViewCell {
         isImageViewHidden = !(isImageGridHidden && imageURLs.count >= 1) // we need at least one image to display
         
         if !layoutOnly && !isImageGridHidden {
-            let _ = zip(gridImageViews, imageURLs).compactMap { $0.wmf_setImage(with: $1, detectFaces: true, onGPU: true, failure: { (error) in }, success: { })}
+            _ = zip(gridImageViews, imageURLs).compactMap { $0.wmf_setImage(with: $1, detectFaces: true, onGPU: true, failure: { (error) in }, success: { })}
         }
         
         if isImageGridHidden, let imageURL = imageURLs.first {

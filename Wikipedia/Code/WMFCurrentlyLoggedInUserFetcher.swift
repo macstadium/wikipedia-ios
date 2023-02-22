@@ -1,4 +1,3 @@
-
 public enum WMFCurrentlyLoggedInUserFetcherError: LocalizedError {
     case cannotExtractUserInfo
     case userIsAnonymous
@@ -18,19 +17,22 @@ public enum WMFCurrentlyLoggedInUserFetcherError: LocalizedError {
 public typealias WMFCurrentlyLoggedInUserBlock = (WMFCurrentlyLoggedInUser) -> Void
 
 @objc public class WMFCurrentlyLoggedInUser: NSObject {
-    @objc var userID: Int
-    @objc var name: String
-    init(userID: Int, name: String) {
+    @objc public var userID: Int
+    @objc public var name: String
+    @objc public var groups: [String]
+    init(userID: Int, name: String, groups: [String]) {
         self.userID = userID
         self.name = name
+        self.groups = groups
     }
 }
 
 public class WMFCurrentlyLoggedInUserFetcher: Fetcher {
-    public func fetch(siteURL: URL, success: @escaping WMFCurrentlyLoggedInUserBlock, failure: @escaping WMFErrorHandler){
+    public func fetch(siteURL: URL, success: @escaping WMFCurrentlyLoggedInUserBlock, failure: @escaping WMFErrorHandler) {
         let parameters = [
             "action": "query",
             "meta": "userinfo",
+            "uiprop": "groups",
             "format": "json"
         ]
         
@@ -48,11 +50,12 @@ public class WMFCurrentlyLoggedInUserFetcher: Fetcher {
                     failure(WMFCurrentlyLoggedInUserFetcherError.cannotExtractUserInfo)
                     return
             }
-            guard (userinfo["anon"] == nil) else {
+            guard userinfo["anon"] == nil else {
                 failure(WMFCurrentlyLoggedInUserFetcherError.userIsAnonymous)
                 return
             }
-            success(WMFCurrentlyLoggedInUser.init(userID: userID, name: userName))
+            let groups = userinfo["groups"] as? [String] ?? []
+            success(WMFCurrentlyLoggedInUser.init(userID: userID, name: userName, groups: groups))
         }
     }
 }

@@ -8,10 +8,17 @@ protocol SavedViewControllerDelegate: NSObjectProtocol {
     func saved(_ saved: SavedViewController, searchBarTextDidEndEditing searchBar: UISearchBar)
 }
 
+// Wrapper for accessing View in Objective-C
+@objc class WMFSavedViewControllerView: NSObject {
+    @objc static let readingListsViewRawValue = SavedViewController.View.readingLists.rawValue
+}
+
 @objc(WMFSavedViewController)
 class SavedViewController: ViewController {
 
     private var savedArticlesViewController: SavedArticlesCollectionViewController?
+    
+    @objc weak var tabBarDelegate: AppTabBarDelegate?
     
     private lazy var readingListsViewController: ReadingListsViewController? = {
         guard let dataStore = dataStore else {
@@ -67,9 +74,10 @@ class SavedViewController: ViewController {
         toggleButtons.first { $0.tag != sender.tag }?.isSelected = false
         sender.isSelected = true
         currentView = View(rawValue: sender.tag) ?? .savedArticles
+        logTappedView(currentView)
     }
 
-    func toggleCurrentView(_ newViewRawValue: Int) {
+    @objc func toggleCurrentView(_ newViewRawValue: Int) {
         toggleButtons.first { $0.tag != newViewRawValue }?.isSelected = false
         for button in toggleButtons {
             if button.tag == newViewRawValue {
@@ -160,6 +168,15 @@ class SavedViewController: ViewController {
         vc.removeFromParent()
     }
     
+    private func logTappedView(_ view: View) {
+        switch view {
+        case .savedArticles:
+            NavigationEventsFunnel.shared.logTappedSavedAllArticles()
+        case .readingLists:
+            NavigationEventsFunnel.shared.logTappedSavedReadingLists()
+        }
+    }
+    
     // MARK: - View lifecycle
     
     override func viewDidLoad() {
@@ -206,12 +223,15 @@ class SavedViewController: ViewController {
         
         let savedArticlesWasNil = savedArticlesViewController == nil
         setSavedArticlesViewControllerIfNeeded()
-        if let _ = savedArticlesViewController,
+        if savedArticlesViewController != nil,
             currentView == .savedArticles,
             savedArticlesWasNil {
-            //reassign so activeEditableCollection gets reset
+            // reassign so activeEditableCollection gets reset
             currentView = .savedArticles
         }
+
+        // Terrible hack to make back button text appropriate for iOS 14 - need to set the title on `WMFAppViewController`. For all app tabs, this is set in `viewWillAppear`.
+        (parent as? WMFAppViewController)?.navigationItem.backButtonTitle = title
     }
     
     override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
@@ -310,6 +330,14 @@ extension SavedViewController: CollectionViewEditControllerNavigationDelegate {
         let editingStates: [EditingState] = [.swiping, .open, .editing]
         let isEditing = editingStates.contains(newEditingState)
         actionButton.isEnabled = !isEditing
+        if (newEditingState == .open),
+            let batchEditToolbar = savedArticlesViewController?.editController.batchEditToolbarView,
+            let contentView = containerView,
+            let appTabBar = tabBarDelegate?.tabBar {
+                accessibilityElements = [navigationBar, batchEditToolbar, contentView, appTabBar]
+        } else {
+            accessibilityElements = []
+        }
         guard isEditing else {
             return
         }

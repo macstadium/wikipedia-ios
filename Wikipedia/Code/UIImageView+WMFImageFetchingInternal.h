@@ -1,8 +1,9 @@
 #import "UIImageView+WMFFaceDetectionBasedOnUIApplicationSharedApplication.h"
 #import <WMF/WMFBlockDefinitions.h>
 @class MWKImage;
-@class WMFImageController;
+@class WMFPermanentCacheController;
 @class WMFFaceDetectionCache;
+@class FLAnimatedImage;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -40,23 +41,6 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, copy, nullable, setter=wmf_setImageTokenToCancel:) NSString *wmf_imageTokenToCancel;
 
 /**
- *  The metadata associated with the receiver.
- *
- *  This is preferred over @c wmf_imageURL since it allows for normalized face detection data to be read from and written
- *  to disk.
- *
- *  @see wmf_imageURL
- */
-@property (nonatomic, strong, nullable, setter=wmf_setImageMetadata:) MWKImage *wmf_imageMetadata;
-
-/**
- *  The image controller used to fetch image data.
- *
- *  Used to cancel the previous fetch executed by the receiver. Defaults to @c [WMFImageController sharedInstance].
- */
-@property (nonatomic, weak, nullable, setter=wmf_setImageController:) WMFImageController *wmf_imageController;
-
-/**
  *  Fetch the receiver's @c wmf_imageURLToFetch
  *
  *  @param detectFaces Whether or not face detection & centering is desired.
@@ -66,7 +50,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)wmf_fetchImageDetectFaces:(BOOL)detectFaces onGPU:(BOOL)onGPU failure:(WMFErrorHandler)failure success:(WMFSuccessHandler)success;
 
 /**
- *  Cancels any ongoing fetch for the receiver's current image, using its internal @c WMFImageController.
+ *  Cancels any ongoing fetch for the receiver's current image, using its internal @c WMFPermanentCacheController.
  *
  *  @see wmf_imageURLToFetch
  */

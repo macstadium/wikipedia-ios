@@ -1,42 +1,41 @@
 #import <WMF/NSURLComponents+WMFLinkParsing.h>
-#import <WMF/NSString+WMFPageUtilities.h>
 #import <WMF/NSCharacterSet+WMFLinkParsing.h>
 #import <WMF/WMF-Swift.h>
 
 @implementation NSURLComponents (WMFLinkParsing)
 
 + (NSURLComponents *)wmf_componentsWithDomain:(NSString *)domain
-                                     language:(NSString *)language {
-    return [self wmf_componentsWithDomain:domain language:language isMobile:NO];
+                                 languageCode:(NSString *)languageCode {
+    return [self wmf_componentsWithDomain:domain languageCode:languageCode isMobile:NO];
 }
 
 + (NSURLComponents *)wmf_componentsWithDomain:(NSString *)domain
-                                     language:(NSString *)language
+                                 languageCode:(NSString *)languageCode
                                      isMobile:(BOOL)isMobile {
-    return [self wmf_componentsWithDomain:domain language:language title:nil fragment:nil isMobile:isMobile];
+    return [self wmf_componentsWithDomain:domain languageCode:languageCode title:nil fragment:nil isMobile:isMobile];
 }
 
 + (NSURLComponents *)wmf_componentsWithDomain:(NSString *)domain
-                                     language:(NSString *)language
+                                 languageCode:(NSString *)languageCode
                                         title:(NSString *)title {
-    return [self wmf_componentsWithDomain:domain language:language title:title fragment:nil];
+    return [self wmf_componentsWithDomain:domain languageCode:languageCode title:title fragment:nil];
 }
 
 + (NSURLComponents *)wmf_componentsWithDomain:(NSString *)domain
-                                     language:(NSString *)language
+                                 languageCode:(NSString *)languageCode
                                         title:(NSString *)title
                                      fragment:(NSString *)fragment {
-    return [self wmf_componentsWithDomain:domain language:language title:title fragment:fragment isMobile:NO];
+    return [self wmf_componentsWithDomain:domain languageCode:languageCode title:title fragment:fragment isMobile:NO];
 }
 
 + (NSURLComponents *)wmf_componentsWithDomain:(NSString *)domain
-                                     language:(NSString *)language
+                                 languageCode:(NSString *)languageCode
                                         title:(NSString *)title
                                      fragment:(NSString *)fragment
                                      isMobile:(BOOL)isMobile {
     NSURLComponents *URLComponents = [[NSURLComponents alloc] init];
     URLComponents.scheme = @"https";
-    URLComponents.host = [NSURLComponents wmf_hostWithDomain:domain language:language isMobile:isMobile];
+    URLComponents.host = [NSURLComponents wmf_hostWithDomain:domain languageCode:languageCode isMobile:isMobile];
     if (fragment != nil) {
         URLComponents.wmf_fragment = fragment;
     }
@@ -47,9 +46,9 @@
 }
 
 + (NSString *)wmf_hostWithDomain:(NSString *)domain
-                        language:(NSString *)language
+                    languageCode:(NSString *)languageCode
                         isMobile:(BOOL)isMobile {
-    return [self wmf_hostWithDomain:domain subDomain:language isMobile:isMobile];
+    return [self wmf_hostWithDomain:domain subDomain:languageCode isMobile:isMobile];
 }
 
 + (NSString *)wmf_hostWithDomain:(NSString *)domain
@@ -69,7 +68,7 @@
 }
 
 - (void)setWmf_titleWithUnderscores:(NSString *_Nullable)titleWithUnderscores {
-    NSString *path = [titleWithUnderscores stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet wmf_URLArticleTitlePathComponentAllowedCharacterSet]];
+    NSString *path = [titleWithUnderscores stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet wmf_encodeURIComponentAllowedCharacterSet]];
     if (path != nil && path.length > 0) {
         NSArray *pathComponents = @[@"/wiki/", path];
         self.percentEncodedPath = [NSString pathWithComponents:pathComponents];
@@ -140,6 +139,12 @@
 
 - (nullable NSURLComponents *)wmf_componentsByRemovingInternalQueryParameters {
     return [self wmf_componentsByRemovingQueryItemsNamed:[NSSet setWithObject:@"event_logging_label"]];
+}
+
+- (nullable NSURL *)wmf_URLWithLanguageVariantCode:(nullable NSString *)code {
+    NSURL *url = self.URL;
+    url.wmf_languageVariantCode = code;
+    return url;
 }
 
 @end

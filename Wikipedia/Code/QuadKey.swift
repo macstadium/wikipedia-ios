@@ -1,7 +1,7 @@
 import Foundation
 
-//https://msdn.microsoft.com/en-us/library/bb259689.aspx
-//http://wiki.openstreetmap.org/wiki/QuadTiles
+// https://msdn.microsoft.com/en-us/library/bb259689.aspx
+// http://wiki.openstreetmap.org/wiki/QuadTiles
 
 public typealias QuadKey = UInt64 // The address of a square on the QuadKey grid. For example, at precision 1 - 00 = top left, 01 = top right, 10 = bottom left, 11 = bottom right. For each higher precision level, two bits are appended corresponding to where the point falls in the next smallest division. 0000 = top left square of the top left square, 0011 = bottom right square of the top left square, 1011 bottom right square of the bottom left square. For higher precisions, the pattern continues.
 public typealias QuadKeyPart = UInt32 // A longitude or latitude coordinate on the QuadKey grid. At each precision level, the latitude or longitude range is divided into pow(2, precision) parts. Where the point falls indicates the value. At precision 1: 0 = lower half, 1 = upper half, at precision 2: 01 upper half of the lower half, 11 upper half of the upper half. Interleaving the bits of the latitude and longitude parts is what makes a quad key.
@@ -12,15 +12,11 @@ public extension QuadKeyPrecision {
     static let maxPrecision: QuadKeyPrecision = 32
     
     var deltaLatitude: QuadKeyDegrees {
-        get {
-            return QuadKeyDegrees.latitudeRangeLength/QuadKeyDegrees(1 << QuadKey(self))
-        }
+        return QuadKeyDegrees.latitudeRangeLength/QuadKeyDegrees(1 << QuadKey(self))
     }
     
     var deltaLongitude: QuadKeyDegrees {
-        get {
-            return QuadKeyDegrees.longitudeRangeLength/QuadKeyDegrees(1 << QuadKey(self))
-        }
+        return QuadKeyDegrees.longitudeRangeLength/QuadKeyDegrees(1 << QuadKey(self))
     }
     
     init(deltaLatitude: QuadKeyDegrees) {
@@ -76,15 +72,11 @@ public extension QuadKeyDegrees {
     }
     
     var latitudePart: QuadKeyPart {
-        get {
-            return QuadKeyPart(latitude: self)
-        }
+        return QuadKeyPart(latitude: self)
     }
     
     var longitudePart: QuadKeyPart {
-        get {
-            return QuadKeyPart(longitude: self)
-        }
+        return QuadKeyPart(longitude: self)
     }
     
     func latitudePart(atPrecision precision: QuadKeyPrecision) -> QuadKeyPart {
@@ -146,15 +138,11 @@ public extension QuadKeyPart {
     }
     
     var latitude: QuadKeyDegrees {
-        get {
-            return QuadKeyDegrees(latitudePart: self)
-        }
+        return QuadKeyDegrees(latitudePart: self)
     }
     
     var longitude: QuadKeyDegrees {
-        get {
-            return QuadKeyDegrees(longitudePart: self)
-        }
+        return QuadKeyDegrees(longitudePart: self)
     }
     
     func latitude(atPrecision precision: QuadKeyPrecision) -> QuadKeyDegrees {
@@ -297,29 +285,21 @@ public struct QuadKeyCoordinate {
     }
     
     public var latitude: QuadKeyDegrees {
-        get {
-            return precision < QuadKeyPrecision.maxPrecision ? latitudePart.latitude(atPrecision: precision) : latitudePart.latitude
-        }
+        return precision < QuadKeyPrecision.maxPrecision ? latitudePart.latitude(atPrecision: precision) : latitudePart.latitude
     }
     
     public var longitude: QuadKeyDegrees {
-        get {
-            return precision < QuadKeyPrecision.maxPrecision ? longitudePart.longitude(atPrecision: precision) : longitudePart.longitude
-        }
+        return precision < QuadKeyPrecision.maxPrecision ? longitudePart.longitude(atPrecision: precision) : longitudePart.longitude
     }
     
     public var centerLatitude: QuadKeyDegrees {
-        get {
-            let halfDeltaLatitude = 0.5 * precision.deltaLatitude
-            return latitude - halfDeltaLatitude
-        }
+        let halfDeltaLatitude = 0.5 * precision.deltaLatitude
+        return latitude - halfDeltaLatitude
     }
     
     public var centerLongitude: QuadKeyDegrees {
-        get {
-            let halfDeltaLongitude = 0.5 * precision.deltaLongitude
-            return longitude + halfDeltaLongitude
-        }
+        let halfDeltaLongitude = 0.5 * precision.deltaLongitude
+        return longitude + halfDeltaLongitude
     }
 }
 

@@ -8,16 +8,20 @@ internal struct CellArticle {
     let imageURL: URL?
 }
 
-public protocol SideScrollingCollectionViewCellDelegate: class {
+public protocol SideScrollingCollectionViewCellDelegate: AnyObject {
     func sideScrollingCollectionViewCell(_ sideScrollingCollectionViewCell: SideScrollingCollectionViewCell, didSelectArticleWithURL articleURL: URL, at indexPath: IndexPath)
 }
 
+public protocol NestedCollectionViewContextMenuDelegate: AnyObject {
+    func contextMenu(with contentGroup: WMFContentGroup?, for articleURL: URL?, at itemIndex: Int) -> UIContextMenuConfiguration?
+    func willCommitPreview(with animator: UIContextMenuInteractionCommitAnimating)
+}
 
 public protocol SubCellProtocol {
     func deselectSelectedSubItems(animated: Bool)
 }
 
-public class SideScrollingCollectionViewCell: CollectionViewCell, SubCellProtocol {
+open class SideScrollingCollectionViewCell: CollectionViewCell, SubCellProtocol {
     static let articleCellIdentifier = "ArticleRightAlignedImageCollectionViewCell"
     var theme: Theme = Theme.standard
     
@@ -30,9 +34,9 @@ public class SideScrollingCollectionViewCell: CollectionViewCell, SubCellProtoco
     internal var flowLayout: UICollectionViewFlowLayout? {
         return collectionView.collectionViewLayout as? UICollectionViewFlowLayout
     }
-    internal let collectionView = UICollectionView(frame: .zero, collectionViewLayout: UICollectionViewFlowLayout())
+    public let collectionView = UICollectionView(frame: .zero, collectionViewLayout: UICollectionViewFlowLayout())
     internal let prototypeCell = ArticleRightAlignedImageCollectionViewCell()
-    var semanticContentAttributeOverride: UISemanticContentAttribute = .unspecified {
+    open var semanticContentAttributeOverride: UISemanticContentAttribute = .unspecified {
         didSet {
             titleLabel.semanticContentAttribute = semanticContentAttributeOverride
             subTitleLabel.semanticContentAttribute = semanticContentAttributeOverride
@@ -40,6 +44,8 @@ public class SideScrollingCollectionViewCell: CollectionViewCell, SubCellProtoco
             collectionView.semanticContentAttribute = semanticContentAttributeOverride
         }
     }
+
+    public weak var contextMenuShowingDelegate: NestedCollectionViewContextMenuDelegate?
     
     internal var articles: [CellArticle] = []
     
@@ -49,17 +55,17 @@ public class SideScrollingCollectionViewCell: CollectionViewCell, SubCellProtoco
         descriptionLabel.isOpaque = true
         imageView.isOpaque = true
         
-        addSubview(titleLabel)
-        addSubview(subTitleLabel)
-        addSubview(descriptionLabel)
+        contentView.addSubview(titleLabel)
+        contentView.addSubview(subTitleLabel)
+        contentView.addSubview(descriptionLabel)
     
-        addSubview(imageView)
-        addSubview(collectionView)
-        addSubview(prototypeCell)
+        contentView.addSubview(imageView)
+        contentView.addSubview(collectionView)
+        contentView.addSubview(prototypeCell)
         
         wmf_configureSubviewsForDynamicType()
 
-        //Setup the prototype cell with placeholder content so we can get an accurate height calculation for the collection view that accounts for dynamic type changes
+        // Setup the prototype cell with placeholder content so we can get an accurate height calculation for the collection view that accounts for dynamic type changes
         prototypeCell.configure(with: CellArticle(articleURL: nil, title: "Lorem", titleHTML: "Lorem", description: "Ipsum", imageURL: nil), semanticContentAttribute: .forceLeftToRight, theme: self.theme, layoutOnly: true)
 
         prototypeCell.isHidden = true
@@ -98,12 +104,12 @@ public class SideScrollingCollectionViewCell: CollectionViewCell, SubCellProtoco
     }
     public let spacing: CGFloat = 6
     
-    override public func sizeThatFits(_ size: CGSize, apply: Bool) -> CGSize {
+    override open func sizeThatFits(_ size: CGSize, apply: Bool) -> CGSize {
         let layoutMargins = calculatedLayoutMargins
         var origin = CGPoint(x: layoutMargins.left, y: layoutMargins.top)
         let widthToFit = size.width - layoutMargins.left - layoutMargins.right
         if !isImageViewHidden {
-            if (apply) {
+            if apply {
                 let imageViewWidth = size.width - widthToFit > 50 ? widthToFit : size.width
                 imageView.frame = CGRect(x: round(0.5 * (size.width - imageViewWidth)), y: 0, width: imageViewWidth, height: imageViewHeight)
             }
@@ -130,7 +136,7 @@ public class SideScrollingCollectionViewCell: CollectionViewCell, SubCellProtoco
             height = 0
         }
 
-        if (apply) {
+        if apply {
             flowLayout?.itemSize = CGSize(width: 250, height: height - 2*collectionViewSpacing)
             flowLayout?.minimumInteritemSpacing = collectionViewSpacing
             flowLayout?.minimumLineSpacing = 15
@@ -153,6 +159,8 @@ public class SideScrollingCollectionViewCell: CollectionViewCell, SubCellProtoco
     }
 
     public func resetContentOffset() {
+        // Without a layout pass, RTL languages on LTR chrome have an incorrect initial inset.
+        layoutIfNeeded()
         let x: CGFloat = semanticContentAttributeOverride == .forceRightToLeft ? collectionView.contentSize.width - collectionView.bounds.size.width + collectionView.contentInset.right : -collectionView.contentInset.left
         collectionView.contentOffset = CGPoint(x: x, y: 0)
     }
@@ -166,7 +174,7 @@ public class SideScrollingCollectionViewCell: CollectionViewCell, SubCellProtoco
         }
     }
 
-    override public func updateBackgroundColorOfLabels() {
+    override open func updateBackgroundColorOfLabels() {
         super.updateBackgroundColorOfLabels()
         titleLabel.backgroundColor = labelBackgroundColor
         subTitleLabel.backgroundColor = labelBackgroundColor
@@ -181,6 +189,19 @@ extension SideScrollingCollectionViewCell: UICollectionViewDelegate {
             return
         }
         selectionDelegate?.sideScrollingCollectionViewCell(self, didSelectArticleWithURL: articleURL, at: indexPath)
+    }
+
+    // ContextMenu
+    public func collectionView(_ collectionView: UICollectionView, contextMenuConfigurationForItemAt indexPath: IndexPath, point: CGPoint) -> UIContextMenuConfiguration? {
+        guard let articleURL = articles[safeIndex: indexPath.item]?.articleURL else {
+            return nil
+        }
+
+        return contextMenuShowingDelegate?.contextMenu(with: nil, for: articleURL, at: indexPath.item)
+    }
+
+    public func collectionView(_ collectionView: UICollectionView, willPerformPreviewActionForMenuWith configuration: UIContextMenuConfiguration, animator: UIContextMenuInteractionCommitAnimating) {
+        contextMenuShowingDelegate?.willCommitPreview(with: animator)
     }
 }
 
@@ -271,7 +292,7 @@ extension SideScrollingCollectionViewCell {
 }
 
 extension SideScrollingCollectionViewCell: Themeable {
-    public func apply(theme: Theme) {
+    open func apply(theme: Theme) {
         self.theme = theme
         imageView.alpha = theme.imageOpacity
         setBackgroundColors(theme.colors.paperBackground, selected: theme.colors.midBackground)

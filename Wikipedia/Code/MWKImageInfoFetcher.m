@@ -1,5 +1,7 @@
-#import "MWKImageInfoFetcher.h"
-@import WMF;
+#import <WMF/MWKImageInfoFetcher.h>
+#import <WMF/NSURL+WMFLinkParsing.h>
+#import <WMF/UIScreen+WMFImageWidth.h>
+#import <WMF/WMF-Swift.h>
 
 /// Required extmetadata keys, don't forget to add new ones to +requiredExtMetadataKeys!
 static NSString *const ExtMetadataImageDescriptionKey = @"ImageDescription";
@@ -20,6 +22,14 @@ static CGSize MWKImageInfoSizeFromJSON(NSDictionary *json, NSString *widthKey, N
 }
 
 @implementation MWKImageInfoFetcher
+
+- (id)initWithDataStore:(MWKDataStore *)dataStore {
+    self = [super initWithSession:dataStore.session configuration:dataStore.configuration];
+    if (self) {
+        self.preferredLanguageDelegate = dataStore.languageLinkController;
+    }
+    return self;
+}
 
 - (void)fetchGalleryInfoForImage:(NSString *)canonicalPageTitle fromSiteURL:(NSURL *)siteURL failure:(WMFErrorHandler)failure success:(WMFSuccessIdHandler)success {
     [self fetchGalleryInfoForImageFiles:@[canonicalPageTitle]
@@ -53,7 +63,7 @@ static CGSize MWKImageInfoSizeFromJSON(NSDictionary *json, NSString *widthKey, N
                         fromSiteURL:siteURL
                      thumbnailWidth:[NSNumber numberWithInteger:[[UIScreen mainScreen] wmf_articleImageWidthForScale]]
                     extmetadataKeys:[MWKImageInfoFetcher galleryExtMetadataKeys]
-                   metadataLanguage:siteURL.wmf_language
+                   metadataLanguage:siteURL.wmf_languageCode
                        useGenerator:NO
                             success:success
                             failure:failure];
@@ -67,7 +77,7 @@ static CGSize MWKImageInfoSizeFromJSON(NSDictionary *json, NSString *widthKey, N
              ExtMetadataArtistKey];
 }
 
-- (id)responseObjectForJSON:(NSDictionary *)json error:(NSError *__autoreleasing *)error {
+- (id)responseObjectForJSON:(NSDictionary *)json preferredLanguageCodes:(NSArray<NSString *> *)preferredLanguageCodes error:(NSError *__autoreleasing *)error {
     if (!json) {
         if (error) {
             *error = [WMFFetcher invalidParametersError];
@@ -75,11 +85,12 @@ static CGSize MWKImageInfoSizeFromJSON(NSDictionary *json, NSString *widthKey, N
         return nil;
     }
     NSDictionary *indexedImages = json[@"query"][@"pages"];
+    
+    if (!indexedImages) {
+        return @[];
+    }
+    
     NSMutableArray *itemListBuilder = [NSMutableArray arrayWithCapacity:[[indexedImages allKeys] count]];
-
-    NSArray<NSString *> *preferredLangCodes = [[[MWKLanguageLinkController sharedInstance] preferredLanguages] wmf_map:^NSString *(MWKLanguageLink *language) {
-        return [language languageCode];
-    }];
 
     [indexedImages enumerateKeysAndObjectsUsingBlock:^(NSString *key, NSDictionary *image, BOOL *stop) {
         NSDictionary *imageInfo = [image[@"imageinfo"] firstObject];
@@ -100,10 +111,13 @@ static CGSize MWKImageInfoSizeFromJSON(NSDictionary *json, NSString *widthKey, N
         id imageDescriptionValue = extMetadata[ExtMetadataImageDescriptionKey][@"value"];
         if ([imageDescriptionValue isKindOfClass:[NSDictionary class]]) {
             NSDictionary *availableDescriptionsByLangCode = imageDescriptionValue;
-            descriptionLangCode = [self descriptionLangCodeToUseFromAvailableDescriptionsByLangCode:availableDescriptionsByLangCode forPreferredLangCodes:preferredLangCodes];
+            descriptionLangCode = [self descriptionLangCodeToUseFromAvailableDescriptionsByLangCode:availableDescriptionsByLangCode forPreferredLangCodes:preferredLanguageCodes];
             if (descriptionLangCode) {
+                // The image description service returns languages but not language variant codes.
+                // The language variant in the request is currenty not taken into account in the response.
+                // So using the language code is correct in this case.
                 description = availableDescriptionsByLangCode[descriptionLangCode];
-                descriptionIsRTL = [[MWLanguageInfo rtlLanguages] containsObject:descriptionLangCode];
+                descriptionIsRTL = [MWKLanguageLinkController isLanguageRTLForContentLanguageCode:descriptionLangCode];
             }
         } else if ([imageDescriptionValue isKindOfClass:[NSString class]]) {
             description = imageDescriptionValue;
@@ -121,12 +135,12 @@ static CGSize MWKImageInfoSizeFromJSON(NSDictionary *json, NSString *widthKey, N
             [[MWKImageInfo alloc]
                 initWithCanonicalPageTitle:image[@"title"]
                           canonicalFileURL:[NSURL wmf_optionalURLWithString:imageInfo[@"url"]]
-                          imageDescription:[[description wmf_joinedHtmlTextNodes] wmf_getCollapsedWhitespaceStringAdjustedForTerminalPunctuation]
+                          imageDescription:[[description wmf_stringByRemovingHTML] wmf_getCollapsedWhitespaceStringAdjustedForTerminalPunctuation]
                      imageDescriptionIsRTL:descriptionIsRTL
                                    license:license
                                filePageURL:[NSURL wmf_optionalURLWithString:imageInfo[@"descriptionurl"]]
                              imageThumbURL:[NSURL wmf_optionalURLWithString:imageInfo[@"thumburl"]]
-                                     owner:[[artist wmf_joinedHtmlTextNodes] wmf_getCollapsedWhitespaceStringAdjustedForTerminalPunctuation]
+                                     owner:[[artist wmf_stringByRemovingHTML] wmf_getCollapsedWhitespaceStringAdjustedForTerminalPunctuation]
                                  imageSize:MWKImageInfoSizeFromJSON(imageInfo, @"width", @"height")
                                  thumbSize:MWKImageInfoSizeFromJSON(imageInfo, @"thumbwidth", @"thumbheight")];
         [itemListBuilder addObject:item];
@@ -155,6 +169,56 @@ static CGSize MWKImageInfoSizeFromJSON(NSDictionary *json, NSString *widthKey, N
     return nil;
 }
 
+- (nullable NSURL *)galleryInfoURLForImageTitles: (NSArray *)imageTitles
+                            fromSiteURL: (NSURL *)siteURL {
+    
+    NSDictionary *params = [self queryParametersForTitles:imageTitles fromSiteURL:siteURL thumbnailWidth:[NSNumber numberWithInteger:[[UIScreen mainScreen] wmf_articleImageWidthForScale]] extmetadataKeys:[MWKImageInfoFetcher galleryExtMetadataKeys] metadataLanguage:siteURL.wmf_languageCode useGenerator:NO];
+    
+    if (siteURL.host) {
+        return [self.configuration mediaWikiAPIURLForURL:siteURL withQueryParameters:params];
+    }
+    
+    return nil;
+}
+
+- (NSDictionary *)queryParametersForTitles:(NSArray *)titles
+     fromSiteURL:(NSURL *)siteURL
+  thumbnailWidth:(NSNumber *)thumbnailWidth
+ extmetadataKeys:(NSArray<NSString *> *)extMetadataKeys
+metadataLanguage:(nullable NSString *)metadataLanguage
+                              useGenerator:(BOOL)useGenerator {
+    if (!titles) {
+        return @{};
+    }
+
+    NSMutableDictionary *params =
+        [@{@"format": @"json",
+           @"action": @"query",
+           @"titles": [titles componentsJoinedByString:@"|"],
+           // suppress continue warning
+           @"rawcontinue": @"",
+           @"prop": @"imageinfo",
+           @"iiprop": [@[@"url", @"extmetadata", @"dimensions"] componentsJoinedByString:@"|"],
+           @"iiextmetadatafilter": [extMetadataKeys ?: @[] componentsJoinedByString:@"|"],
+           @"iiextmetadatamultilang": @1,
+           @"iiurlwidth": thumbnailWidth} mutableCopy];
+
+    if (useGenerator) {
+        params[@"generator"] = @"images";
+    }
+
+    if (metadataLanguage) {
+        params[@"iiextmetadatalanguage"] = metadataLanguage;
+    }
+    
+    return [params copy];
+}
+
+- (nullable NSURLRequest *)urlRequestForFromURL: (NSURL *)url {
+    
+    return [self.session imageInfoURLRequestFromPersistenceWith: url];
+}
+
 - (id<MWKImageInfoRequest>)fetchInfoForTitles:(NSArray *)titles
                                   fromSiteURL:(NSURL *)siteURL
                                thumbnailWidth:(NSNumber *)thumbnailWidth
@@ -167,41 +231,36 @@ static CGSize MWKImageInfoSizeFromJSON(NSDictionary *json, NSString *widthKey, N
     NSAssert([titles count] <= 50, @"Only 50 titles can be queried at a time.");
     NSParameterAssert(siteURL);
 
-    NSMutableDictionary *params =
-        [@{@"format": @"json",
-           @"action": @"query",
-           @"titles": WMFJoinedPropertyParameters(titles),
-           // suppress continue warning
-           @"rawcontinue": @"",
-           @"prop": @"imageinfo",
-           @"iiprop": WMFJoinedPropertyParameters(@[@"url", @"extmetadata", @"dimensions"]),
-           @"iiextmetadatafilter": WMFJoinedPropertyParameters(extMetadataKeys),
-           @"iiextmetadatamultilang": @1,
-           @"iiurlwidth": thumbnailWidth} mutableCopy];
+    NSDictionary *params = [self queryParametersForTitles:titles fromSiteURL:siteURL thumbnailWidth:thumbnailWidth extmetadataKeys:extMetadataKeys metadataLanguage:metadataLanguage useGenerator:useGenerator];
+    
+    NSURL *url = [self.fetcher.configuration mediaWikiAPIURLForURL:siteURL withQueryParameters:params];
 
-    if (useGenerator) {
-        params[@"generator"] = @"images";
+    NSURLRequest *urlRequest = [self urlRequestForFromURL:url];
+    
+    return (id<MWKImageInfoRequest>)[self performMediaWikiAPIGETForURLRequest:urlRequest completionHandler:^(NSDictionary<NSString *, id> *_Nullable result, NSHTTPURLResponse *_Nullable response, NSError *_Nullable error) {
+        if (error) {
+            failure(error);
+            return;
+        }
+        [self getPreferredContentLanguageCodes:^(NSArray<NSString *> *preferredLanguageCodes) {
+            NSError *serializerError = nil;
+            NSArray *galleryItems = [self responseObjectForJSON:result preferredLanguageCodes:preferredLanguageCodes error:&serializerError];
+            if (serializerError) {
+                failure(serializerError);
+                return;
+            }
+            success(galleryItems);
+        }];
+    }];
+}
+
+- (void)getPreferredContentLanguageCodes:(void (^)(NSArray<NSString *> *))completion {
+    if (!self.preferredLanguageDelegate) {
+        NSAssert(false, @"Preferred language delegate should be set");
+        completion(@[@"en"]);
+        return;
     }
-
-    if (metadataLanguage) {
-        params[@"iiextmetadatalanguage"] = metadataLanguage;
-    }
-
-    return (id<MWKImageInfoRequest>)[self performMediaWikiAPIGETForURL:siteURL
-                                                   withQueryParameters:params
-                                                     completionHandler:^(NSDictionary<NSString *, id> *_Nullable result, NSHTTPURLResponse *_Nullable response, NSError *_Nullable error) {
-                                                         if (error) {
-                                                             failure(error);
-                                                             return;
-                                                         }
-                                                         NSError *serializerError = nil;
-                                                         NSArray *galleryItems = [self responseObjectForJSON:result error:&serializerError];
-                                                         if (serializerError) {
-                                                             failure(serializerError);
-                                                             return;
-                                                         }
-                                                         success(galleryItems);
-                                                     }];
+    [self.preferredLanguageDelegate getPreferredContentLanguageCodes:completion];
 }
 
 - (void)fetchImageInfoForCommonsFiles:(NSArray *)filenames

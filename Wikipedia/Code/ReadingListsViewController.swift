@@ -102,8 +102,6 @@ class ReadingListsViewController: ColumnarCollectionViewController, EditableColl
         emptyViewTarget = self
         emptyViewAction = #selector(presentCreateReadingListViewController)
         setupEditController()
-        // Remove peek & pop for now
-        unregisterForPreviewing()
         isRefreshControlEnabled = true
     }
     
@@ -182,7 +180,7 @@ class ReadingListsViewController: ColumnarCollectionViewController, EditableColl
             return
         }
         let articleCount = readingList.countOfEntries
-        let lastFourArticlesWithLeadImages = Array(readingList.previewArticles ?? []) as? Array<WMFArticle> ?? []
+        let lastFourArticlesWithLeadImages = Array(readingList.previewArticles ?? []) as? [WMFArticle] ?? []
         
         cell.layoutMargins = layout.itemLayoutMargins
         
@@ -264,15 +262,15 @@ class ReadingListsViewController: ColumnarCollectionViewController, EditableColl
         
         let readingListDetailViewController = ReadingListDetailViewController(for: readingList, with: dataStore)
         readingListDetailViewController.apply(theme: theme)
-        wmf_push(readingListDetailViewController, animated: true)
+        push(readingListDetailViewController, animated: true)
     }
     
     func collectionView(_ collectionView: UICollectionView, didDeselectItemAt indexPath: IndexPath) {
-        let _ = editController.isClosed
+        _ = editController.isClosed
     }
     
     lazy var availableBatchEditToolbarActions: [BatchEditToolbarAction] = {
-        //let updateItem = BatchEditToolbarActionType.update.action(with: self)
+        // let updateItem = BatchEditToolbarActionType.update.action(with: self)
         let deleteItem = BatchEditToolbarActionType.delete.action(with: self)
         return [deleteItem]
     }()
@@ -377,10 +375,10 @@ extension ReadingListsViewController: ActionDelegate {
         }
         let alertController = ReadingListsAlertController()
         let cancel = ReadingListsAlertActionType.cancel.action()
-        let delete = ReadingListsAlertActionType.delete.action { let _ = self.editController.didPerformAction(action) }
+        let delete = ReadingListsAlertActionType.delete.action { _ = self.editController.didPerformAction(action) }
         alertController.showAlertIfNeeded(presenter: self, for: [readingList], with: [cancel, delete]) { showed in
             if !showed {
-                let _ = self.editController.didPerformAction(action)
+                _ = self.editController.didPerformAction(action)
             }
         }
         return true

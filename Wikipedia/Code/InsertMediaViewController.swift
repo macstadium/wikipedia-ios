@@ -51,7 +51,7 @@ final class InsertMediaViewController: ViewController {
         navigationBar.isTopSpacingHidingEnabled = false
 
         addChild(selectedImageViewController)
-        navigationBar.addUnderNavigationBarView(selectedImageViewController.view)
+        navigationBar.addUnderNavigationBarView(selectedImageViewController.view, shouldIgnoreSafeArea: true)
         selectedImageViewController.didMove(toParent: self)
 
         addChild(searchViewController)
@@ -184,6 +184,10 @@ final class InsertMediaViewController: ViewController {
     }
 
     var isAnimatingSearchBarState: Bool = false
+    
+    override var shouldAnimateWhileUpdatingScrollViewInsets: Bool {
+        return true
+    }
 
     func focusSearch(_ focus: Bool, animated: Bool = true, additionalAnimations: (() -> Void)? = nil) {
         useNavigationBarVisibleHeightForScrollViewInsets = focus
@@ -207,7 +211,7 @@ final class InsertMediaViewController: ViewController {
             self.searchViewController.searchBar.setShowsCancelButton(focus, animated: animated)
             additionalAnimations?()
             self.view.layoutIfNeeded()
-            self.updateScrollViewInsets(preserveAnimation: true)
+            self.updateScrollViewInsets()
         }
         guard animated else {
             animations()
@@ -332,4 +336,8 @@ extension InsertMediaViewController: UISearchBarDelegate {
         navigationBar.isExtendedViewHidingEnabled = true
         focusSearch(false, additionalAnimations: additionalAnimations)
     }
+}
+
+extension InsertMediaViewController: EditingFlowViewController {
+    
 }

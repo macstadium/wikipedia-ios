@@ -1,4 +1,4 @@
-import WMF;
+import WMF
 
 class OnThisDayViewController: ColumnarCollectionViewController, DetailPresentingFromContentGroup {
     fileprivate static let cellReuseIdentifier = "OnThisDayCollectionViewCell"
@@ -11,6 +11,32 @@ class OnThisDayViewController: ColumnarCollectionViewController, DetailPresentin
     var initialEvent: WMFFeedOnThisDayEvent?
     let feedFunnelContext: FeedFunnelContext
     let contentGroupIDURIString: String?
+    var shouldShowNavigationBar: Bool = false {
+        didSet {
+            if shouldShowNavigationBar {
+                // Prepare the VC to be presented as a push - remove the "X" button in top right, remove the bottom button.
+                navigationMode = .bar
+                footerButtonTitle = nil
+                title = nil
+                navigationBar.title = CommonStrings.onThisDayTitle
+                navigationBar.underBarViewPercentHiddenForShowingTitle = 0.3
+                navigationBar.isUnderBarViewHidingEnabled = true
+                navigationBar.delegate = self
+                navigationBar.isShadowHidingEnabled = true
+                useNavigationBarVisibleHeightForScrollViewInsets = true
+                addUnderBarHeader()
+                navigationItem.backButtonDisplayMode = .generic
+                navigationItem.backButtonTitle = CommonStrings.onThisDayTitle
+            } else {
+                navigationItem.rightBarButtonItem = nil
+                navigationItem.titleView = nil
+                navigationMode = .detail
+                title = CommonStrings.onThisDayTitle
+                navigationBar.underBarViewPercentHiddenForShowingTitle = nil
+                navigationBar.removeUnderNavigationBarView()
+            }
+        }
+    }
 
     required public init(events: [WMFFeedOnThisDayEvent], dataStore: MWKDataStore, midnightUTCDate: Date, contentGroup: WMFContentGroup, theme: Theme) {
         self.events = events
@@ -36,11 +62,11 @@ class OnThisDayViewController: ColumnarCollectionViewController, DetailPresentin
                 return true
             })
             
-            guard isDateVisibleInTitle, let language = firstEventWithArticlePreviews?.language else {
+            guard !shouldShowNavigationBar, isDateVisibleInTitle, let languageCode = firstEventWithArticlePreviews?.languageCode else {
                 title = CommonStrings.onThisDayTitle
                 return
             }
-            title = DateFormatter.wmf_monthNameDayNumberGMTFormatter(for: language).string(from: midnightUTCDate)
+            title = DateFormatter.wmf_monthNameDayNumberGMTFormatter(for: languageCode).string(from: midnightUTCDate)
         }
     }
     
@@ -69,7 +95,9 @@ class OnThisDayViewController: ColumnarCollectionViewController, DetailPresentin
             return
         }
         let sectionIndex = eventIndex + 1 // index + 1 because section 0 is the header
+        isProgramaticallyScrolling = true
         collectionView.scrollToItem(at: IndexPath(item: 0, section: sectionIndex), at: sectionIndex < 1 ? .top : .centeredVertically, animated: false)
+        isProgramaticallyScrolling = false
     }
     
     override func scrollViewInsetsDidChange() {
@@ -88,10 +116,44 @@ class OnThisDayViewController: ColumnarCollectionViewController, DetailPresentin
             FeedFunnel.shared.logFeedCardClosed(for: feedFunnelContext, maxViewed: maxViewed)
         }
     }
+
+    private func addUnderBarHeader() {
+        let headerView = ThreeLineHeaderView()
+        headerView.apply(theme: theme)
+
+        let languageCode = events.first?.languageCode
+        let locale = NSLocale.wmf_locale(for: languageCode)
+        let semanticContentAttribute = MWKLanguageLinkController.semanticContentAttribute(forContentLanguageCode: events.first?.contentLanguageCode)
+
+        headerView.topSmallLine.semanticContentAttribute = semanticContentAttribute
+        headerView.middleLargeLine.semanticContentAttribute = semanticContentAttribute
+        headerView.bottomSmallLine.semanticContentAttribute = semanticContentAttribute
+
+        headerView.topSmallLine.text = CommonStrings.onThisDayTitle.uppercased()
+
+        let eventCountText = CommonStrings.onThisDayAdditionalEventsMessage(with: languageCode, locale: locale, eventsCount: events.count).uppercased(with: locale)
+
+        headerView.middleLargeLine.text = DateFormatter.wmf_monthNameDayNumberGMTFormatter(for: languageCode).string(from: midnightUTCDate)
+
+        if let firstEventEraString = events.first?.yearString, let lastEventEraString = events.last?.yearString {
+            let dateRangeText = CommonStrings.onThisDayHeaderDateRangeMessage(with: languageCode, locale: locale, lastEvent: lastEventEraString, firstEvent: firstEventEraString)
+            headerView.bottomSmallLine.text = "\(eventCountText)\n\(dateRangeText)"
+        } else {
+            headerView.bottomSmallLine.text = nil
+        }
+
+        navigationBar.addUnderNavigationBarView(headerView)
+    }
     
     // MARK: - ColumnarCollectionViewLayoutDelegate
     
     override func collectionView(_ collectionView: UICollectionView, estimatedHeightForHeaderInSection section: Int, forColumnWidth columnWidth: CGFloat) -> ColumnarCollectionViewLayoutHeightEstimate {
+
+        // When presenting with navigation bar, first two section headers do not exist.
+        guard !shouldShowNavigationBar || section >= 2 else {
+            return ColumnarCollectionViewLayoutHeightEstimate(precalculated: false, height: 0)
+        }
+
         guard section > 0 else {
             return super.collectionView(collectionView, estimatedHeightForHeaderInSection: section, forColumnWidth: columnWidth)
         }
@@ -113,56 +175,27 @@ class OnThisDayViewController: ColumnarCollectionViewController, DetailPresentin
         return estimate
     }
 
-    // MARK: - UIViewControllerPreviewingDelegate
-
+    // For ContextMenu delegate work, in extension below
     var previewedIndex: Int?
-
-    override func previewingContext(_ previewingContext: UIViewControllerPreviewing, viewControllerForLocation location: CGPoint) -> UIViewController? {
-        guard let indexPath = collectionViewIndexPathForPreviewingContext(previewingContext, location: location),
-            let cell = collectionView.cellForItem(at: indexPath) as? OnThisDayCollectionViewCell else {
-                return nil
-        }
-
-        let pointInCellCoordinates =  view.convert(location, to: cell)
-        let index = cell.subItemIndex(at: pointInCellCoordinates)
-        guard index != NSNotFound, let subItemView = cell.viewForSubItem(at: index) else {
-            return nil
-        }
-
-        previewedIndex = index
-
-        guard let event = event(for: indexPath.section), let previews = event.articlePreviews, index < previews.count else {
-            return nil
-        }
-
-        previewingContext.sourceRect = view.convert(subItemView.bounds, from: subItemView)
-        let article = previews[index]
-        let vc = WMFArticleViewController(articleURL: article.articleURL, dataStore: dataStore, theme: theme)
-        vc.articlePreviewingActionsDelegate = self
-        vc.wmf_addPeekableChildViewController(for: article.articleURL, dataStore: dataStore, theme: theme)
-        if let themeable = vc as Themeable? {
-            themeable.apply(theme: self.theme)
-        }
-        FeedFunnel.shared.logArticleInFeedDetailPreviewed(for: feedFunnelContext, index: index)
-        return vc
-    }
-
-    override func previewingContext(_ previewingContext: UIViewControllerPreviewing, commit viewControllerToCommit: UIViewController) {
-        viewControllerToCommit.wmf_removePeekableChildViewControllers()
-        FeedFunnel.shared.logArticleInFeedDetailReadingStarted(for: feedFunnelContext, index: previewedIndex, maxViewed: maxViewed)
-        if let articleViewController = viewControllerToCommit as? WMFArticleViewController {
-            wmf_push(articleViewController, animated: true)
-        } else {
-            wmf_push(viewControllerToCommit, animated: true)
-        }
-    }
 
     // MARK: - CollectionViewFooterDelegate
 
     override func collectionViewFooterButtonWasPressed(_ collectionViewFooter: CollectionViewFooter) {
         navigationController?.popViewController(animated: true)
     }
+    
+    // MARK: ArticlePreviewingDelegate
+    
+    override func shareArticlePreviewActionSelected(with articleController: ArticleViewController, shareActivityController: UIActivityViewController) {
+        FeedFunnel.shared.logFeedDetailShareTapped(for: feedFunnelContext, index: previewedIndex)
+        super.shareArticlePreviewActionSelected(with: articleController, shareActivityController: shareActivityController)
+        previewedIndex = nil
+    }
 
+    override func readMoreArticlePreviewActionSelected(with articleController: ArticleViewController) {
+        articleController.wmf_removePeekableChildViewControllers()
+        push(articleController, context: feedFunnelContext, index: previewedIndex, animated: true)
+    }
 }
 
 class OnThisDayViewControllerBlankHeader: UICollectionReusableView {
@@ -198,26 +231,34 @@ extension OnThisDayViewController {
         onThisDayCell.layoutMargins = layout.itemLayoutMargins
         onThisDayCell.configure(with: event, dataStore: dataStore, theme: self.theme, layoutOnly: false, shouldAnimateDots: true)
         onThisDayCell.timelineView.extendTimelineAboveDot = indexPath.section == 0 ? false : true
+        onThisDayCell.contextMenuShowingDelegate = self
 
         return onThisDayCell
     }
     
     override func collectionView(_ collectionView: UICollectionView, viewForSupplementaryElementOfKind kind: String, at indexPath: IndexPath) -> UICollectionReusableView {
+        guard !(shouldShowNavigationBar && (indexPath.section == 0 || indexPath.section == 1)) else {
+            // If showing navigation bar, hijack the first two headers and return empty ones instead.
+            let view = collectionView.dequeueReusableSupplementaryView(ofKind: kind, withReuseIdentifier: OnThisDayViewController.blankHeaderReuseIdentifier, for: indexPath)
+            view.frame = .zero
+            return view
+        }
+
         guard indexPath.section > 0, kind == UICollectionView.elementKindSectionHeader else {
             return super.collectionView(collectionView, viewForSupplementaryElementOfKind: kind, at: indexPath)
         }
-        guard
-            indexPath.section == 1,
-            kind == UICollectionView.elementKindSectionHeader,
-            let header = collectionView.dequeueReusableSupplementaryView(ofKind: kind, withReuseIdentifier: OnThisDayViewController.headerReuseIdentifier, for: indexPath) as? OnThisDayViewControllerHeader
-        else {
+
+        guard indexPath.section == 1, kind == UICollectionView.elementKindSectionHeader else {
             return collectionView.dequeueReusableSupplementaryView(ofKind: kind, withReuseIdentifier: OnThisDayViewController.blankHeaderReuseIdentifier, for: indexPath)
         }
-        
-        header.configureFor(eventCount: events.count, firstEvent: events.first, lastEvent: events.last, midnightUTCDate: midnightUTCDate)
-        header.apply(theme: theme)
-        
-        return header
+
+        if !shouldShowNavigationBar, let header = collectionView.dequeueReusableSupplementaryView(ofKind: kind, withReuseIdentifier: OnThisDayViewController.headerReuseIdentifier, for: indexPath) as? OnThisDayViewControllerHeader {
+            header.configureFor(eventCount: events.count, firstEvent: events.first, lastEvent: events.last, midnightUTCDate: midnightUTCDate)
+            header.apply(theme: theme)
+            return header
+        } else {
+            return collectionView.dequeueReusableSupplementaryView(ofKind: kind, withReuseIdentifier: OnThisDayViewController.blankHeaderReuseIdentifier, for: indexPath)
+        }
     }
     
     @objc func collectionView(_ collectionView: UICollectionView, willDisplay cell: UICollectionViewCell, forItemAt indexPath: IndexPath) {
@@ -259,8 +300,6 @@ extension OnThisDayViewController {
     }
 }
 
-
-
 // MARK: - SideScrollingCollectionViewCellDelegate
 extension OnThisDayViewController: SideScrollingCollectionViewCellDelegate {
     func sideScrollingCollectionViewCell(_ sideScrollingCollectionViewCell: SideScrollingCollectionViewCell, didSelectArticleWithURL articleURL: URL, at indexPath: IndexPath) {
@@ -286,15 +325,50 @@ extension OnThisDayViewController: EventLoggingEventValuesProviding {
     }
 }
 
-// MARK: - WMFArticlePreviewingActionsDelegate
-extension OnThisDayViewController {
-    override func shareArticlePreviewActionSelected(withArticleController articleController: WMFArticleViewController, shareActivityController: UIActivityViewController) {
-        FeedFunnel.shared.logFeedDetailShareTapped(for: feedFunnelContext, index: previewedIndex)
-        super.shareArticlePreviewActionSelected(withArticleController: articleController, shareActivityController: shareActivityController)
+// MARK: - NestedCollectionViewContextMenuDelegate
+extension OnThisDayViewController: NestedCollectionViewContextMenuDelegate {
+    func contextMenu(with contentGroup: WMFContentGroup? = nil, for articleURL: URL? = nil, at itemIndex: Int) -> UIContextMenuConfiguration? {
+
+        guard let articleURL = articleURL, let vc = ArticleViewController(articleURL: articleURL, dataStore: dataStore, theme: theme) else {
+            return nil
+        }
+        vc.articlePreviewingDelegate = self
+        vc.wmf_addPeekableChildViewController(for: articleURL, dataStore: dataStore, theme: theme)
+        if let themeable = vc as Themeable? {
+            themeable.apply(theme: self.theme)
+        }
+
+        previewedIndex = itemIndex
+        FeedFunnel.shared.logArticleInFeedDetailPreviewed(for: feedFunnelContext, index: itemIndex)
+
+        let previewProvider: () -> UIViewController? = {
+            return vc
+        }
+        return UIContextMenuConfiguration(identifier: nil, previewProvider: previewProvider) { (suggestedActions) -> UIMenu? in
+            return nil
+
+            // While we'd like to use this next line to give context menu items, the "collection view within a collection view architecture
+            // results in an assertion failure in dev mode due to constraints that are automatically added by the preview's action menu, which
+            // further results in the horizontally scrollable collection view being broken when coming back to it. I'm not sure that this
+            // functionality was present before this re-write, and so leaving it out for now.
+//            return UIMenu(title: "", image: nil, identifier: nil, options: [], children: vc.contextMenuItems)
+        }
     }
 
-    override func readMoreArticlePreviewActionSelected(withArticleController articleController: WMFArticleViewController) {
-        articleController.wmf_removePeekableChildViewControllers()
-        wmf_push(articleController, context: feedFunnelContext, index: previewedIndex, animated: true)
+    func willCommitPreview(with animator: UIContextMenuInteractionCommitAnimating) {
+        guard let previewedViewController = animator.previewViewController else {
+            assertionFailure("Should be able to find previewed VC")
+            return
+        }
+        animator.addCompletion { [weak self] in
+            previewedViewController.wmf_removePeekableChildViewControllers()
+
+            guard let self = self else {
+                return
+            }
+            FeedFunnel.shared.logArticleInFeedDetailReadingStarted(for: self.feedFunnelContext, index: self.previewedIndex, maxViewed: self.maxViewed)
+            self.push(previewedViewController, animated: true)
+            self.previewedIndex = nil
+        }
     }
 }

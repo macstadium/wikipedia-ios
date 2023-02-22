@@ -1,11 +1,10 @@
-
 import UIKit
 
-protocol DiffToolbarViewDelegate: class {
+protocol DiffToolbarViewDelegate: AnyObject {
     func tappedPrevious()
     func tappedNext()
     func tappedShare(_ sender: UIBarButtonItem)
-    func tappedThank(isAlreadySelected: Bool)
+    func tappedThankButton()
     var isLoggedIn: Bool { get }
 }
 
@@ -43,7 +42,7 @@ class DiffToolbarView: UIView {
     }()
 
     lazy var thankButton: IconBarButtonItem = {
-        let item = IconBarButtonItem(iconName: "diff-smile", target: self, action: #selector(tappedThank(_:)), for: .touchUpInside)
+        let item = IconBarButtonItem(iconName: "diff-smile", target: self, action: #selector(tappedThank(_:)), for: .touchUpInside , iconInsets: UIEdgeInsets(top: 5.0, left: 0, bottom: -5.0, right: 0))
         item.accessibilityLabel = WMFLocalizedString("action-thank-user-accessibility", value: "Thank User", comment: "Accessibility title for the 'Thank User' action button when viewing a single revision diff.")
         
         return item
@@ -96,7 +95,7 @@ class DiffToolbarView: UIView {
     }
     
     @objc func tappedThank(_ sender: UIBarButtonItem) {
-        delegate?.tappedThank(isAlreadySelected: isThankSelected)
+        delegate?.tappedThankButton()
     }
     
     override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
@@ -109,27 +108,15 @@ class DiffToolbarView: UIView {
         let trailingMarginSpacing = UIBarButtonItem(barButtonSystemItem: .fixedSpace, target: nil, action: nil)
         switch (traitCollection.horizontalSizeClass, traitCollection.verticalSizeClass) {
         case (.regular, .regular):
-            if #available(iOS 13, *) {
-                trailingMarginSpacing.width = 58
-            } else {
-                trailingMarginSpacing.width = 36
-            }
+            trailingMarginSpacing.width = 58
         default:
-            if #available(iOS 13, *) {
-                trailingMarginSpacing.width = 24
-            } else {
-                trailingMarginSpacing.width = 8
-            }
+            trailingMarginSpacing.width = 24
         }
         
         let leadingMarginSpacing = UIBarButtonItem(barButtonSystemItem: .fixedSpace, target: nil, action: nil)
         switch (traitCollection.horizontalSizeClass, traitCollection.verticalSizeClass) {
         case (.regular, .regular):
-            if #available(iOS 13, *) {
-                leadingMarginSpacing.width = 42
-            } else {
-                leadingMarginSpacing.width = 24
-            }
+            leadingMarginSpacing.width = 42
         default:
             leadingMarginSpacing.width = 0
         }
@@ -170,7 +157,7 @@ extension DiffToolbarView: Themeable {
         toolbar.barTintColor = theme.colors.chromeBackground
         contentView.backgroundColor = theme.colors.chromeBackground
         
-        //avoid toolbar disappearing when empty/error states are shown
+        // avoid toolbar disappearing when empty/error states are shown
         if theme == Theme.black {
             switch parentViewState {
             case .error, .empty:

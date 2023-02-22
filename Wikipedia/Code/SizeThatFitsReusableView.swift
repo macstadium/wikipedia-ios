@@ -7,7 +7,6 @@ class SizeThatFitsReusableView: UICollectionReusableView {
 
     // Subclassers should override setup instead of any of the initializers. Subclassers must call super.setup()
     open func setup() {
-        translatesAutoresizingMaskIntoConstraints = false
         preservesSuperviewLayoutMargins = false
         insetsLayoutMarginsFromSafeArea = false
         autoresizesSubviews = false
@@ -38,7 +37,7 @@ class SizeThatFitsReusableView: UICollectionReusableView {
         
     }
     
-    // MARK - Initializers
+    // MARK: - Initializers
     // Don't override these initializers, use setup() instead
     
     public override init(frame: CGRect) {
@@ -51,19 +50,19 @@ class SizeThatFitsReusableView: UICollectionReusableView {
         setup()
     }
     
-    // MARK - Cell lifecycle
+    // MARK: - Cell lifecycle
     
     open override func prepareForReuse() {
         super.prepareForReuse()
         reset()
     }
     
-    // MARK - Layout
+    // MARK: - Layout
     
     final override public func layoutSubviews() {
         super.layoutSubviews()
         let size = bounds.size
-        let _ = sizeThatFits(size, apply: true)
+        _ = sizeThatFits(size, apply: true)
         updateAccessibilityElements()
         #if DEBUG
             for view in subviews {
@@ -102,7 +101,7 @@ class SizeThatFitsReusableView: UICollectionReusableView {
         }
     }
     
-    // MARK - Dynamic Type
+    // MARK: - Dynamic Type
     // Only applies new fonts if the content size category changes
     
     override open func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {

@@ -1,4 +1,3 @@
-
 import Foundation
 
 enum DiffFetcherError: Error {
@@ -28,7 +27,7 @@ class DiffFetcher: Fetcher {
                 return
             }
             
-            guard let _ = urlResponse else {
+            guard urlResponse != nil else {
                 completion(.failure(DiffError.missingUrlResponseFailure))
                 return
             }
@@ -95,7 +94,7 @@ class DiffFetcher: Fetcher {
     
     private func compareURL(fromRevisionId: Int, toRevisionId: Int, siteURL: URL) -> URL? {
         
-        guard let host = siteURL.host else {
+        guard siteURL.host != nil else {
             return nil
         }
 
@@ -103,8 +102,7 @@ class DiffFetcher: Fetcher {
         pathComponents.append("\(fromRevisionId)")
         pathComponents.append("compare")
         pathComponents.append("\(toRevisionId)")
-        let components = configuration.mediaWikiRestAPIURLForHost(host, appending: pathComponents)
-        return components.url
+        return configuration.mediaWikiRestAPIURLForURL(siteURL, appending: pathComponents)
     }
     
     enum FetchRevisionModelRequest {
@@ -112,7 +110,7 @@ class DiffFetcher: Fetcher {
         case populateModel(revisionID: Int)
     }
     
-    func fetchRevisionModel(_ siteURL: URL, articleTitle: String, request: FetchRevisionModelRequest, completion: @escaping ((Result<WMFPageHistoryRevision, Error>) -> Void)) -> Void {
+    func fetchRevisionModel(_ siteURL: URL, articleTitle: String, request: FetchRevisionModelRequest, completion: @escaping ((Result<WMFPageHistoryRevision, Error>) -> Void)) {
         
         let requestRevisionID: Int
         var requestDirection: FetchRevisionModelRequestDirection? = nil

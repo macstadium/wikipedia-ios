@@ -1,9 +1,13 @@
-
 import UIKit
 import WMF
 
+struct SectionEditorChanges {
+    let newRevisionID: UInt64
+}
+
 protocol EditSaveViewControllerDelegate: NSObjectProtocol {
-    func editSaveViewControllerDidSave(_ editSaveViewController: EditSaveViewController)
+    func editSaveViewControllerDidSave(_ editSaveViewController: EditSaveViewController, result: Result<SectionEditorChanges, Error>)
+    func editSaveViewControllerWillCancel(_ saveData: EditSaveViewController.SaveData)
 }
 
 private enum NavigationMode : Int {
@@ -15,7 +19,20 @@ private enum NavigationMode : Int {
 }
 
 class EditSaveViewController: WMFScrollViewController, Themeable, UITextFieldDelegate, UIScrollViewDelegate, WMFCaptchaViewControllerDelegate, EditSummaryViewDelegate {
-    var section: MWKSection?
+
+    struct SaveData {
+        let summmaryText: String
+        let isMinorEdit: Bool
+        let shouldAddToWatchList: Bool
+    }
+
+    var savedData: SaveData?
+
+    var sectionID: Int?
+    var articleURL: URL?
+    var languageCode: String?
+    var dataStore: MWKDataStore?
+    
     var wikitext = ""
     var theme: Theme = .standard
     weak var delegate: EditSaveViewControllerDelegate?
@@ -45,6 +62,8 @@ class EditSaveViewController: WMFScrollViewController, Themeable, UITextFieldDel
 
     @IBOutlet public var addToWatchlistStackView: UIStackView!
     
+    @IBOutlet weak var stackView: UIStackView!
+
     @IBOutlet private var scrollContainer: UIView!
     private var buttonSave: UIBarButtonItem?
     private var buttonNext: UIBarButtonItem?
@@ -59,6 +78,38 @@ class EditSaveViewController: WMFScrollViewController, Themeable, UITextFieldDel
         }
     }
     private let wikiTextSectionUploader = WikiTextSectionUploader()
+
+    private var licenseTitleTextViewAttributedString: NSAttributedString {
+        let localizedString = WMFLocalizedString("wikitext-upload-save-terms-and-licenses", languageCode: languageCode, value: "By publishing changes, you agree to the %1$@Terms of Use%2$@, and you irrevocably agree to release your contribution under the %3$@CC BY-SA 3.0%4$@ License and the %5$@GFDL%6$@. You agree that a hyperlink or URL is sufficient attribution under the Creative Commons license.", comment: "Text for information about the Terms of Use and edit licenses. Parameters:\n* %1$@ - app-specific non-text formatting, %2$@ - app-specific non-text formatting, %3$@ - app-specific non-text formatting, %4$@ - app-specific non-text formatting, %5$@ - app-specific non-text formatting,  %6$@ - app-specific non-text formatting.")
+
+        let substitutedString = String.localizedStringWithFormat(
+            localizedString,
+            "<a href=\"\(Licenses.saveTermsURL?.absoluteString ?? "")\">",
+            "</a>",
+            "<a href=\"\(Licenses.CCBYSA3URL?.absoluteString ?? "")\">",
+            "</a>" ,
+            "<a href=\"\(Licenses.GFDLURL?.absoluteString ?? "")\">",
+            "</a>"
+        )
+
+        let attributedString = substitutedString.byAttributingHTML(with: .caption2, matching: traitCollection)
+
+        return attributedString
+    }
+
+    private var licenseLoginTextViewAttributedString: NSAttributedString {
+        let localizedString = WMFLocalizedString("wikitext-upload-save-anonymously-or-login", languageCode: languageCode, value: "Edits will be attributed to the IP address of your device. If you %1$@Log in%2$@ you will have more privacy.", comment: "Text informing user of draw-backs of not signing in before saving wikitext. Parameters:\n* %1$@ - app-specific non-text formatting, %2$@ - app-specific non-text formatting.")
+
+        let substitutedString = String.localizedStringWithFormat(
+            localizedString,
+            "<a href=\"#LOGIN_HREF\">", // "#LOGIN_HREF" ensures 'byAttributingHTML' doesn't strip the anchor. The entire text view uses a tap recognizer so the string itself is unimportant.
+            "</a>"
+        )
+
+        let attributedString = substitutedString.byAttributingHTML(with: .caption2, matching: traitCollection)
+
+        return attributedString
+    }
     
     private func updateNavigation(for mode: NavigationMode) {
         var backButton: UIBarButtonItem?
@@ -87,8 +138,10 @@ class EditSaveViewController: WMFScrollViewController, Themeable, UITextFieldDel
 
     @objc private func goBack() {
         if mode == .abuseFilterWarning {
-            editFunnel?.logAbuseFilterWarningBackForSectionEdit(abuseFilterName: abuseFilterCode, source: editFunnelSource, language: section?.articleLanguage)
+            editFunnel?.logAbuseFilterWarningBackForSectionEdit(abuseFilterName: abuseFilterCode, source: editFunnelSource, language: languageCode)
         }
+
+        delegate?.editSaveViewControllerWillCancel(SaveData(summmaryText: summaryText, isMinorEdit: minorEditToggle.isOn, shouldAddToWatchList: addToWatchlistToggle.isOn))
         
         navigationController?.popViewController(animated: true)
     }
@@ -97,7 +150,7 @@ class EditSaveViewController: WMFScrollViewController, Themeable, UITextFieldDel
         switch mode {
         case .abuseFilterWarning:
             save()
-            editFunnel?.logAbuseFilterWarningIgnoreForSectionEdit(abuseFilterName: abuseFilterCode, source: editFunnelSource, language: section?.articleLanguage)
+            editFunnel?.logAbuseFilterWarningIgnoreForSectionEdit(abuseFilterName: abuseFilterCode, source: editFunnelSource, language: languageCode)
         case .captcha:
             save()
         default:
@@ -107,24 +160,10 @@ class EditSaveViewController: WMFScrollViewController, Themeable, UITextFieldDel
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        
-        navigationItem.title = WMFLocalizedString("wikitext-preview-save-changes-title", value: "Save changes", comment: "Title for edit preview screens")
-        
-        buttonX = UIBarButtonItem.wmf_buttonType(.X, target: self, action: #selector(self.goBack))
-        
-        buttonLeftCaret = UIBarButtonItem.wmf_buttonType(.caretLeft, target: self, action: #selector(self.goBack))
-        
-        buttonSave = UIBarButtonItem(title: CommonStrings.publishTitle, style: .done, target: self, action: #selector(self.goForward))
-        buttonSave?.tintColor = theme.colors.link
 
+        setupButtonsAndTitle()
         mode = .preview
-        
-        minorEditLabel.text = WMFLocalizedString("edit-minor-text", value: "This is a minor edit", comment: "Text for minor edit label")
-        minorEditButton.setTitle(WMFLocalizedString("edit-minor-learn-more-text", value: "Learn more about minor edits", comment: "Text for minor edits learn more button"), for: .normal)
 
-        addToWatchlistLabel.text = WMFLocalizedString("edit-watch-this-page-text", value: "Watch this page", comment: "Text for watch this page label")
-        addToWatchlistButton.setTitle(WMFLocalizedString("edit-watch-list-learn-more-text", value: "Learn more about watch lists", comment: "Text for watch lists learn more button"), for: .normal)
-        
         for dividerHeightContraint in dividerHeightConstraits {
             dividerHeightContraint.constant = 1.0 / UIScreen.main.scale
         }
@@ -133,43 +172,58 @@ class EditSaveViewController: WMFScrollViewController, Themeable, UITextFieldDel
         addToWatchlistStackView.isHidden = true
 
         if let loggedEditActions = loggedEditActions, !loggedEditActions.contains(EditFunnel.Action.editSummaryShown) {
-            editFunnel?.logSectionEditSummaryShown(source: editFunnelSource, language: section?.articleLanguage)
+            editFunnel?.logSectionEditSummaryShown(source: editFunnelSource, language: languageCode)
             loggedEditActions.add(EditFunnel.Action.editSummaryShown)
         }
         updateTextViews()
         apply(theme: theme)
+
+        captchaViewController?.captchaDelegate = self
+        captchaViewController?.apply(theme: theme)
+        wmf_add(childController: captchaViewController, andConstrainToEdgesOfContainerView: captchaContainer)
+
+        let vc = EditSummaryViewController(nibName: EditSummaryViewController.wmf_classStoryboardName(), bundle: nil)
+        vc.delegate = self
+        vc.apply(theme: theme)
+        vc.setLanguage(for: articleURL)
+        wmf_add(childController: vc, andConstrainToEdgesOfContainerView: editSummaryVCContainer)
+
+        if dataStore?.authenticationManager.isLoggedIn ?? false {
+            licenseLoginTextView.isHidden = true
+        }
+
+        if let savedData = savedData {
+            vc.updateInputText(to: savedData.summmaryText)
+            minorEditToggle.isOn = savedData.isMinorEdit
+            addToWatchlistToggle.isOn = savedData.shouldAddToWatchList
+        }
     }
 
-    private var licenseTitleTextViewAttributedString: NSAttributedString {
-        let localizedString = WMFLocalizedString("wikitext-upload-save-terms-and-licenses", value: "By publishing changes, you agree to the %1$@Terms of Use%2$@, and you irrevocably agree to release your contribution under the %3$@CC BY-SA 3.0%4$@ License and the %5$@GFDL%6$@. You agree that a hyperlink or URL is sufficient attribution under the Creative Commons license.", comment: "Text for information about the Terms of Use and edit licenses. Parameters:\n* %1$@ - app-specific non-text formatting, %2$@ - app-specific non-text formatting, %3$@ - app-specific non-text formatting, %4$@ - app-specific non-text formatting, %5$@ - app-specific non-text formatting,  %6$@ - app-specific non-text formatting.")
-        
-        let substitutedString = String.localizedStringWithFormat(
-            localizedString,
-            "<a href=\"\(Licenses.saveTermsURL?.absoluteString ?? "")\">",
-            "</a>",
-            "<a href=\"\(Licenses.CCBYSA3URL?.absoluteString ?? "")\">",
-            "</a>" ,
-            "<a href=\"\(Licenses.GFDLURL?.absoluteString ?? "")\">",
-            "</a>"
-        )
-        
-        let attributedString = substitutedString.byAttributingHTML(with: .caption2, matching: traitCollection)
-        
-        return attributedString
+
+    func setupSemanticContentAttibute() {
+        let semanticContentAttibute = MWKLanguageLinkController.semanticContentAttribute(forContentLanguageCode: languageCode)
+        for subview in stackView.subviews {
+            subview.semanticContentAttribute = semanticContentAttibute
+        }
+        licenseLoginTextView.semanticContentAttribute = semanticContentAttibute
+        licenseLoginTextView.textAlignment = semanticContentAttibute == .forceRightToLeft ? .right : .left
+        licenseTitleTextView.semanticContentAttribute = semanticContentAttibute
+        licenseTitleTextView.textAlignment = semanticContentAttibute == .forceRightToLeft ? .right : .left
     }
 
-    private var licenseLoginTextViewAttributedString: NSAttributedString {
-        let localizedString = WMFLocalizedString("wikitext-upload-save-anonymously-or-login", value: "Edits will be attributed to the IP address of your device. If you %1$@Log in%2$@ you will have more privacy.", comment: "Text informing user of draw-backs of not signing in before saving wikitext. Parameters:\n* %1$@ - app-specific non-text formatting, %2$@ - app-specific non-text formatting.")
-        
-        let substitutedString = String.localizedStringWithFormat(
-            localizedString,
-            "<a href=\"#LOGIN_HREF\">", // "#LOGIN_HREF" ensures 'byAttributingHTML' doesn't strip the anchor. The entire text view uses a tap recognizer so the string itself is unimportant.
-            "</a>"
-        )
-        
-        let attributedString = substitutedString.byAttributingHTML(with: .caption2, matching: traitCollection)
-        
-        return attributedString
+    private func setupButtonsAndTitle() {
+        navigationItem.title = WMFLocalizedString("wikitext-preview-save-changes-title", value: "Save changes", comment: "Title for edit preview screens")
+        buttonX = UIBarButtonItem.wmf_buttonType(.X, target: self, action: #selector(self.goBack))
+        buttonLeftCaret = UIBarButtonItem.wmf_buttonType(.caretLeft, target: self, action: #selector(self.goBack))
+
+        buttonSave = UIBarButtonItem(title: CommonStrings.publishTitle, style: .done, target: self, action: #selector(self.goForward))
+        buttonSave?.tintColor = theme.colors.link
+
+        minorEditLabel.text = WMFLocalizedString("edit-minor-text", languageCode: languageCode, value: "This is a minor edit", comment: "Text for minor edit label")
+        minorEditButton.setTitle(WMFLocalizedString("edit-minor-learn-more-text", languageCode: languageCode, value: "Learn more about minor edits", comment: "Text for minor edits learn more button"), for: .normal)
+
+        addToWatchlistLabel.text = WMFLocalizedString("edit-watch-this-page-text", value: "Watch this page", comment: "Text for watch this page label")
+        addToWatchlistButton.setTitle(WMFLocalizedString("edit-watch-list-learn-more-text", value: "Learn more about watch lists", comment: "Text for watch lists learn more button"), for: .normal)
     }
     
     override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
@@ -181,25 +235,7 @@ class EditSaveViewController: WMFScrollViewController, Themeable, UITextFieldDel
         licenseTitleTextView.attributedText = licenseTitleTextViewAttributedString
         licenseLoginTextView.attributedText = licenseLoginTextViewAttributedString
         applyThemeToTextViews()
-    }
-    
-    override func viewWillAppear(_ animated: Bool) {
-        captchaViewController?.captchaDelegate = self
-        captchaViewController?.apply(theme: theme)
-        wmf_add(childController: captchaViewController, andConstrainToEdgesOfContainerView: captchaContainer)
-        
-        mode = .preview
-        
-        let vc = EditSummaryViewController(nibName: EditSummaryViewController.wmf_classStoryboardName(), bundle: nil)
-        vc.delegate = self
-        vc.apply(theme: theme)
-        wmf_add(childController: vc, andConstrainToEdgesOfContainerView: editSummaryVCContainer)
-        
-        if WMFAuthenticationManager.sharedInstance.isLoggedIn {
-            licenseLoginTextView.isHidden = true
-        }
-        
-        super.viewWillAppear(animated)
+        setupSemanticContentAttibute()
     }
     
     @IBAction public func licenseLoginLabelTapped(_ recognizer: UIGestureRecognizer?) {
@@ -227,23 +263,23 @@ class EditSaveViewController: WMFScrollViewController, Themeable, UITextFieldDel
     private func save() {
         WMFAlertManager.sharedInstance.showAlert(WMFLocalizedString("wikitext-upload-save", value: "Publishing...", comment: "Alert text shown when changes to section wikitext are being published {{Identical|Publishing}}"), sticky: true, dismissPreviousAlerts: true, tapCallBack: nil)
 
-        editFunnel?.logSectionSaveAttempt(source: editFunnelSource, language: section?.articleLanguage)
+        editFunnel?.logSectionSaveAttempt(source: editFunnelSource, language: languageCode)
 
-        if (savedPagesFunnel != nil) {
-            savedPagesFunnel?.logEditAttempt(withArticleURL: section?.article?.url)
+        if savedPagesFunnel != nil {
+            savedPagesFunnel?.logEditAttempt(withArticleURL: articleURL)
         }
         
-        guard let section = self.section else {
+        guard let sectionID = sectionID else {
             assertionFailure("Could not get section to be edited")
             return
         }
         
-        guard let editURL: URL = (section.fromURL != nil) ? section.fromURL : section.article?.url else {
+        guard let editURL = articleURL else {
             assertionFailure("Could not get url of section to be edited")
             return
         }
         
-        wikiTextSectionUploader.uploadWikiText(wikitext, forArticleURL: editURL, section: "\(section.sectionId)", summary: summaryText, isMinorEdit: minorEditToggle.isOn, addToWatchlist: addToWatchlistToggle.isOn, captchaId: captchaViewController?.captcha?.captchaID, captchaWord: captchaViewController?.solution, completion: { (result, error) in
+        wikiTextSectionUploader.uploadWikiText(wikitext, forArticleURL: editURL, section: "\(sectionID)", summary: summaryText, isMinorEdit: minorEditToggle.isOn, addToWatchlist: addToWatchlistToggle.isOn, baseRevID: nil, captchaId: captchaViewController?.captcha?.captchaID, captchaWord: captchaViewController?.solution, completion: { (result, error) in
             DispatchQueue.main.async {
                 if let error = error {
                     self.handleEditFailure(with: error)
@@ -260,18 +296,18 @@ class EditSaveViewController: WMFScrollViewController, Themeable, UITextFieldDel
     }
     
     private func handleEditSuccess(with result: [AnyHashable: Any]) {
-        let notifyDelegate = {
+        let notifyDelegate: (Result<SectionEditorChanges, Error>) -> Void = { result in
             DispatchQueue.main.async {
-                self.delegate?.editSaveViewControllerDidSave(self)
+                self.delegate?.editSaveViewControllerDidSave(self, result: result)
             }
         }
-        guard let fetchedData = result as? [String: Any], let newRevID = fetchedData["newrevid"] as? Int else {
+        guard let fetchedData = result as? [String: Any], let newRevID = fetchedData["newrevid"] as? UInt64 else {
             assertionFailure("Could not extract rev id as Int")
-            notifyDelegate()
+            notifyDelegate(.failure(RequestError.unexpectedResponse))
             return
         }
-        editFunnel?.logSectionSaved(source: editFunnelSource, revision: newRevID, language: section?.articleLanguage)
-        notifyDelegate()
+        editFunnel?.logSectionSaved(source: editFunnelSource, revision: newRevID, language: languageCode)
+        notifyDelegate(.success(SectionEditorChanges(newRevisionID: newRevID)))
     }
     
     private func handleEditFailure(with error: Error) {
@@ -281,57 +317,66 @@ class EditSaveViewController: WMFScrollViewController, Themeable, UITextFieldDel
         switch errorType {
         case .needsCaptcha:
             if mode == .captcha {
-                editFunnel?.logCaptchaFailedForSectionEdit(source: editFunnelSource, language: section?.articleLanguage)
+                editFunnel?.logCaptchaFailedForSectionEdit(source: editFunnelSource, language: languageCode)
             }
             
             let captchaUrl = URL(string: nsError.userInfo["captchaUrl"] as? String ?? "")
             let captchaId = nsError.userInfo["captchaId"] as? String ?? ""
             WMFAlertManager.sharedInstance.showErrorAlert(nsError, sticky: false, dismissPreviousAlerts: true, tapCallBack: nil)
             captchaViewController?.captcha = WMFCaptcha(captchaID: captchaId, captchaURL: captchaUrl!)
-            editFunnel?.logCaptchaShownForSectionEdit(source: editFunnelSource, language: section?.articleLanguage)
+            editFunnel?.logCaptchaShownForSectionEdit(source: editFunnelSource, language: languageCode)
             mode = .captcha
             highlightCaptchaSubmitButton(false)
             dispatchOnMainQueueAfterDelayInSeconds(0.1) { // Prevents weird animation.
                 self.captchaViewController?.captchaTextFieldBecomeFirstResponder()
             }
         case .abuseFilterDisallowed, .abuseFilterWarning, .abuseFilterOther:
-            //NSString *warningHtml = error.userInfo[@"warning"];
-
             wmf_hideKeyboard()
+            WMFAlertManager.sharedInstance.dismissAlert() // Hide "Publishing..."
             
-            if (errorType == .abuseFilterDisallowed) {
-                WMFAlertManager.sharedInstance.showErrorAlert(nsError, sticky: false, dismissPreviousAlerts: true, tapCallBack: nil)
-                mode = .abuseFilterDisallow
-                abuseFilterCode = nsError.userInfo["code"] as! String
-                editFunnel?.logAbuseFilterErrorForSectionEdit(abuseFilterName: abuseFilterCode, source: editFunnelSource, language: section?.articleLanguage)
-            } else {
-                WMFAlertManager.sharedInstance.showWarningAlert(nsError.localizedDescription, sticky: false, dismissPreviousAlerts: true, tapCallBack: nil)
-                mode = .abuseFilterWarning
-                abuseFilterCode = nsError.userInfo["code"] as! String
-                editFunnel?.logAbuseFilterWarningForSectionEdit(abuseFilterName: abuseFilterCode, source: editFunnelSource, language: section?.articleLanguage)
+            guard let displayError = nsError.userInfo[NSErrorUserInfoDisplayError] as? MediaWikiAPIDisplayError,
+                  let currentTitle = articleURL?.wmf_title else {
+                return
             }
             
-            let alertType: AbuseFilterAlertType = (errorType == .abuseFilterDisallowed) ? .disallow : .warning
-            showAbuseFilterAlert(for: alertType)
+            if errorType == .abuseFilterDisallowed {
+                mode = .abuseFilterDisallow
+                abuseFilterCode = displayError.code
+                editFunnel?.logAbuseFilterErrorForSectionEdit(abuseFilterName: abuseFilterCode, source: editFunnelSource, language: languageCode)
+                
+                wmf_showAbuseFilterDisallowPanel(messageHtml: displayError.messageHtml, linkBaseURL: displayError.linkBaseURL, currentTitle: currentTitle, theme: theme, goBackIsOnlyDismiss: false)
+                
+            } else {
+                mode = .abuseFilterWarning
+                abuseFilterCode = displayError.code
+                editFunnel?.logAbuseFilterWarningForSectionEdit(abuseFilterName: abuseFilterCode, source: editFunnelSource, language: languageCode)
+                
+                wmf_showAbuseFilterWarningPanel(messageHtml: displayError.messageHtml, linkBaseURL: displayError.linkBaseURL, currentTitle: currentTitle, theme: theme, goBackIsOnlyDismiss: false, publishAnywayTapHandler: { [weak self] _ in
+                    
+                    self?.dismiss(animated: true) {
+                        self?.save()
+                    }
+                    
+                })
+            }
             
         case .server, .unknown:
             WMFAlertManager.sharedInstance.showErrorAlert(nsError, sticky: true, dismissPreviousAlerts: true, tapCallBack: nil)
-            editFunnel?.logSectionSaveError(source: editFunnelSource, language: section?.articleLanguage, errorText: "other")
+            editFunnel?.logSectionSaveError(source: editFunnelSource, language: languageCode, errorText: "other")
+        case .blocked:
+            
+            WMFAlertManager.sharedInstance.dismissAlert() // Hide "Publishing..."
+            
+            guard let displayError = nsError.userInfo[NSErrorUserInfoDisplayError] as? MediaWikiAPIDisplayError,
+                  let currentTitle = articleURL?.wmf_title else {
+                return
+            }
+            
+            wmf_showBlockedPanel(messageHtml: displayError.messageHtml, linkBaseURL: displayError.linkBaseURL, currentTitle: currentTitle, theme: theme)
+            
         default:
             WMFAlertManager.sharedInstance.showErrorAlert(nsError, sticky: true, dismissPreviousAlerts: true, tapCallBack: nil)
-            editFunnel?.logSectionSaveError(source: editFunnelSource, language: section?.articleLanguage, errorText: "other")
-        }
-    }
-    
-    private func showAbuseFilterAlert(for type: AbuseFilterAlertType) {
-        if let abuseFilterAlertView = AbuseFilterAlertView.wmf_viewFromClassNib() {
-            abuseFilterAlertView.type = type
-            abuseFilterAlertView.apply(theme: theme)
-            abuseFilterAlertView.isHidden = true
-            view.wmf_addSubviewWithConstraintsToEdges(abuseFilterAlertView)
-            dispatchOnMainQueueAfterDelayInSeconds(0.3) {
-                abuseFilterAlertView.isHidden = false
-            }
+            editFunnel?.logSectionSaveError(source: editFunnelSource, language: languageCode, errorText: "other")
         }
     }
     
@@ -345,7 +390,7 @@ class EditSaveViewController: WMFScrollViewController, Themeable, UITextFieldDel
     }
     
     func captchaSiteURL() -> URL {
-        return SessionSingleton.sharedInstance().currentArticleSiteURL
+        return articleURL?.wmf_site ?? Configuration.current.defaultSiteURL
     }
 
     func captchaReloadPushed(_ sender: AnyObject) {
@@ -394,15 +439,15 @@ class EditSaveViewController: WMFScrollViewController, Themeable, UITextFieldDel
     }
     
     func learnMoreButtonTapped(sender: UIButton) {
-        navigate(to: URL(string: "https://en.wikipedia.org/wiki/Help:Edit_summary"))
+        navigate(to: URL(string: "https://meta.wikimedia.org/wiki/Help:Edit_summary"))
     }
 
     @IBAction public func minorEditButtonTapped(sender: UIButton) {
-        navigate(to: URL(string: "https://en.wikipedia.org/wiki/Help:Minor_edit"))
+        navigate(to: URL(string: "https://meta.wikimedia.org/wiki/Help:Minor_edit"))
     }
 
     @IBAction public func watchlistButtonTapped(sender: UIButton) {
-        navigate(to: URL(string: "https://en.wikipedia.org/wiki/Help:Watchlist"))
+        navigate(to: URL(string: "https://www.mediawiki.org/wiki/Help:Watching_pages"))
     }
 
     func summaryChanged(newSummary: String) {
@@ -410,7 +455,7 @@ class EditSaveViewController: WMFScrollViewController, Themeable, UITextFieldDel
     }
     
     func cannedButtonTapped(type: EditSummaryViewCannedButtonType) {
-        editFunnel?.logSectionEditSummaryTap(source: editFunnelSource, editSummaryType: type, language: section?.articleLanguage)
+        editFunnel?.logSectionEditSummaryTap(source: editFunnelSource, editSummaryType: type, language: languageCode)
     }
     
     // Keep bottom divider and license/login labels at bottom of screen while remaining scrollable.
@@ -426,4 +471,8 @@ class EditSaveViewController: WMFScrollViewController, Themeable, UITextFieldDel
         super.viewDidLayoutSubviews()
         adjustHeightOfSpacerAboveBottomDividerSoContentViewIsAtLeastHeightOfScrollView()
     }
+}
+
+extension EditSaveViewController: EditingFlowViewController {
+    
 }

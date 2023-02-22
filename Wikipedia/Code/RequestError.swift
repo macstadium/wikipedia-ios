@@ -1,9 +1,12 @@
-public enum RequestError: Int, LocalizedError {
+public enum RequestError: LocalizedError {
     case unknown
     case invalidParameters
     case unexpectedResponse
+    case notModified
     case noNewData
-    case timeout = 504
+    case unauthenticated
+    case http(Int)
+    case api(String)
     
     public var errorDescription: String? {
         switch self {
@@ -14,7 +17,17 @@ public enum RequestError: Int, LocalizedError {
         }
     }
     
-    public static func from(code: Int) -> RequestError? {
-        return self.init(rawValue: code)
+    public static func from(code: Int) -> RequestError {
+        return .http(code)
+    }
+    
+    public static func from(_ apiError: [String: Any]?) -> RequestError? {
+        guard
+            let error = apiError?["error"] as? [String: Any],
+            let code = error["code"] as? String
+        else {
+            return nil
+        }
+        return .api(code)
     }
 }

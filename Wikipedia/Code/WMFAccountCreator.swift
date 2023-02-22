@@ -1,7 +1,7 @@
-
 public enum WMFAccountCreatorError: LocalizedError {
     case cannotExtractStatus
     case statusNotPass(String?)
+    case blockedError(String)
     case wrongCaptcha
     case usernameUnavailable
     public var errorDescription: String? {
@@ -9,6 +9,8 @@ public enum WMFAccountCreatorError: LocalizedError {
         case .cannotExtractStatus:
             return "Could not extract status"
         case .statusNotPass(let message?):
+            return message.removingHTML
+        case .blockedError(let message):
             return message
         case .wrongCaptcha:
             return WMFLocalizedString("field-alert-captcha-invalid", value:"Invalid CAPTCHA", comment:"Alert shown if CAPTCHA is not correct")
@@ -34,13 +36,14 @@ public struct WMFAccountCreatorResult {
 }
 
 public class WMFAccountCreator: Fetcher {
-    public func createAccount(username: String, password: String, retypePassword: String, email: String?, captchaID: String?, captchaWord: String?, siteURL: URL, success: @escaping WMFAccountCreatorResultBlock, failure: @escaping WMFErrorHandler){
+    public func createAccount(username: String, password: String, retypePassword: String, email: String?, captchaID: String?, captchaWord: String?, siteURL: URL, success: @escaping WMFAccountCreatorResultBlock, failure: @escaping WMFErrorHandler) {
         var parameters: [String: String] = [
             "action": "createaccount",
             "username": username,
             "password": password,
             "retype": retypePassword,
             "createreturnurl": "https://www.wikipedia.org",
+            "createmessageformat": "html",
             "format": "json"
         ]
         if let email = email {
@@ -54,6 +57,7 @@ public class WMFAccountCreator: Fetcher {
         }
         
         performTokenizedMediaWikiAPIPOST(tokenType: .createAccount, to: siteURL, with: parameters) { (result, response, error) in
+
             if let error = error {
                 failure(error)
                 return
@@ -76,6 +80,11 @@ public class WMFAccountCreator: Fetcher {
                         failure(WMFAccountCreatorError.usernameUnavailable)
                         return
                     default: break
+                    }
+                    
+                    if messageCode.contains("block") {
+                        failure(WMFAccountCreatorError.blockedError(message))
+                        return
                     }
                 }
                 failure(WMFAccountCreatorError.statusNotPass(message))

@@ -7,10 +7,13 @@ typedef NS_ENUM(NSInteger, WikiTextSectionUploaderErrorType) {
     WikiTextSectionUploaderErrorTypeNeedsCaptcha = 2,
     WikiTextSectionUploaderErrorTypeAbuseFilterDisallowed = 3,
     WikiTextSectionUploaderErrorTypeAbuseFilterWarning = 4,
-    WikiTextSectionUploaderErrorTypeAbuseFilterOther = 5
+    WikiTextSectionUploaderErrorTypeAbuseFilterOther = 5,
+    WikiTextSectionUploaderErrorTypeBlocked = 6,
 };
 
 NS_ASSUME_NONNULL_BEGIN
+
+extern NSString *const NSErrorUserInfoDisplayError;
 
 @interface WikiTextSectionUploader : WMFLegacyFetcher
 // Note: "section" parameter needs to be a string because the
@@ -21,6 +24,7 @@ NS_ASSUME_NONNULL_BEGIN
                summary:(nullable NSString *)summary
            isMinorEdit:(BOOL)isMinorEdit
         addToWatchlist:(BOOL)addToWatchlist
+             baseRevID:(nullable NSNumber *)baseRevID
              captchaId:(nullable NSString *)captchaId
            captchaWord:(nullable NSString *)captchaWord
             completion:(void (^)(NSDictionary * _Nullable result, NSError * _Nullable error))completion;
@@ -34,6 +38,13 @@ NS_ASSUME_NONNULL_BEGIN
                    text:(NSString *)text
           forArticleURL:(NSURL *)articleURL
              completion:(void (^)(NSDictionary * _Nullable result, NSError * _Nullable error))completion;
+
+- (void)prependToSectionID:(NSString *)sectionID
+                         text:(NSString *)text
+                forArticleURL:(NSURL *)articleURL
+             isMinorEdit:(BOOL)isMinorEdit
+               baseRevID:(nullable NSNumber *)baseRevID
+              completion:(void (^)(NSDictionary * _Nullable result, NSError * _Nullable error))completion;
 @end
 
 NS_ASSUME_NONNULL_END

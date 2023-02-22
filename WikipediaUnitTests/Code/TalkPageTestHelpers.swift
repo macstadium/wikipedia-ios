@@ -1,4 +1,3 @@
-
 import Foundation
 @testable import Wikipedia
 @testable import WMF
@@ -28,13 +27,13 @@ class TalkPageTestHelpers {
     }
     
     static func networkTalkPage(for urlString: String, data: Data, revisionId: Int) -> NetworkTalkPage? {
-        let session = Session.shared
+        let session = MWKDataStore.temporary().session
         
         do {
             let result: NetworkBase = try session.jsonDecodeData(data: data)
             
             
-            //update sort
+            // update sort
             for (topicIndex, topic) in result.topics.enumerated() {
                 
                 topic.sort = topicIndex

@@ -1,6 +1,6 @@
 import UIKit
 
-protocol CollectionViewHeaderDelegate: class {
+protocol CollectionViewHeaderDelegate: AnyObject {
     func collectionViewHeaderButtonWasPressed(_ collectionViewHeader: CollectionViewHeader)
 }
 
@@ -88,6 +88,11 @@ class CollectionViewHeader: SizeThatFitsReusableView {
         titleLabel.font = UIFont.wmf_font(titleTextStyle, compatibleWithTraitCollection: traitCollection)
         subtitleLabel.font = UIFont.wmf_font(subtitleTextStyle, compatibleWithTraitCollection: traitCollection)
         button.titleLabel?.font = UIFont.wmf_font(buttonTextStyle, compatibleWithTraitCollection: traitCollection)
+    }
+    
+    override func layoutMarginsDidChange() {
+        super.layoutMarginsDidChange()
+        setNeedsLayout()
     }
     
     override func sizeThatFits(_ size: CGSize, apply: Bool) -> CGSize {

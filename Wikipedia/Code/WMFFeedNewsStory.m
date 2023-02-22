@@ -3,8 +3,8 @@
 #import <WMF/WMFComparison.h>
 #import <WMF/NSCalendar+WMFCommonCalendars.h>
 #import <WMF/WMFLocalization.h>
-#import <WMF/NSString+WMFPageUtilities.h>
 #import <WMF/NSURL+WMFLinkParsing.h>
+#import <WMF/WMF-Swift.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -67,7 +67,7 @@ NS_ASSUME_NONNULL_BEGIN
 }
 
 + (nullable NSString *)semanticFeaturedArticleTitleFromStoryHTML:(NSString *)storyHTML siteURL:(NSURL *)siteURL {
-    NSString *pictured = WMFLocalizedStringWithDefaultValue(@"pictured", siteURL.wmf_language, nil, @"pictured", @"Indicates the person or item is pictured (as in a news story).");
+    NSString *pictured = [WMFFeedNewsStory localizedPicturedTextForWikiLanguage: siteURL.wmf_languageCode];
     NSRange range = [storyHTML rangeOfString:pictured options:NSCaseInsensitiveSearch];
     if (range.length == 0) {
         return nil;
@@ -115,6 +115,12 @@ NS_ASSUME_NONNULL_BEGIN
 
     return title;
 }
+
++ (NSArray<NSString *> *)languageVariantCodePropagationSubelementKeys {
+    return @[@"featuredArticlePreview", @"articlePreviews"];
+}
+
+// No languageVariantCodePropagationURLKeys
 
 @end
 

@@ -1,5 +1,4 @@
 #import "WMFArticleRevisionFetcher.h"
-@import WMF.WMFNetworkUtilities;
 @import WMF.NSURL_WMFLinkParsing;
 #import "WMFRevisionQueryResults.h"
 #import "WMFArticleRevision.h"
@@ -23,7 +22,7 @@
                                                                                         @"redirects": @1,
                                                                                         @"titles": articleURL.wmf_title,
                                                                                         @"rvlimit": @(numberOfResults),
-                                                                                        @"rvprop": WMFJoinedPropertyParameters(@[@"ids", @"size", @"flags"]) //,
+                                                                                        @"rvprop": [@[@"ids", @"size", @"flags"] componentsJoinedByString:@"|"],
                                                                                         //@"pilicense": @"any"
                                                                                         }];
     
@@ -40,7 +39,7 @@
             return;
         }
         NSError *mantleError = nil;
-        NSArray *results = [WMFLegacySerializer modelsOfClass:[WMFRevisionQueryResults class] fromArrayForKeyPath:@"query.pages"  inJSONDictionary:result error:&mantleError];
+        NSArray *results = [WMFLegacySerializer modelsOfClass:[WMFRevisionQueryResults class] fromArrayForKeyPath:@"query.pages" inJSONDictionary:result languageVariantCode: articleURL.wmf_languageVariantCode error:&mantleError];
         if (mantleError) {
             failure(mantleError);
             return;

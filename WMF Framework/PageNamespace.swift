@@ -1,3 +1,5 @@
+import Foundation
+
 // Emum for namespaces common amongst most Wikipedia languages.
 @objc public enum PageNamespace: Int, Codable {
     case media = -2
@@ -26,14 +28,14 @@
     case portalTalk = 101
     case project = 102
     case projectTalk = 103
-    //case ambiguous1 = 104
-    //case ambiguous2 = 105
-    //case ambiguous3 = 106
-    //case ambiguous4 = 107
+    // case ambiguous1 = 104
+    // case ambiguous2 = 105
+    // case ambiguous3 = 106
+    // case ambiguous4 = 107
     case book = 108
     case bookTalk = 109
-    //case ambiguous5 = 110
-    //case ambiguous6 = 111
+    // case ambiguous5 = 110
+    // case ambiguous6 = 111
     case draft = 118
     case draftTalk = 119
     case educationProgram = 446
@@ -52,27 +54,57 @@
     
     public var canonicalName: String {
         switch self {
-        case .talk:
-            return "Talk"
-        case .userTalk:
-            return "User talk"
-        default: // add these as needed
+        case .media: return "Media"
+        case .special: return "Special"
+        case .talk: return "Talk"
+        case .user: return "User"
+        case .userTalk: return "User talk"
+        case .wikipedia: return "Wikipedia"
+        case .wikipediaTalk: return "Wikipedia talk"
+        case .file: return "File"
+        case .fileTalk: return "File talk"
+        case .mediawiki: return "MediaWiki"
+        case .mediawikiTalk: return "MediaWiki talk"
+        case .template: return "Template"
+        case .templateTalk: return "Template talk"
+        case .help: return "Help"
+        case .helpTalk: return "Help talk"
+        case .category: return "Category"
+        case .cateogryTalk: return "Category talk"
+        case .portal: return "Portal"
+        case .portalTalk: return "Portal talk"
+        case .draft: return "Draft"
+        case .draftTalk: return "Draft talk"
+        case .timedText: return "TimedText"
+        case .timedTextTalk: return "TimedText talk"
+        case .module: return "Module"
+        case .moduleTalk: return "Module talk"
+        case .gadget: return "Gadget"
+        case .gadgetTalk: return "Gadget talk"
+        case .gadgetDefinition: return "Gadget definition"
+        case .gadgetDefinitionTalk: return "Gadget definition talk"
+        default:
             return ""
+        }
+    }
+    
+    public var convertedToOrFromTalk: PageNamespace? {
+        switch self {
+        case .main:
+            return .talk
+        case .talk:
+            return .main
+        default:
+            return nil
         }
     }
 }
 
 extension PageNamespace {
-    init?(namespaceValue: Int?) {
+    public init?(namespaceValue: Int?) {
         guard let rawValue = namespaceValue else {
             return nil
         }
         self.init(rawValue: rawValue)
-    }
-}
-
-extension MWKSearchResult {
-    public var pageNamespace: PageNamespace? {
-        return PageNamespace(namespaceValue: titleNamespace?.intValue)
     }
 }

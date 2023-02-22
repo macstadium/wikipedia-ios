@@ -1,8 +1,8 @@
-
 import UIKit
+import WMF
 
-@objc protocol DescriptionEditViewControllerDelegate: NSObjectProtocol {
-    func descriptionEditViewControllerEditSucceeded(_ descriptionEditViewController: DescriptionEditViewController)
+protocol DescriptionEditViewControllerDelegate: AnyObject {
+    func descriptionEditViewControllerEditSucceeded(_ descriptionEditViewController: DescriptionEditViewController, result: ArticleDescriptionPublishResult)
 }
 
 @objc class DescriptionEditViewController: WMFScrollViewController, Themeable, UITextViewDelegate {
@@ -17,29 +17,40 @@ import UIKit
     @IBOutlet private var divider: UIView!
     @IBOutlet private var cc0ImageView: UIImageView!
     @IBOutlet private var publishDescriptionButton: WMFAuthButton!
-    @IBOutlet private var warningLabel: UILabel!
+    @IBOutlet private var lengthWarningLabel: UILabel!
+    @IBOutlet private weak var casingWarningLabel: UILabel!
     @IBOutlet private var warningCharacterCountLabel: UILabel!
     private var theme = Theme.standard
 
-    @objc var article: MWKArticle? = nil
-    private let showWarningIfDescriptionLongerThanCount = 90
-
-    @objc var delegate: DescriptionEditViewControllerDelegate? = nil
+    var delegate: DescriptionEditViewControllerDelegate? = nil
 
     // MARK: Event logging
     @objc var editFunnel: EditFunnel?
     @objc var editFunnelSource: EditFunnelSource = .unknown
-    private var isAddingNewTitleDescription: Bool {
-        return article?.entityDescription == nil
+    
+    private var articleDescriptionController: ArticleDescriptionControlling!
+    
+    // These would be better as let's and a required initializer but it's not an opportune time to ditch the storyboard
+    // Convert these to non-force unwrapped if there's some way to ditch the storyboard or provide an initializer with the storyboard
+    var isAddingNewTitleDescription: Bool!
+    var dataStore: MWKDataStore!
+    static func with(dataStore: MWKDataStore, theme: Theme, articleDescriptionController: ArticleDescriptionControlling) -> DescriptionEditViewController {
+        let vc = wmf_initialViewControllerFromClassStoryboard()!
+        vc.isAddingNewTitleDescription = articleDescriptionController.descriptionSource == .none
+        vc.dataStore = dataStore
+        vc.articleDescriptionController = articleDescriptionController
+        return vc
     }
-
+    
     override func viewDidLoad() {
         super.viewDidLoad()
 
         navigationItem.leftBarButtonItem = UIBarButtonItem(image: UIImage(named:"close"), style: .plain, target:self, action:#selector(closeButtonPushed(_:)))
         navigationItem.leftBarButtonItem?.accessibilityLabel = CommonStrings.closeButtonAccessibilityLabel
 
-        warningLabel.text = WMFLocalizedString("description-edit-warning", value:"Try to keep descriptions short so users can understand the article's subject at a glance", comment:"Title text for label reminding users to keep descriptions concise")
+        lengthWarningLabel.text = WMFLocalizedString("description-edit-warning", value:"Try to keep descriptions short so users can understand the article's subject at a glance", comment:"Title text for label reminding users to keep descriptions concise")
+        casingWarningLabel.text = WMFLocalizedString("description-edit-warning-casing", value:"Only proper nouns should be capitalized, even at the start of the sentence.", comment:"Title text for label reminding users to begin article descriptions with a lowercase letter for non-EN wikis.")
+        
         publishDescriptionButton.setTitle(WMFLocalizedString("description-edit-publish", value:"Publish description", comment:"Title for publish description button"), for: .normal)
         
         learnMoreButton.setTitle(WMFLocalizedString("description-edit-learn-more", value:"Learn more", comment:"Title text for description editing learn more button"), for: .normal)
@@ -49,25 +60,40 @@ import UIKit
         view.wmf_configureSubviewsForDynamicType()
         apply(theme: theme)
         
-        if let existingDescription = article?.entityDescription {
-            descriptionTextView.text = existingDescription
-            title = WMFLocalizedString("description-edit-title", value:"Edit description", comment:"Title text for description editing screen")
-        } else {
-            title = WMFLocalizedString("description-add-title", value:"Add description", comment:"Title text for description addition screen")
+        isPlaceholderLabelHidden = false
+        hideAllWarningLabels()
+        articleDescriptionController.currentDescription { [weak self] (description, blockedError) in
+
+            guard let self = self else {
+                return
+            }
+
+            if let currentDescription = description {
+                self.descriptionTextView.text = currentDescription
+                self.title = WMFLocalizedString("description-edit-title", value:"Edit description", comment:"Title text for description editing screen")
+            } else {
+                self.title = WMFLocalizedString("description-add-title", value:"Add description", comment:"Title text for description addition screen")
+            }
+
+            self.isPlaceholderLabelHidden = self.shouldHidePlaceholder()
+            self.updateWarningLabels()
+            
+            if let blockedError {
+                self.disableTextFieldAndPublish()
+                self.presentBlockedPanel(error: blockedError)
+            }
         }
         
         descriptionTextView.textContainer.lineFragmentPadding = 0
         descriptionTextView.textContainerInset = .zero
         
-        isPlaceholderLabelHidden = shouldHidePlaceholder()
-        updateWarningLabelsForDescriptionCount()
         updateFonts()
     }
     
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         enableProgressiveButton(false)
-        loginLabel.isHidden = WMFAuthenticationManager.sharedInstance.isLoggedIn
+        loginLabel.isHidden = dataStore.authenticationManager.isLoggedIn
     }
     
     override func viewDidAppear(_ animated: Bool) {
@@ -119,16 +145,16 @@ import UIKit
     }
 
     private var subTitleLabelAttributedString: NSAttributedString {
-        let formatString = WMFLocalizedString("description-edit-for-article", value: "Title description for %1$@", comment: "String describing which article title description is being edited. %1$@ is replaced with the article title")
-        return String.localizedStringWithFormat(formatString, article?.displaytitle ?? "").byAttributingHTML(with: .semiboldSubheadline, matching: traitCollection)
+        let formatString = WMFLocalizedString("description-edit-for-article", value: "Article description for %1$@", comment: "String describing which article description is being edited. %1$@ is replaced with the article title")
+        return String.localizedStringWithFormat(formatString, articleDescriptionController.articleDisplayTitle ?? "").byAttributingHTML(with: .semiboldSubheadline, matching: traitCollection)
     }
     
     private func characterCountWarningString(for descriptionCharacterCount: Int) -> String? {
-        return String.localizedStringWithFormat(WMFLocalizedString("description-edit-length-warning", value: "%1$@ / %2$@", comment: "Displayed to indicate how many description characters were entered. Separator can be customized depending on the language. %1$@ is replaced with the number of characters entered, %2$@ is replaced with the recommended maximum number of characters."), String(descriptionCharacterCount), String(showWarningIfDescriptionLongerThanCount))
+        return String.localizedStringWithFormat(WMFLocalizedString("description-edit-length-warning", value: "%1$@ / %2$@", comment: "Displayed to indicate how many description characters were entered. Separator can be customized depending on the language. %1$@ is replaced with the number of characters entered, %2$@ is replaced with the recommended maximum number of characters."), String(descriptionCharacterCount), String(articleDescriptionController.descriptionMaxLength))
     }
     
     private var licenseLabelAttributedString: NSAttributedString {
-        let formatString = WMFLocalizedString("description-edit-license", value: "By changing the title description, I agree to the %1$@ and to irrevocably release my contributions under the %2$@ license.", comment: "Button text for information about the Terms of Use and edit licenses. Parameters:\n* %1$@ - 'Terms of Use' link, %2$@ - license name link")
+        let formatString = WMFLocalizedString("description-edit-license", value: "By changing the article description, I agree to the %1$@ and to irrevocably release my contributions under the %2$@ license.", comment: "Button text for information about the Terms of Use and edit licenses. Parameters:\n* %1$@ - 'Terms of Use' link, %2$@ - license name link")
         
         let baseAttributes: [NSAttributedString.Key: Any] = [
             .foregroundColor : theme.colors.secondaryText,
@@ -158,7 +184,11 @@ import UIKit
     }
 
     @IBAction func showAboutWikidataPage() {
-        let vc = DescriptionHelpViewController.init(theme: theme)
+        
+        guard let vc = articleDescriptionController.learnMoreViewControllerWithTheme(theme) else {
+            return
+        }
+        
         let navVC = WMFThemeableNavigationController.init(rootViewController: vc, theme: theme)
         present(navVC, animated: true, completion: nil)
     }
@@ -180,7 +210,7 @@ import UIKit
     }
 
     @IBAction private func publishDescriptionButton(withSender sender: UIButton) {
-        editFunnel?.logTitleDescriptionSaveAttempt(source: editFunnelSource, isAddingNewTitleDescription: isAddingNewTitleDescription, language: article?.url.wmf_language)
+        editFunnel?.logTitleDescriptionSaveAttempt(source: editFunnelSource, isAddingNewTitleDescription: isAddingNewTitleDescription, language: articleDescriptionController.articleLanguageCode)
         save()
     }
 
@@ -195,17 +225,6 @@ import UIKit
     private func save() {
         enableProgressiveButton(false)
         wmf_hideKeyboard()
-        
-        guard
-            let article = article,
-            let dataStore = article.dataStore,
-            let wikidataID = article.wikidataId,
-            let language = article.url.wmf_language
-        else {
-            enableProgressiveButton(true)
-            assertionFailure("Expected article, datastore or article url not found")
-            return
-        }
 
         guard
             let descriptionToSave = descriptionTextView.normalizedWhitespaceText(),
@@ -217,40 +236,133 @@ import UIKit
                 return
         }
         
-        dataStore.wikidataDescriptionEditingController.publish(newWikidataDescription: descriptionToSave, from: article.descriptionSource, forWikidataID: wikidataID, language: language) { error in
+        articleDescriptionController.publishDescription(descriptionToSave) { [weak self] (result) in
+            
             DispatchQueue.main.async {
+
+                guard let self else {
+                    return
+                }
+
                 let presentingVC = self.presentingViewController
                 self.enableProgressiveButton(true)
-                if let error = error {
-                    let apiErrorCode = (error as? WikidataAPIResult.APIError)?.code
-                    let errorText = apiErrorCode ?? "\((error as NSError).domain)-\((error as NSError).code)"
-                    self.editFunnel?.logTitleDescriptionSaveError(source: self.editFunnelSource, isAddingNewTitleDescription: self.isAddingNewTitleDescription, language: article.url.wmf_language, errorText: errorText)
-                    WMFAlertManager.sharedInstance.showErrorAlert(error as NSError, sticky: true, dismissPreviousAlerts: true, tapCallBack: nil)
-                } else {
-                    self.editFunnel?.logTitleDescriptionSaved(source: self.editFunnelSource, isAddingNewTitleDescription: self.isAddingNewTitleDescription, language: article.url.wmf_language)
-                    self.delegate?.descriptionEditViewControllerEditSucceeded(self)
+                switch result {
+                case .success(let result):
+                    self.editFunnel?.logTitleDescriptionSaved(source: self.editFunnelSource, isAddingNewTitleDescription: self.isAddingNewTitleDescription, language: self.articleDescriptionController.articleLanguageCode)
+                    self.delegate?.descriptionEditViewControllerEditSucceeded(self, result: result)
                     self.dismiss(animated: true) {
                         presentingVC?.wmf_showDescriptionPublishedPanelViewController(theme: self.theme)
                         NotificationCenter.default.post(name: DescriptionEditViewController.didPublishNotification, object: nil)
                     }
-                    return
+                case .failure(let error):
+
+                    let nsError = error as NSError
+                    let errorCode = self.articleDescriptionController.errorCodeFromError(nsError)
+                    self.editFunnel?.logTitleDescriptionSaveError(source: self.editFunnelSource, isAddingNewTitleDescription: self.isAddingNewTitleDescription, language: self.articleDescriptionController.articleLanguageCode, errorText: errorCode)
+
+                    if let wikidataError = error as? WikidataFetcher.WikidataPublishingError {
+                        switch wikidataError {
+                        case .apiBlocked(let blockedError):
+                            self.presentBlockedPanel(error: blockedError)
+                            return
+                        case .apiAbuseFilterDisallow(let error):
+                            self.presentAbuseFilterDisallowedPanel(error: error)
+                            return
+                        case .apiAbuseFilterWarn(let error), .apiAbuseFilterOther(let error):
+                            self.presentAbuseFilterWarningPanel(error: error)
+                            return
+                        default:
+                            break
+                        }
+                    }
+
+                    let errorType = WikiTextSectionUploaderErrorType.init(rawValue: nsError.code) ?? .unknown
+                    
+                    guard let displayError = nsError.userInfo[NSErrorUserInfoDisplayError] as? MediaWikiAPIDisplayError else {
+                        WMFAlertManager.sharedInstance.showErrorAlert(nsError as NSError, sticky: true, dismissPreviousAlerts: true, tapCallBack: nil)
+                        return
+                    }
+                    
+                    switch errorType {
+                    case .blocked:
+                        self.presentBlockedPanel(error: displayError)
+                        return
+                    case .abuseFilterDisallowed:
+                        self.presentAbuseFilterDisallowedPanel(error: displayError)
+                    case .abuseFilterWarning, .abuseFilterOther:
+                        self.presentAbuseFilterWarningPanel(error: displayError)
+                    default:
+                        WMFAlertManager.sharedInstance.showErrorAlert(nsError as NSError, sticky: true, dismissPreviousAlerts: true, tapCallBack: nil)
+                    }
+                    
+                    
                 }
             }
         }
     }
     
-    private func updateWarningLabelsForDescriptionCount() {
-        warningCharacterCountLabel.text = characterCountWarningString(for: descriptionTextView.nilTextSafeCount())
+    private func presentBlockedPanel(error: MediaWikiAPIDisplayError) {
         
-        let isDescriptionLong = descriptionTextView.nilTextSafeCount() > showWarningIfDescriptionLongerThanCount
-        warningLabel.isHidden = !isDescriptionLong
-        warningCharacterCountLabel.textColor = isDescriptionLong ? theme.colors.descriptionWarning : theme.colors.secondaryText
+        guard let currentTitle = self.articleDescriptionController?.articleDisplayTitle else {
+            return
+        }
+        
+        wmf_showBlockedPanel(messageHtml: error.messageHtml, linkBaseURL: error.linkBaseURL, currentTitle: currentTitle, theme: theme)
+        
+    }
+    
+    private func presentAbuseFilterDisallowedPanel(error: MediaWikiAPIDisplayError) {
+        
+        guard let currentTitle = self.articleDescriptionController?.articleDisplayTitle else {
+            return
+        }
+        
+        wmf_showAbuseFilterDisallowPanel(messageHtml: error.messageHtml, linkBaseURL: error.linkBaseURL, currentTitle: currentTitle, theme: theme, goBackIsOnlyDismiss: true)
+        
+    }
+    
+    private func presentAbuseFilterWarningPanel(error: MediaWikiAPIDisplayError) {
+        
+        guard let currentTitle = self.articleDescriptionController?.articleDisplayTitle else {
+            return
+        }
+        
+        wmf_showAbuseFilterWarningPanel(messageHtml: error.messageHtml, linkBaseURL: error.linkBaseURL, currentTitle: currentTitle, theme: theme, goBackIsOnlyDismiss: true, publishAnywayTapHandler: { [weak self] _ in
+            
+            self?.dismiss(animated: true) {
+                self?.save()
+            }
+            
+        })
+        
+    }
+    
+    private func hideAllWarningLabels() {
+        warningCharacterCountLabel.isHidden = true
+        lengthWarningLabel.isHidden = true
+        casingWarningLabel.isHidden = true
+    }
+    
+    private func updateWarningLabels() {
+
+        warningCharacterCountLabel.text = characterCountWarningString(for: descriptionTextView.nilTextSafeCount())
+
+        let warningTypes = articleDescriptionController.warningTypesForDescription(descriptionTextView.text)
+        
+        warningCharacterCountLabel.textColor = warningTypes.contains(.length) ? theme.colors.descriptionWarning : theme.colors.secondaryText
+        lengthWarningLabel.isHidden = !warningTypes.contains(.length)
+        casingWarningLabel.isHidden = !warningTypes.contains(.casing)
+    }
+    
+    private func disableTextFieldAndPublish() {
+        self.descriptionTextView.isEditable = false
+        self.publishDescriptionButton.isEnabled = false
     }
     
     public func textViewDidChange(_ textView: UITextView) {
         let hasText = !descriptionTextView.text.isEmpty
         enableProgressiveButton(hasText)
-        updateWarningLabelsForDescriptionCount()
+        updateWarningLabels()
         isPlaceholderLabelHidden = hasText
     }
     
@@ -266,7 +378,8 @@ import UIKit
         descriptionTextView.textColor = theme.colors.primaryText
         divider.backgroundColor = theme.colors.border
         descriptionPlaceholderLabel.textColor = theme.colors.unselected
-        warningLabel.textColor = theme.colors.descriptionWarning
+        lengthWarningLabel.textColor = theme.colors.descriptionWarning
+        casingWarningLabel.textColor = theme.colors.error
         warningCharacterCountLabel.textColor = theme.colors.descriptionWarning
         publishDescriptionButton.apply(theme: theme)
         descriptionTextView.keyboardAppearance = theme.keyboardAppearance
@@ -296,4 +409,8 @@ private extension UITextView {
         }
         return text
     }
+}
+
+extension DescriptionEditViewController: EditingFlowViewController {
+    
 }

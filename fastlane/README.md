@@ -12,7 +12,7 @@ Install _fastlane_ using
 ```
 [sudo] gem install fastlane -NV
 ```
-or alternatively using `brew cask install fastlane`
+or alternatively using `brew install fastlane`
 
 # Available Actions
 ## iOS
@@ -20,7 +20,7 @@ or alternatively using `brew cask install fastlane`
 ```
 fastlane ios checkout
 ```
-Checks out the sha specified in the environment variables or the develop branch
+Checks out the sha specified in the environment variables or the main branch
 ### ios analyze
 ```
 fastlane ios analyze
@@ -31,31 +31,26 @@ Runs linting (and eventually static analysis)
 fastlane ios verify_test_platforms
 ```
 Runs tests on the primary platforms and configurations
-### ios beta_cluster_tests
-```
-fastlane ios beta_cluster_tests
-```
-Runs tests against the beta cluster to check for upstream changes.
 ### ios verify_pull_request
 ```
 fastlane ios verify_pull_request
 ```
 Runs tests on select platforms for verifying pull requests
+### ios read_xcversion
+```
+fastlane ios read_xcversion
+```
+Reads Xcode version from the .xcversion file and sets it using xcversion()
 ### ios verify
 ```
 fastlane ios verify
 ```
-Runs unit tests, generates JUnit reports.
+Runs unit tests, generates reports.
 ### ios record_visual_tests
 ```
 fastlane ios record_visual_tests
 ```
 Records visual tests.
-### ios bump_build
-```
-fastlane ios bump_build
-```
-Increment the build number
 ### ios set_build_number
 ```
 fastlane ios set_build_number
@@ -81,54 +76,59 @@ Increment the app version minor
 fastlane ios bump_major
 ```
 Increment the app version major
+### ios change_version
+```
+fastlane ios change_version
+```
+Change version number and create PR with changes
 ### ios tag
 ```
 fastlane ios tag
 ```
-Add a tag for the current build number and push to repo.
+Add a build tag for the current build number and push to repo. While this tags a build, tag_release sets a release tag.
 ### ios tag_release
 ```
 fastlane ios tag_release
 ```
-Add a tag for the current version number push to repo.
+Add a release tag for the latest beta and push to repo. For tagging non-releases, use `tag`.
 ### ios build
 ```
 fastlane ios build
 ```
-Build the app for distibution
-### ios push_beta
+Build the app for distribution
+### ios deploy
 ```
-fastlane ios push_beta
+fastlane ios deploy
 ```
-updates version, builds, and pushes to TestFlight
-### ios push_alpha
+Pushes both the production and staging apps to TestFlight and tags the release. Only releases to internal testers. (This is very similar to `push_production`, although this command also tags the build in git.)
+### ios push_production
 ```
-fastlane ios push_alpha
+fastlane ios push_production
 ```
-updates version, builds, and pushes alpha to TestFlight
-### ios push_beta_cluster
+Updates version, builds, and pushes the production build to TestFlight. Only releases to internal testers.
+### ios push_staging
 ```
-fastlane ios push_beta_cluster
+fastlane ios push_staging
 ```
-updates version, builds, and pushes beta cluster to TestFlight
-### ios push_beta_app
+Updates version, builds, and pushes the staging build to TestFlight. Only releases to internal testers.
+### ios push_experimental
 ```
-fastlane ios push_beta_app
+fastlane ios push_experimental
 ```
-updates version, builds, and pushes beta cluster to TestFlight
+Updates version, builds, and pushes experimental build to TestFlight. Only releases to internal testers.
 ### ios get_latest_tag_with_prefix
 ```
 fastlane ios get_latest_tag_with_prefix
 ```
 
-### ios get_latest_build_for_stage
+### ios get_latest_build_number
 ```
-fastlane ios get_latest_build_for_stage
+fastlane ios get_latest_build_number
 ```
 
-### ios get_latest_alpha_or_beta_build_number
+### ios get_recent_commits
 ```
-fastlane ios get_latest_alpha_or_beta_build_number
+fastlane ios get_recent_commits
 ```
 
 ### ios push
@@ -136,21 +136,11 @@ fastlane ios get_latest_alpha_or_beta_build_number
 fastlane ios push
 ```
 updates version, builds, and pushes to TestFlight
-### ios test_and_push_beta
-```
-fastlane ios test_and_push_beta
-```
-Runs tests, version, tag, and push to the beta branch
 ### ios upload_app_store_metadata
 ```
 fastlane ios upload_app_store_metadata
 ```
 Upload app store metadata
-### ios submit_release
-```
-fastlane ios submit_release
-```
-Runs tests, version, tag, and push to the beta branch
 ### ios dsyms
 ```
 fastlane ios dsyms

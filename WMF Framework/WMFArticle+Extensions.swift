@@ -24,7 +24,7 @@ extension WMFArticle {
     }
     
     public var hasChangedValuesForCurrentEventThatAffectSavedArticlePreviews: Bool {
-        let previewKeys: Set<String> = ["wikidataDescription", "snippet", "imageURLString", "isDownloaded", "readingLists"]
+        let previewKeys: Set<String> = ["wikidataDescription", "snippet", "imageURLString", "isDownloaded", "readingLists", "errorCodeNumber"]
         return hasChangedValuesForCurrentEventForKeys(previewKeys)
     }
     
@@ -41,5 +41,14 @@ extension WMFArticle {
             return nil
         }
         return NSNumber(integerLiteral: namespace.rawValue)
+    }
+    
+    public var isSaved: Bool {
+        get {
+            return savedDate != nil
+        }
+        set {
+            savedDate = newValue ? Date() : nil
+        }
     }
 }

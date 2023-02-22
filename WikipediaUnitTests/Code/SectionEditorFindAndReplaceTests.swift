@@ -19,6 +19,7 @@ private struct Location {
 }
 
 class SectionEditorFindAndReplaceTests: XCTestCase {
+    let timeout: TimeInterval = 10
     
     private var sectionEditorViewController: SectionEditorViewController!
     private var focusedSectionEditorExpectation: XCTestExpectation!
@@ -53,7 +54,7 @@ class SectionEditorFindAndReplaceTests: XCTestCase {
 
     private func setupNetworkStubs() {
         
-        guard let siteUrl = NSURL.wmf_URL(withDefaultSiteAndlanguage: "en"),
+        guard let siteUrl = NSURL.wmf_URL(withDefaultSiteAndLanguageCode: "en"),
             let url = NSURL.wmf_desktopAPIURL(for: siteUrl),
             let regex = try? NSRegularExpression(pattern: "\(url.absoluteString).*", options: []),
             let json = wmf_bundle().wmf_data(fromContentsOfFile: "BarackEarlyLife", ofType: "json")
@@ -63,7 +64,7 @@ class SectionEditorFindAndReplaceTests: XCTestCase {
         
         stubRequest("POST", url.absoluteString as NSString)
         
-        let _ = stubRequest("GET", regex)
+        _ = stubRequest("GET", regex)
             .andReturn(200)?
             .withHeaders(["Content-Type": "application/json"])?
             .withBody(json as NSData)
@@ -71,24 +72,23 @@ class SectionEditorFindAndReplaceTests: XCTestCase {
     
     private func loadSectionEditor() {
         
-        guard let siteUrl = NSURL.wmf_URL(withDefaultSiteAndlanguage: "en") else {
+        guard let siteUrl = NSURL.wmf_URL(withDefaultSiteAndLanguageCode: "en") else {
             return
         }
         
+        let articleURL = siteUrl.appendingPathComponent("/wiki/Barack_Obama")
+        
         mockMessagingController = MockSectionEditorWebViewMessagingController()
-        sectionEditorViewController = SectionEditorViewController(messagingController: mockMessagingController)
+        sectionEditorViewController = SectionEditorViewController(articleURL: articleURL, sectionID: 1, messagingController: mockMessagingController, dataStore: MWKDataStore.temporary())
         
         focusedSectionEditorExpectation = expectation(description: "Waiting for sectionEditorDidFinishLoadingWikitext callback")
-        
-        let article = MWKArticle(url: siteUrl.appendingPathComponent("/wiki/Barack_Obama"), dataStore: MWKDataStore.temporary())
-        let section = MWKSection(article: article, dict: ["id" : 1])
-        sectionEditorViewController.section = section
+
         sectionEditorViewController.delegate = self
         
-        UIApplication.shared.keyWindow?.rootViewController = sectionEditorViewController
-        let _ = sectionEditorViewController.view
+        UIApplication.shared.workaroundKeyWindow?.rootViewController = sectionEditorViewController
+        _ = sectionEditorViewController.view
         
-        wait(for: [focusedSectionEditorExpectation], timeout: 5)
+        wait(for: [focusedSectionEditorExpectation], timeout: timeout)
     }
     
     func testFindResultsUpdateToMatchLabel() {
@@ -104,7 +104,7 @@ class SectionEditorFindAndReplaceTests: XCTestCase {
             }
         }
         
-         wait(for: [findExpectation], timeout: 5)
+         wait(for: [findExpectation], timeout: timeout)
         
         let matchPlacement = findAndReplaceView.matchPlacementForTesting
         XCTAssertEqual(matchPlacement.index, 1, "Unexpected match placement index")
@@ -125,7 +125,7 @@ class SectionEditorFindAndReplaceTests: XCTestCase {
             
         }
         
-        wait(for: [findExpectation], timeout: 5)
+        wait(for: [findExpectation], timeout: timeout)
         
         let matchPlacement = findAndReplaceView.matchPlacementForTesting
         XCTAssertEqual(matchPlacement.index,0, "Unexpected match placement index")
@@ -134,11 +134,13 @@ class SectionEditorFindAndReplaceTests: XCTestCase {
     
     func testFindResultsStartingFromMidArticleUpdateToMatchLabel() {
         
-        let webView = sectionEditorViewController.webViewForTesting
+        guard let webView = sectionEditorViewController.webViewForTesting else {
+            return
+        }
         
         let cursorExpectation = expectation(description: "Waiting for set cursor callback")
         
-        //set cursor to line 8. first match is on line 7 so index should start at 2
+        // set cursor to line 8. first match is on line 7 so index should start at 2
         webView.evaluateJavaScript("""
                 editor.setCursor({line: 8, ch: 1})
             """) { (result, error) in
@@ -152,9 +154,9 @@ class SectionEditorFindAndReplaceTests: XCTestCase {
                 print(error)
         }
         
-        wait(for: [cursorExpectation], timeout: 5)
+        wait(for: [cursorExpectation], timeout: timeout)
         
-        //kickoff find
+        // kickoff find
         sectionEditorViewController.openFindAndReplaceForTesting()
         
         let findExpectation = expectation(description: "waiting for find results callback")
@@ -166,9 +168,9 @@ class SectionEditorFindAndReplaceTests: XCTestCase {
             }
         }
         
-        wait(for: [findExpectation], timeout: 5)
+        wait(for: [findExpectation], timeout: timeout)
         
-        //confirm match index later in the article (i.e. not 1)
+        // confirm match index later in the article (i.e. not 1)
         let matchPlacement = findAndReplaceView.matchPlacementForTesting
         XCTAssertEqual(matchPlacement.index, 2, "Unexpected match placement index")
         XCTAssertEqual(matchPlacement.total, 7, "Unexpected match placement total")
@@ -176,7 +178,7 @@ class SectionEditorFindAndReplaceTests: XCTestCase {
     
     func testFindNextIncrementsMatchLabel() {
         
-        //kickoff find
+        // kickoff find
         sectionEditorViewController.openFindAndReplaceForTesting()
         
         let findExpectation = expectation(description: "Waiting for find results callback")
@@ -188,14 +190,14 @@ class SectionEditorFindAndReplaceTests: XCTestCase {
             }
         }
         
-        wait(for: [findExpectation], timeout: 5)
+        wait(for: [findExpectation], timeout: timeout)
         
-        //confirm match placement is set to first match
+        // confirm match placement is set to first match
         var matchPlacement = findAndReplaceView.matchPlacementForTesting
         XCTAssertEqual(matchPlacement.index, 1, "Unexpected match placement index")
         XCTAssertEqual(matchPlacement.total, 7, "Unexpected match placement total")
         
-        //tap next
+        // tap next
         let nextExpectation = expectation(description: "Waiting for tapped next message callback")
         
         findAndReplaceView.tapNextForTesting()
@@ -205,9 +207,9 @@ class SectionEditorFindAndReplaceTests: XCTestCase {
             }
         }
         
-        wait(for: [nextExpectation], timeout: 5)
+        wait(for: [nextExpectation], timeout: timeout)
         
-        //confirm match placement increments
+        // confirm match placement increments
         matchPlacement = findAndReplaceView.matchPlacementForTesting
         XCTAssertEqual(matchPlacement.index, 2, "Unexpected match placement index")
         XCTAssertEqual(matchPlacement.total, 7, "Unexpected match placement total")
@@ -215,7 +217,7 @@ class SectionEditorFindAndReplaceTests: XCTestCase {
     
     func testFindNextIncreasesSearchStateCursor() {
         
-        //kickoff find
+        // kickoff find
         sectionEditorViewController.openFindAndReplaceForTesting()
         
         let findExpectation = expectation(description: "Waiting for find results callback")
@@ -227,12 +229,15 @@ class SectionEditorFindAndReplaceTests: XCTestCase {
             }
         }
         
-        wait(for: [findExpectation], timeout: 5)
+        wait(for: [findExpectation], timeout: timeout)
         
-        let webView = sectionEditorViewController.webViewForTesting
+        guard let webView = sectionEditorViewController.webViewForTesting else {
+            return
+        }
+        
         let userContentController = webView.configuration.userContentController
         
-        //get current search cursor before tapping next
+        // get current search cursor before tapping next
         let currentSearchLocationExpectation = expectation(description: "Waiting for current search location callback")
         
         userContentController.add(self, name: messageHandlerKeyCurrentSearchLocation)
@@ -241,6 +246,7 @@ class SectionEditorFindAndReplaceTests: XCTestCase {
                 var line = editor.state.search.posTo.line
                 var ch = editor.state.search.posTo.ch
                 window.webkit.messageHandlers.\(messageHandlerKeyCurrentSearchLocation).postMessage({'\(cursorLineKey)': line, '\(cursorCharacterKey)': ch})
+                true
             """) { (result, error) in
                 
                 currentSearchLocationExpectation.fulfill()
@@ -252,9 +258,9 @@ class SectionEditorFindAndReplaceTests: XCTestCase {
                 print(error)
         }
         
-        wait(for: [currentSearchLocationExpectation], timeout: 5)
+        wait(for: [currentSearchLocationExpectation], timeout: timeout)
         
-        //tap next
+        // tap next
         let nextExpectation = expectation(description: "Waiting for tapped next message callback")
         
         findAndReplaceView.tapNextForTesting()
@@ -264,9 +270,9 @@ class SectionEditorFindAndReplaceTests: XCTestCase {
             }
         }
         
-        wait(for: [nextExpectation], timeout: 5)
+        wait(for: [nextExpectation], timeout: timeout)
         
-        //get next search cursor
+        // get next search cursor
         let nextSearchLocationExpectation = expectation(description: "Waiting for next search location callback")
         
         userContentController.add(self, name: messageHandlerKeyNextSearchLocation)
@@ -274,7 +280,8 @@ class SectionEditorFindAndReplaceTests: XCTestCase {
         webView.evaluateJavaScript("""
                 var line = editor.state.search.posFrom.line
                 var ch = editor.state.search.posFrom.ch
-            window.webkit.messageHandlers.\(messageHandlerKeyNextSearchLocation).postMessage({'\(cursorLineKey)': line, '\(cursorCharacterKey)': ch})
+                window.webkit.messageHandlers.\(messageHandlerKeyNextSearchLocation).postMessage({'\(cursorLineKey)': line, '\(cursorCharacterKey)': ch})
+                true
             """) { (result, error) in
                 
                 nextSearchLocationExpectation.fulfill()
@@ -286,16 +293,16 @@ class SectionEditorFindAndReplaceTests: XCTestCase {
                 print(error)
         }
         
-        wait(for: [nextSearchLocationExpectation], timeout: 5)
+        wait(for: [nextSearchLocationExpectation], timeout: timeout)
         
-        //confirm the search cursor is on a later match by checking line
+        // confirm the search cursor is on a later match by checking line
         guard let currentSearchLocation = currentSearchLocation,
             let nextSearchLocation = nextSearchLocation else {
                 XCTFail("Missing current & next search locations")
                 return
         }
         
-        //note this is specific to search term "test", we know the next match is on a later line.
+        // note this is specific to search term "test", we know the next match is on a later line.
         XCTAssertGreaterThan(nextSearchLocation.line, currentSearchLocation.line, "Expected find next to increase search cursor")
     }
     
@@ -311,12 +318,15 @@ class SectionEditorFindAndReplaceTests: XCTestCase {
             }
         }
         
-        wait(for: [findExpectation], timeout: 5)
+        wait(for: [findExpectation], timeout: timeout)
         
-        let webView = sectionEditorViewController.webViewForTesting
+        guard let webView = sectionEditorViewController.webViewForTesting else {
+            return
+        }
+        
         let userContentController = webView.configuration.userContentController
         
-        //get current search cursor before tapping next
+        // get current search cursor before tapping next
         let currentSearchLocationExpectation = expectation(description: "Waiting for current search location callback")
         
         userContentController.add(self, name: messageHandlerKeyCurrentSearchLocation)
@@ -325,6 +335,7 @@ class SectionEditorFindAndReplaceTests: XCTestCase {
                 var line = editor.state.search.posFrom.line
                 var ch = editor.state.search.posFrom.ch
                 window.webkit.messageHandlers.\(messageHandlerKeyCurrentSearchLocation).postMessage({'\(cursorLineKey)': line, '\(cursorCharacterKey)': ch})
+                true
             """) { (result, error) in
                 
                 currentSearchLocationExpectation.fulfill()
@@ -336,12 +347,12 @@ class SectionEditorFindAndReplaceTests: XCTestCase {
                 print(error)
         }
         
-        wait(for: [currentSearchLocationExpectation], timeout: 5)
+        wait(for: [currentSearchLocationExpectation], timeout: timeout)
         
-        //add replace text
+        // add replace text
         findAndReplaceView.setReplaceTextForTesting(replaceText)
         
-        //tap replace
+        // tap replace
         let replaceExpectation = expectation(description: "Waiting for replace message callback")
         
         findAndReplaceView.tapReplaceForTesting()
@@ -351,9 +362,9 @@ class SectionEditorFindAndReplaceTests: XCTestCase {
             }
         }
         
-        wait(for: [replaceExpectation], timeout: 5)
+        wait(for: [replaceExpectation], timeout: timeout)
         
-        //calculate new replace range
+        // calculate new replace range
         guard let currentSearchLocation = currentSearchLocation else {
             XCTFail("Missing currentSearchLocation")
             return
@@ -362,14 +373,15 @@ class SectionEditorFindAndReplaceTests: XCTestCase {
         let newLocationFrom = Location(line: currentSearchLocation.line, ch: currentSearchLocation.ch)
         let newLocationTo = Location(line: currentSearchLocation.line, ch: currentSearchLocation.ch + replaceText.count)
         
-        //pull replaced text using new range, confirm it's what we expect
+        // pull replaced text using new range, confirm it's what we expect
         let replacedTextExpectation = expectation(description: "Waiting for get replaced text callback")
         
         userContentController.add(self, name: messageHandlerKeyReplace)
         
         webView.evaluateJavaScript("""
-            var replaceText = editor.getRange({line: \(newLocationFrom.line), ch: \(newLocationFrom.ch)}, {line: \(newLocationTo.line), ch: \(newLocationTo.ch)})
+                var replaceText = editor.getRange({line: \(newLocationFrom.line), ch: \(newLocationFrom.ch)}, {line: \(newLocationTo.line), ch: \(newLocationTo.ch)})
                 window.webkit.messageHandlers.\(messageHandlerKeyReplace).postMessage(replaceText)
+                true
             """) { (result, error) in
                 
                 replacedTextExpectation.fulfill()
@@ -381,11 +393,11 @@ class SectionEditorFindAndReplaceTests: XCTestCase {
                 print(error)
         }
         
-        wait(for: [replacedTextExpectation], timeout: 5)
+        wait(for: [replacedTextExpectation], timeout: timeout)
         
         XCTAssertEqual(self.replacedText, replaceText, "Expected replaced text from web land to equal replace text from find & replace view")
         
-        //confirm total decremented
+        // confirm total decremented
         let matchPlacement = findAndReplaceView.matchPlacementForTesting
         XCTAssertEqual(matchPlacement.index, 1, "Unexpected match placement index")
         XCTAssertEqual(matchPlacement.total, 6, "Unexpected match placement total")
@@ -393,8 +405,12 @@ class SectionEditorFindAndReplaceTests: XCTestCase {
 }
 
 extension SectionEditorFindAndReplaceTests: SectionEditorViewControllerDelegate {
-    func sectionEditorDidFinishEditing(_ sectionEditor: SectionEditorViewController, withChanges didChange: Bool) {
-        //no-op
+    func sectionEditorDidCancelEditing(_ sectionEditor: SectionEditorViewController, navigateToURL: URL?) {
+        // no-op
+    }
+    
+    func sectionEditorDidFinishEditing(_ sectionEditor: SectionEditorViewController, result: Result<SectionEditorChanges, Error>) {
+        // no-op
     }
     
     func sectionEditorDidFinishLoadingWikitext(_ sectionEditor: SectionEditorViewController) {

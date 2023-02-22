@@ -1,3 +1,5 @@
+import CocoaLumberjackSwift
+
 public extension NSManagedObjectContext {
     func wmf_create<T: NSManagedObject>(entityNamed entityName: String, withValue value: Any, forKey key: String) -> T? {
         let object = NSEntityDescription.insertNewObject(forEntityName: entityName, into: self) as? T
@@ -5,7 +7,7 @@ public extension NSManagedObjectContext {
         return object
     }
     
-    func wmf_create<T: NSManagedObject>(entityNamed entityName: String, withKeysAndValues dictionary: [String: Any?]) -> T? {
+    @discardableResult func wmf_create<T: NSManagedObject>(entityNamed entityName: String, withKeysAndValues dictionary: [String: Any?]) -> T? {
         let object = NSEntityDescription.insertNewObject(forEntityName: entityName, into: self) as? T
         for (key, value) in dictionary {
             object?.setValue(value, forKey: key)
@@ -91,7 +93,7 @@ public extension NSManagedObjectContext {
         var end: Int = 0
         while start < results.count {
             end = min(start + batchSize, results.count)
-            try handler(Array<T>(results[start..<end]))
+            try handler([T](results[start..<end]))
             if hasChanges {
                 try save()
             }
@@ -100,6 +102,14 @@ public extension NSManagedObjectContext {
             }
             start = end
         }
+    }
+    
+    func performWaitAndReturn<T>(_ block: () -> T?) -> T? {
+        var result: T? = nil
+        performAndWait {
+            result = block()
+        }
+        return result
     }
 }
 

@@ -7,15 +7,19 @@ class DebugReadingListsViewController: UIViewController, UITextFieldDelegate, Th
     @IBOutlet weak var addEntriesSwitch: UISwitch!
     @IBOutlet weak var createListsSwitch: UISwitch!
     @IBOutlet weak var activityIndicator: UIActivityIndicatorView!
+    @IBOutlet weak var randomizeAcrossLanguagesSwitch: UISwitch!
     @IBOutlet weak var deleteAllListsSwitch: UISwitch!
     @IBOutlet weak var deleteAllEntriesSwitch: UISwitch!
     @IBOutlet weak var fullSyncSwitch: UISwitch!
     
+    @IBAction func addEntriesSwitchChanged(_ sender: UISwitch) {
+        if !sender.isOn {
+            randomizeAcrossLanguagesSwitch.isOn = false
+        }
+    }
     override func viewDidLoad() {
         super.viewDidLoad()
-        guard let moc = SessionSingleton.sharedInstance().dataStore?.viewContext else {
-            return
-        }
+        let moc = MWKDataStore.shared().viewContext
         entryLimitTextField.returnKeyType = .done
         listLimitTextField.returnKeyType = .done
         entryLimitTextField.delegate = self
@@ -32,17 +36,15 @@ class DebugReadingListsViewController: UIViewController, UITextFieldDelegate, Th
     }
     
     @IBAction func doit(_ sender: UIButton?) {
-        let dataStore = SessionSingleton.sharedInstance().dataStore
-        guard let readingListsController = dataStore?.readingListsController else {
-            return
-        }
+        let dataStore = MWKDataStore.shared()
+        let readingListsController = dataStore.readingListsController
         
         let listLimit = Int64(listLimitTextField.text ?? "10") ?? 10
         let entryLimit = Int64(entryLimitTextField.text  ?? "100") ?? 100
         
         activityIndicator.startAnimating()
         sender?.isEnabled = false
-        readingListsController.debugSync(createLists: createListsSwitch.isOn, listCount: listLimit, addEntries: addEntriesSwitch.isOn, entryCount: entryLimit, deleteLists: deleteAllListsSwitch.isOn, deleteEntries: deleteAllEntriesSwitch.isOn, doFullSync: fullSyncSwitch.isOn, completion:{
+        readingListsController.debugSync(createLists: createListsSwitch.isOn, listCount: listLimit, addEntries: addEntriesSwitch.isOn, randomizeLanguageEntries:randomizeAcrossLanguagesSwitch.isOn, entryCount: entryLimit, deleteLists: deleteAllListsSwitch.isOn, deleteEntries: deleteAllEntriesSwitch.isOn, doFullSync: fullSyncSwitch.isOn, completion: {
             DispatchQueue.main.async {
                 sender?.isEnabled = true
                 self.activityIndicator.stopAnimating()

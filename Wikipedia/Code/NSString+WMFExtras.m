@@ -1,7 +1,5 @@
 #import <WMF/NSString+WMFExtras.h>
 #import <CommonCrypto/CommonDigest.h>
-#import <WMF/SessionSingleton.h>
-#import <WMF/MWLanguageInfo.h>
 @import MobileCoreServices;
 #import <WMF/NSDateFormatter+WMFExtensions.h>
 #import <WMF/WMF-Swift.h>
@@ -49,7 +47,7 @@
     return (__bridge_transfer NSString *)UTTypeCopyPreferredTagWithClass((__bridge CFStringRef)UTI, kUTTagClassMIMEType);
 }
 
-- (NSDate *)wmf_iso8601Date {
+- (nullable NSDate *)wmf_iso8601Date {
     return [[NSDateFormatter wmf_iso8601Formatter] dateFromString:self];
 }
 
@@ -90,16 +88,12 @@
     return mutableSelf;
 }
 
-- (NSString *)wmf_stringBySanitizingForBacktickDelimitedJavascript {
-    return [self stringByReplacingOccurrencesOfString:@"([\\\\{}\\`])" withString:@"\\\\$1" options:NSRegularExpressionSearch range:NSMakeRange(0, self.length)];
-}
-
-- (NSString *)wmf_stringByCapitalizingFirstCharacterUsingWikipediaLanguage:(nullable NSString *)wikipediaLanguage {
+- (NSString *)wmf_stringByCapitalizingFirstCharacterUsingWikipediaLanguageCode:(nullable NSString *)wikipediaLanguageCode {
     // Capitalize first character of WikiData description.
     if (self.length > 1) {
         NSString *firstChar = [self substringToIndex:1];
         NSString *remainingChars = [self substringFromIndex:1];
-        NSLocale *locale = [NSLocale wmf_localeForWikipediaLanguage:wikipediaLanguage];
+        NSLocale *locale = [NSLocale wmf_localeForWikipediaLanguageCode:wikipediaLanguageCode];
         firstChar = [firstChar capitalizedStringWithLocale:locale];
         return [firstChar stringByAppendingString:remainingChars];
     }

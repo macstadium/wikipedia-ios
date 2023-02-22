@@ -10,6 +10,7 @@ import UIKit
     @objc public static let semiboldSubheadline = DynamicTextStyle(.system, .subheadline, .semibold)
     public static let mediumSubheadline = DynamicTextStyle(.system, .subheadline, .medium)
     public static let boldSubheadline = DynamicTextStyle(.system, .subheadline, .bold)
+    public static let italicSubheadline = DynamicTextStyle(.system, .subheadline, .regular,  [UIFontDescriptor.SymbolicTraits.traitItalic])
     
     public static let headline = DynamicTextStyle(.system, .headline)
     public static let mediumHeadline = DynamicTextStyle(.system, .headline, .medium)
@@ -24,6 +25,7 @@ import UIKit
     public static let boldFootnote = DynamicTextStyle(.system, .footnote, .bold)
 
     public static let boldTitle1 = DynamicTextStyle(.system, .title1, .bold)
+    public static let mediumTitle1 = DynamicTextStyle(.system, .title1, .medium)
     public static let heavyTitle1 = DynamicTextStyle(.system, .title1, .heavy)
 
     public static let boldTitle2 = DynamicTextStyle(.system, .title2, .bold)
@@ -39,12 +41,14 @@ import UIKit
     
     public static let body = DynamicTextStyle(.system, .body)
     @objc  public static let semiboldBody = DynamicTextStyle(.system, .body, .semibold)
+    public static let mediumBody = DynamicTextStyle(.system, .body, .medium)
     public static let italicBody = DynamicTextStyle(.system, .body, .regular,  [UIFontDescriptor.SymbolicTraits.traitItalic])
 
     public static let caption1 = DynamicTextStyle(.system, .caption1)
     public static let mediumCaption1 = DynamicTextStyle(.system, .caption1, .medium)
     public static let caption2 = DynamicTextStyle(.system, .caption2)
     public static let semiboldCaption2 = DynamicTextStyle(.system, .caption2, .semibold)
+    public static let mediumCaption2 = DynamicTextStyle(.system, .caption2, .medium)
     public static let italicCaption2 = DynamicTextStyle(.system, .caption2, .regular, [UIFontDescriptor.SymbolicTraits.traitItalic])
     public static let italicCaption1 = DynamicTextStyle(.system, .caption1, .regular, [UIFontDescriptor.SymbolicTraits.traitItalic])
 
@@ -88,7 +92,15 @@ public extension UIFont {
     @objc(wmf_fontForDynamicTextStyle:) class func wmf_font(_ dynamicTextStyle: DynamicTextStyle) -> UIFont {
         return UIFont.wmf_font(dynamicTextStyle, compatibleWithTraitCollection: UITraitCollection(preferredContentSizeCategory: .large))
     }
-    
+
+    class func wmf_scaledSystemFont(forTextStyle style: UIFont.TextStyle, weight: UIFont.Weight, size: CGFloat) -> UIFont {
+        return UIFontMetrics(forTextStyle: style).scaledFont(for: UIFont.systemFont(ofSize: size, weight: weight))
+    }
+
+    class func wmf_scaledSystemFont(forTextStyle style: UIFont.TextStyle, weight: UIFont.Weight, size: CGFloat, maximumPointSize: CGFloat) -> UIFont {
+        return UIFontMetrics(forTextStyle: style).scaledFont(for: UIFont.systemFont(ofSize: size, weight: weight), maximumPointSize: maximumPointSize)
+    }
+
     @objc(wmf_fontForDynamicTextStyle:compatibleWithTraitCollection:) class func wmf_font(_ dynamicTextStyle: DynamicTextStyle, compatibleWithTraitCollection traitCollection: UITraitCollection) -> UIFont {
         let fontFamily = dynamicTextStyle.family
         let weight = dynamicTextStyle.weight

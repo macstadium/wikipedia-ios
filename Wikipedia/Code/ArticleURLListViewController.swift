@@ -7,7 +7,7 @@ class ArticleURLListViewController: ArticleCollectionViewController, DetailPrese
 
     required init(articleURLs: [URL], dataStore: MWKDataStore, contentGroup: WMFContentGroup? = nil, theme: Theme) {
         self.articleURLs = articleURLs
-        self.articleKeys = Set<String>(articleURLs.compactMap { $0.wmf_databaseKey } )
+        self.articleKeys = Set<String>(articleURLs.compactMap { $0.wmf_databaseKey })
         self.contentGroupIDURIString = contentGroup?.objectID.uriRepresentation().absoluteString
         super.init()
         feedFunnelContext = FeedFunnelContext(contentGroup)
@@ -73,6 +73,33 @@ class ArticleURLListViewController: ArticleCollectionViewController, DetailPrese
     override func collectionViewFooterButtonWasPressed(_ collectionViewFooter: CollectionViewFooter) {
         navigationController?.popViewController(animated: true)
     }
+    
+    
+    override func shareArticlePreviewActionSelected(with articleController: ArticleViewController, shareActivityController: UIActivityViewController) {
+        FeedFunnel.shared.logFeedDetailShareTapped(for: feedFunnelContext, index: previewedIndexPath?.item)
+        super.shareArticlePreviewActionSelected(with: articleController, shareActivityController: shareActivityController)
+    }
+
+    override func readMoreArticlePreviewActionSelected(with articleController: ArticleViewController) {
+        articleController.wmf_removePeekableChildViewControllers()
+        push(articleController, context: feedFunnelContext, index: previewedIndexPath?.item, animated: true)
+    }
+
+    // MARK: - CollectionViewContextMenuShowing
+    override func previewingViewController(for indexPath: IndexPath, at location: CGPoint) -> UIViewController? {
+        let vc = super.previewingViewController(for: indexPath, at: location)
+        FeedFunnel.shared.logArticleInFeedDetailPreviewed(for: feedFunnelContext, index: previewedIndexPath?.item)
+        return vc
+    }
+
+    override var poppingIntoVCCompletion: () -> Void {
+        return { [weak self] in
+            guard let self = self else {
+                return
+            }
+            FeedFunnel.shared.logArticleInFeedDetailReadingStarted(for: self.feedFunnelContext, index: self.previewedIndexPath?.item, maxViewed: self.maxViewed)
+        }
+    }
 }
 
 // MARK: - UICollectionViewDataSource
@@ -91,33 +118,6 @@ extension ArticleURLListViewController {
     override func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
         super.collectionView(collectionView, didSelectItemAt: indexPath)
         FeedFunnel.shared.logArticleInFeedDetailReadingStarted(for: feedFunnelContext, index: indexPath.item, maxViewed: maxViewed)
-    }
-}
-
-// MARK: - UIViewControllerPreviewingDelegate
-extension ArticleURLListViewController {
-    override func previewingContext(_ previewingContext: UIViewControllerPreviewing, viewControllerForLocation location: CGPoint) -> UIViewController? {
-        let vc = super.previewingContext(previewingContext, viewControllerForLocation: location)
-        FeedFunnel.shared.logArticleInFeedDetailPreviewed(for: feedFunnelContext, index: previewedIndexPath?.item)
-        return vc
-    }
-
-    override func previewingContext(_ previewingContext: UIViewControllerPreviewing, commit viewControllerToCommit: UIViewController) {
-        super.previewingContext(previewingContext, commit: viewControllerToCommit)
-        FeedFunnel.shared.logArticleInFeedDetailReadingStarted(for: feedFunnelContext, index: previewedIndexPath?.item, maxViewed: maxViewed)
-    }
-}
-
-// MARK: - WMFArticlePreviewingActionsDelegate
-extension ArticleURLListViewController {
-    override func shareArticlePreviewActionSelected(withArticleController articleController: WMFArticleViewController, shareActivityController: UIActivityViewController) {
-        FeedFunnel.shared.logFeedDetailShareTapped(for: feedFunnelContext, index: previewedIndexPath?.item)
-        super.shareArticlePreviewActionSelected(withArticleController: articleController, shareActivityController: shareActivityController)
-    }
-
-    override func readMoreArticlePreviewActionSelected(withArticleController articleController: WMFArticleViewController) {
-        articleController.wmf_removePeekableChildViewControllers()
-        wmf_push(articleController, context: feedFunnelContext, index: previewedIndexPath?.item, animated: true)
     }
 }
 

@@ -1,4 +1,3 @@
-
 import WebKit
 
 enum SchemeHandlerError: Error {
@@ -11,46 +10,20 @@ enum SchemeHandlerError: Error {
     }
 }
 
-final class SchemeHandler: NSObject {
-    @objc let scheme: String
+class SchemeHandler: NSObject {
+    let scheme: String
+    open var didReceiveDataCallback: ((WKURLSchemeTask, Data) -> Void)?
     private let session: Session
     private var activeSessionTasks: [URLRequest: URLSessionTask] = [:]
     private var activeCacheOperations: [URLRequest: Operation] = [:]
     private var activeSchemeTasks = NSMutableSet(array: [])
     
-    private let cache: SchemeHandlerCache
-    private let fileHandler: FileHandler
-    private let articleSectionHandler: ArticleSectionHandler
-    private let apiHandler: APIHandler
-    private let defaultHandler: DefaultHandler
     private let cacheQueue: OperationQueue = OperationQueue()
-    
-    @objc public static let shared = SchemeHandler(scheme: WMFURLSchemeHandlerScheme, session: Session.shared)
+    private let pageLoadMeasurementUrlString = "page/mobile-html/"
     
     required init(scheme: String, session: Session) {
         self.scheme = scheme
         self.session = session
-        let cache = SchemeHandlerCache()
-        self.cache = cache
-        self.fileHandler = FileHandler(cacheDelegate: cache)
-        self.articleSectionHandler = ArticleSectionHandler(cacheDelegate: cache)
-        self.apiHandler = APIHandler(session: session)
-        self.defaultHandler = DefaultHandler(session: session)
-    }
-   
-    func setResponseData(data: Data?, contentType: String?, path: String, requestURL: URL) {
-        var headerFields = [String: String](minimumCapacity: 1)
-        if let contentType = contentType {
-            headerFields["Content-Type"] = contentType
-        }
-        if let response = HTTPURLResponse(url: requestURL, statusCode: 200, httpVersion: nil, headerFields: headerFields) {
-            cache.cacheResponse(response, data: data, path: path)
-        }
-    }
-    
-    @objc(cacheSectionDataForArticle:)
-    func cacheSectionData(for article: MWKArticle) {
-        cache.cacheSectionData(for: article)
     }
 }
 
@@ -59,105 +32,51 @@ extension SchemeHandler: WKURLSchemeHandler {
     func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
         assert(Thread.isMainThread)
         
-        let request = urlSchemeTask.request
-        guard let requestURL = request.url else {
+        let originalRequest = urlSchemeTask.request
+        guard let originalRequestURL = originalRequest.url else {
             urlSchemeTask.didFailWithError(SchemeHandlerError.invalidParameters)
             return
         }
-        guard let components = NSURLComponents(url: requestURL, resolvingAgainstBaseURL: false) else {
-            urlSchemeTask.didFailWithError(SchemeHandlerError.invalidParameters)
-            return
-        }
-        #if WMF_LOCAL
-        components.scheme = components.host == "localhost" ? "http" : "https"
-        #else
-        components.scheme =  "https"
-        #endif
-        guard let pathComponents = (components.path as NSString?)?.pathComponents,
-            pathComponents.count >= 2 else {
+        guard let components = NSURLComponents(url: originalRequestURL, resolvingAgainstBaseURL: false) else {
             urlSchemeTask.didFailWithError(SchemeHandlerError.invalidParameters)
             return
         }
         
-        let baseComponent = pathComponents[1]
-        
-        let localCompletionBlock: (URLResponse?, Data?, Error?) -> Void = { (response, data, error) in
-            DispatchQueue.main.async {
-                guard self.schemeTaskIsActive(urlSchemeTask: urlSchemeTask) else {
-                    return
-                }
-                
-                if response == nil && error == nil {
-                    urlSchemeTask.didFailWithError(SchemeHandlerError.unexpectedResponse)
-                    self.removeSchemeTask(urlSchemeTask: urlSchemeTask)
-                    return
-                }
-                
-                if let error = error {
-                    urlSchemeTask.didFailWithError(error)
-                    self.removeSchemeTask(urlSchemeTask: urlSchemeTask)
-                    return
-                }
-            
-                if let response = response {
-                    urlSchemeTask.didReceive(response)
-                }
-                
-                if let data = data {
-                    urlSchemeTask.didReceive(data)
-                }
-                urlSchemeTask.didFinish()
-                self.removeSchemeTask(urlSchemeTask: urlSchemeTask)
+        switch Configuration.current.environment {
+        case .local(let options):
+            if options.contains(.localPCS) {
+                components.scheme = components.host == Configuration.Domain.localhost ? "http" : "https"
+            } else {
+                components.scheme =  "https"
             }
+        default:
+            components.scheme =  "https"
+        }
+        
+        guard
+            let requestURL = components.url,
+            let request = urlRequestWithoutCustomScheme(from: originalRequest, newURL: requestURL)
+        else {
+            urlSchemeTask.didFailWithError(SchemeHandlerError.invalidParameters)
+            return
         }
         
         addSchemeTask(urlSchemeTask: urlSchemeTask)
-        
-        switch baseComponent {
-        case FileHandler.basePath:
-            fileHandler.handle(pathComponents: pathComponents, requestURL: requestURL, completion: localCompletionBlock)
-        case ArticleSectionHandler.basePath:
-            articleSectionHandler.handle(pathComponents: pathComponents, requestURL: requestURL, completion: localCompletionBlock)
-        case APIHandler.basePath:
-            guard let apiURL = apiHandler.urlForPathComponents(pathComponents, requestURL: requestURL) else {
-                 urlSchemeTask.didFailWithError(SchemeHandlerError.invalidParameters)
-                removeSchemeTask(urlSchemeTask: urlSchemeTask)
-                return
-            }
-            kickOffDataTask(handler: apiHandler, url: apiURL, urlSchemeTask: urlSchemeTask)
-        default:
-            guard let defaultURL = defaultHandler.urlForPathComponents(pathComponents, requestURL: requestURL) else {
-                urlSchemeTask.didFailWithError(SchemeHandlerError.invalidParameters)
-                removeSchemeTask(urlSchemeTask: urlSchemeTask)
-                return
-            }
-            // IMPORTANT: Ensure the urlSchemeTask is not strongly captured by this block operation
-            // Otherwise it will sometimes be deallocated on a non-main thread, causing a crash https://phabricator.wikimedia.org/T224113
-            let op = BlockOperation { [weak urlSchemeTask] in
-                if let cachedResponse = self.defaultHandler.cachedResponseForURL(defaultURL) {
-                    DispatchQueue.main.async {
-                        guard let urlSchemeTask = urlSchemeTask else {
-                            return
-                        }
-                        self.activeCacheOperations.removeValue(forKey: urlSchemeTask.request)
-                        urlSchemeTask.didReceive(cachedResponse.response)
-                        urlSchemeTask.didReceive(cachedResponse.data)
-                        urlSchemeTask.didFinish()
-                        self.removeSchemeTask(urlSchemeTask: urlSchemeTask)
-                    }
+
+        // IMPORTANT: Ensure the urlSchemeTask is not strongly captured by this block operation
+        // Otherwise it will sometimes be deallocated on a non-main thread, causing a crash https://phabricator.wikimedia.org/T224113
+        let op = BlockOperation { [weak urlSchemeTask] in
+            DispatchQueue.main.async {
+                guard let urlSchemeTask = urlSchemeTask else {
                     return
                 }
-                DispatchQueue.main.async {
-                    guard let urlSchemeTask = urlSchemeTask else {
-                        return
-                    }
-                    self.activeCacheOperations.removeValue(forKey: urlSchemeTask.request)
-                    self.kickOffDataTask(handler: self.defaultHandler, url: defaultURL, urlSchemeTask: urlSchemeTask)
-                }
+                self.activeCacheOperations.removeValue(forKey: urlSchemeTask.request)
+                self.kickOffDataTask(request: request, urlSchemeTask: urlSchemeTask)
             }
-            activeCacheOperations[urlSchemeTask.request] = op
-            cacheQueue.addOperation(op)
         }
+        activeCacheOperations[urlSchemeTask.request] = op
+        cacheQueue.addOperation(op)
+        
     }
     
     func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {
@@ -185,13 +104,65 @@ extension SchemeHandler: WKURLSchemeHandler {
 }
 
 private extension SchemeHandler {
-    func kickOffDataTask(handler: RemoteSubHandler, url: URL, urlSchemeTask: WKURLSchemeTask) {
-        guard schemeTaskIsActive(urlSchemeTask: urlSchemeTask) else {
-            return
+    
+    func urlRequestWithoutCustomScheme(from originalRequest: URLRequest, newURL: URL) -> URLRequest? {
+        var mutableRequest = originalRequest
+        mutableRequest.url = newURL
+        
+        // set persistentCacheItemType in header if it doesn't already exist
+        // set If-None-Match in header if it doesn't already exist
+        
+        let containsType = mutableRequest.allHTTPHeaderFields?[Header.persistentCacheItemType] != nil
+        let containsIfNoneMatch = mutableRequest.allHTTPHeaderFields?[URLRequest.ifNoneMatchHeaderKey] != nil
+
+        if !containsType {
+            
+            let typeHeaders: [String: String]
+            if isMimeTypeImage(type: (newURL as NSURL).wmf_mimeTypeForExtension()) {
+                typeHeaders = session.typeHeadersForType(.image)
+            } else {
+                typeHeaders = session.typeHeadersForType(.article)
+            }
+            
+            for (key, value) in typeHeaders {
+                mutableRequest.setValue(value, forHTTPHeaderField: key)
+            }
         }
-       
+        
+        guard !containsIfNoneMatch else {
+            return mutableRequest
+        }
+
+        let additionalHeaders: [String: String]
+        if isMimeTypeImage(type: (newURL as NSURL).wmf_mimeTypeForExtension()) {
+            additionalHeaders = session.additionalHeadersForType(.image, urlRequest: mutableRequest)
+        } else {
+            additionalHeaders = session.additionalHeadersForType(.article, urlRequest: mutableRequest)
+        }
+        
+        for (key, value) in additionalHeaders {
+            mutableRequest.setValue(value, forHTTPHeaderField: key)
+        }
+        
+        return mutableRequest
+    }
+    
+    func isMimeTypeImage(type: String) -> Bool {
+        return type.hasPrefix("image")
+    }
+    
+    func kickOffDataTask(request: URLRequest, urlSchemeTask: WKURLSchemeTask) {
+        guard schemeTaskIsActive(urlSchemeTask: urlSchemeTask) else {
+             return
+         }
+        
         // IMPORTANT: Ensure the urlSchemeTask is not strongly captured by the callback blocks.
         // Otherwise it will sometimes be deallocated on a non-main thread, causing a crash https://phabricator.wikimedia.org/T224113
+        
+        if ((urlSchemeTask.request.url?.absoluteString) ?? "").contains(pageLoadMeasurementUrlString) {
+            SessionsFunnel.shared.setPageLoadStartTime()
+        }
+        
         let callback = Session.Callback(response: {  [weak urlSchemeTask] response in
             DispatchQueue.main.async {
                 guard let urlSchemeTask = urlSchemeTask else {
@@ -200,16 +171,21 @@ private extension SchemeHandler {
                 guard self.schemeTaskIsActive(urlSchemeTask: urlSchemeTask) else {
                     return
                 }
-                if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode != 200 {
-                    let error = RequestError.from(code: httpResponse.statusCode) ?? .unknown
+                if let httpResponse = response as? HTTPURLResponse, !HTTPStatusCode.isSuccessful(httpResponse.statusCode) {
+                    let error = RequestError.from(code: httpResponse.statusCode)
                     self.removeSessionTask(request: urlSchemeTask.request)
                     urlSchemeTask.didFailWithError(error)
                     self.removeSchemeTask(urlSchemeTask: urlSchemeTask)
+                    
+                    if ((urlSchemeTask.request.url?.absoluteString) ?? "").contains(self.pageLoadMeasurementUrlString) {
+                        SessionsFunnel.shared.clearPageLoadStartTime()
+                    }
                 } else {
                     urlSchemeTask.didReceive(response)
                 }
             }
         }, data: { [weak urlSchemeTask] data in
+            
             DispatchQueue.main.async {
                 guard let urlSchemeTask = urlSchemeTask else {
                     return
@@ -218,8 +194,10 @@ private extension SchemeHandler {
                     return
                 }
                 urlSchemeTask.didReceive(data)
+                self.didReceiveDataCallback?(urlSchemeTask, data)
             }
-        }, success: { [weak urlSchemeTask] in
+        }, success: { [weak urlSchemeTask] usedPermanentCache in
+            
             DispatchQueue.main.async {
                 guard let urlSchemeTask = urlSchemeTask else {
                     return
@@ -230,9 +208,22 @@ private extension SchemeHandler {
                 urlSchemeTask.didFinish()
                 self.removeSessionTask(request: urlSchemeTask.request)
                 self.removeSchemeTask(urlSchemeTask: urlSchemeTask)
+                
+                if ((urlSchemeTask.request.url?.absoluteString) ?? "").contains(self.pageLoadMeasurementUrlString) {
+                    
+                    // To reduce inaccurate load times, do not consider load time if we had to lean on our local permanent cache (i.e. Saved Articles)
+                    if usedPermanentCache {
+                        SessionsFunnel.shared.clearPageLoadStartTime()
+                    } else {
+                        SessionsFunnel.shared.endPageLoadStartTime()
+                    }
+                }
             }
-        }) { [weak urlSchemeTask] error in
+            
+        }, failure: { [weak urlSchemeTask] error in
+            
             DispatchQueue.main.async {
+                
                 guard let urlSchemeTask = urlSchemeTask else {
                     return
                 }
@@ -242,12 +233,22 @@ private extension SchemeHandler {
                 self.removeSessionTask(request: urlSchemeTask.request)
                 urlSchemeTask.didFailWithError(error)
                 self.removeSchemeTask(urlSchemeTask: urlSchemeTask)
+                
+                if ((urlSchemeTask.request.url?.absoluteString) ?? "").contains(self.pageLoadMeasurementUrlString) {
+                    SessionsFunnel.shared.clearPageLoadStartTime()
+                }
             }
-        }
+            
+        }, cacheFallbackError: { error in
+            DispatchQueue.main.async {
+                WMFAlertManager.sharedInstance.showErrorAlert(error, sticky: false, dismissPreviousAlerts: false)
+            }
+        })
         
-        let dataTask = handler.dataTaskForURL(url, callback: callback)
-        addSessionTask(request: urlSchemeTask.request, dataTask: dataTask)
-        dataTask.resume()
+        if let dataTask = session.dataTask(with: request, callback: callback) {
+            addSessionTask(request: request, dataTask: dataTask)
+            dataTask.resume()
+        }
     }
     
     func schemeTaskIsActive(urlSchemeTask: WKURLSchemeTask) -> Bool {

@@ -34,21 +34,21 @@ class PageHistoryViewController: ColumnarCollectionViewController {
         if batchComplete || isLoadingData {
             return false
         }
-        let maxY = collectionView.contentOffset.y + collectionView.frame.size.height + 200.0;
-        if (maxY >= collectionView.contentSize.height) {
+        let maxY = collectionView.contentOffset.y + collectionView.frame.size.height + 200.0
+        if maxY >= collectionView.contentSize.height {
             return true
         }
-        return false;
+        return false
     }
 
-    private lazy var countsViewController = PageHistoryCountsViewController(pageTitle: pageTitle, locale: NSLocale.wmf_locale(for: pageURL.wmf_language))
+    private lazy var countsViewController = PageHistoryCountsViewController(pageTitle: pageTitle, locale: NSLocale.wmf_locale(for: pageURL.wmf_languageCode))
     private lazy var comparisonSelectionViewController: PageHistoryComparisonSelectionViewController = {
         let comparisonSelectionViewController = PageHistoryComparisonSelectionViewController(nibName: "PageHistoryComparisonSelectionViewController", bundle: nil)
         comparisonSelectionViewController.delegate = self
         return comparisonSelectionViewController
     }()
 
-    @objc init(pageTitle: String, pageURL: URL) {
+    init(pageTitle: String, pageURL: URL) {
         self.pageTitle = pageTitle
         self.pageURL = pageURL
         self.pageHistoryFetcherParams = PageHistoryRequestParameters(title: pageTitle)
@@ -157,6 +157,8 @@ class PageHistoryViewController: ColumnarCollectionViewController {
         super.viewDidLoad()
         hintController = PageHistoryHintController()
         title = CommonStrings.historyTabTitle
+        navigationItem.backButtonTitle = WMFLocalizedString("page-history-revision-history-title", value: "Revision history", comment: "Title for revision history view. Please prioritize for de, ar and zh wikis.")
+        navigationItem.backButtonDisplayMode = .generic
         navigationItem.rightBarButtonItem = compareButton
         addChild(countsViewController)
         navigationBar.addUnderNavigationBarView(countsViewController.view)
@@ -165,6 +167,7 @@ class PageHistoryViewController: ColumnarCollectionViewController {
 
         navigationBar.isBarHidingEnabled = false
         navigationBar.isUnderBarViewHidingEnabled = true
+        navigationBar.allowsUnderbarHitsFallThrough = true
 
         layoutManager.register(PageHistoryCollectionViewCell.self, forCellWithReuseIdentifier: PageHistoryCollectionViewCell.identifier, addPlaceholder: true)
         collectionView.dataSource = self
@@ -180,30 +183,33 @@ class PageHistoryViewController: ColumnarCollectionViewController {
 
     private func getEditCounts() {
         pageHistoryFetcher.fetchFirstRevision(for: pageTitle, pageURL: pageURL) { [weak self] result in
-            guard let self = self else {
-                return
-            }
-            switch result {
-            case .failure(let error):
-                self.showNoInternetConnectionAlertOrOtherWarning(from: error)
-            case .success(let firstRevision):
-                self.firstRevision = firstRevision
-                let firstEditDate = firstRevision.revisionDate
-                
-                self.pageHistoryFetcher.fetchEditCounts(.edits, for: self.pageTitle, pageURL: self.pageURL) { [weak self] result in
-                    guard let self = self else {
-                        return
-                    }
-                    switch result {
-                    case .failure(let error):
-                        self.showNoInternetConnectionAlertOrOtherWarning(from: error)
-                    case .success(let editCounts):
-                        if let totalEditResponse = editCounts[.edits] {
-                            DispatchQueue.main.async {
-                                let totalEditCount = totalEditResponse.count
-                                if let firstEditDate = firstEditDate,
-                                    totalEditResponse.limit == false {
-                                    self.countsViewController.set(totalEditCount: totalEditCount, firstEditDate: firstEditDate)
+            DispatchQueue.main.async {
+                guard let self = self else {
+                    return
+                }
+                switch result {
+                case .failure(let error):
+                    self.showNoInternetConnectionAlertOrOtherWarning(from: error)
+                case .success(let firstRevision):
+                    self.firstRevision = firstRevision
+                    let firstEditDate = firstRevision.revisionDate
+                    
+                    self.pageHistoryFetcher.fetchEditCounts(.edits, for: self.pageTitle, pageURL: self.pageURL) { [weak self] result in
+                        DispatchQueue.main.async {
+                            guard let self = self else {
+                                return
+                            }
+                            switch result {
+                            case .failure(let error):
+                                self.showNoInternetConnectionAlertOrOtherWarning(from: error)
+                            case .success(let editCounts):
+                                if let totalEditResponse = editCounts[.edits] {
+                                    let totalEditCount = totalEditResponse.count
+                                    if let firstEditDate = firstEditDate,
+                                        totalEditResponse.limit == false {
+                                        self.countsViewController.set(totalEditCount: totalEditCount, firstEditDate: firstEditDate)
+                                    }
+                                    
                                 }
                             }
                         }
@@ -213,29 +219,29 @@ class PageHistoryViewController: ColumnarCollectionViewController {
         }
         
         pageHistoryFetcher.fetchEditCounts(.edits, .userEdits, .anonymous, .bot, for: pageTitle, pageURL: pageURL) { [weak self] result in
-            guard let self = self else {
-                return
-            }
-            switch result {
-            case .failure(let error):
-                self.showNoInternetConnectionAlertOrOtherWarning(from: error)
-            case .success(let editCountsGroupedByType):
-                DispatchQueue.main.async {
+            DispatchQueue.main.async {
+                guard let self = self else {
+                    return
+                }
+                switch result {
+                case .failure(let error):
+                    self.showNoInternetConnectionAlertOrOtherWarning(from: error)
+                case .success(let editCountsGroupedByType):
                     self.countsViewController.editCountsGroupedByType = editCountsGroupedByType
                 }
             }
         }
         
         pageHistoryFetcher.fetchEditMetrics(for: pageTitle, pageURL: pageURL) { [weak self] result in
-            guard let self = self else {
-                return
-            }
-            switch result {
-            case .failure(let error):
-                self.showNoInternetConnectionAlertOrOtherWarning(from: error)
-                self.countsViewController.timeseriesOfEditsCounts = []
-            case .success(let timeseriesOfEditCounts):
-                DispatchQueue.main.async {
+            DispatchQueue.main.async {
+                guard let self = self else {
+                    return
+                }
+                switch result {
+                case .failure(let error):
+                    self.showNoInternetConnectionAlertOrOtherWarning(from: error)
+                    self.countsViewController.timeseriesOfEditsCounts = []
+                case .success(let timeseriesOfEditCounts):
                     self.countsViewController.timeseriesOfEditsCounts = timeseriesOfEditCounts
                 }
             }
@@ -251,22 +257,45 @@ class PageHistoryViewController: ColumnarCollectionViewController {
         super.traitCollectionDidChange(previousTraitCollection)
         cellLayoutEstimate = nil
     }
-
+    
+    private func appendSections(from results: HistoryFetchResults) {
+        assert(Thread.isMainThread)
+        var items = results.items()
+        guard
+            let last = self.pageHistorySections.last,
+            let first = items.first,
+            first.sectionTitle == last.sectionTitle // maybe not the best metric
+        else {
+            self.pageHistorySections.append(contentsOf: items)
+            return
+        }
+        var lastItems = last.items
+        let firstItems = first.items
+        lastItems.append(contentsOf: firstItems)
+        let combinedSection = PageHistorySection(sectionTitle: first.sectionTitle, items: lastItems)
+        self.pageHistorySections.removeLast()
+        self.pageHistorySections.append(combinedSection)
+        items.removeFirst()
+        self.pageHistorySections.append(contentsOf: items)
+    }
+    
     private func getPageHistory() {
         isLoadingData = true
 
         pageHistoryFetcher.fetchRevisionInfo(pageURL, requestParams: pageHistoryFetcherParams, failure: { [weak self] error in
-            guard let self = self else {
-                return
-            }
-            self.isLoadingData = false
-            self.showNoInternetConnectionAlertOrOtherWarning(from: error)
-        }) { results in
-            self.pageHistorySections.append(contentsOf: results.items())
-            self.pageHistoryFetcherParams = results.getPageHistoryRequestParameters(self.pageURL)
-            self.batchComplete = results.batchComplete()
-            self.isLoadingData = false
             DispatchQueue.main.async {
+                guard let self = self else {
+                    return
+                }
+                self.isLoadingData = false
+                self.showNoInternetConnectionAlertOrOtherWarning(from: error)
+            }
+        }) { results in
+            DispatchQueue.main.async {
+                self.appendSections(from: results)
+                self.pageHistoryFetcherParams = results.getPageHistoryRequestParameters(self.pageURL)
+                self.batchComplete = results.batchComplete()
+                self.isLoadingData = false
                 self.collectionView.reloadData()
             }
         }
@@ -281,6 +310,7 @@ class PageHistoryViewController: ColumnarCollectionViewController {
     }
 
     @objc private func compare(_ sender: UIBarButtonItem) {
+        EditHistoryCompareFunnel.shared.logCompare1(articleURL: pageURL)
         state = .editing
     }
 
@@ -299,8 +329,13 @@ class PageHistoryViewController: ColumnarCollectionViewController {
     
     private func showDiff(from: WMFPageHistoryRevision?, to: WMFPageHistoryRevision, type: DiffContainerViewModel.DiffType) {
         if let siteURL = pageURL.wmf_site {
+            
+            if type == .single {
+                EditHistoryCompareFunnel.shared.logRevisionView(url: pageURL)
+            }
+            
             let diffContainerVC = DiffContainerViewController(articleTitle: pageTitle, siteURL: siteURL, type: type, fromModel: from, toModel: to, pageHistoryFetcher: pageHistoryFetcher, theme: theme, revisionRetrievingDelegate: self, firstRevision: firstRevision)
-            wmf_push(diffContainerVC, animated: true)
+            push(diffContainerVC, animated: true)
         }
     }
 
@@ -412,7 +447,6 @@ class PageHistoryViewController: ColumnarCollectionViewController {
             } else {
                 cell.selectionOrder = nil
                 cell.selectionThemeModel = nil
-                cell.isSelected = false
             }
         } else {
             if let date = item.revisionDate {
@@ -495,31 +529,33 @@ class PageHistoryViewController: ColumnarCollectionViewController {
     private lazy var firstSelectionThemeModel: SelectionThemeModel = {
         let backgroundColor: UIColor
         let timeColor: UIColor
+        // themeTODO: define a semantic color for this instead of checking isDark
         if theme.isDark {
-            backgroundColor = UIColor.osage15PercentAlpha
+            backgroundColor = UIColor.orange50.withAlphaComponent(0.15)
             timeColor = theme.colors.tertiaryText
         } else {
-            backgroundColor = UIColor.wmf_lightYellow
-            timeColor = .battleshipGray
+            backgroundColor = .yellow90
+            timeColor = .base30
         }
-        return SelectionThemeModel(selectedImage: UIImage(named: "selected-accent"), borderColor: UIColor.osage.withAlphaComponent(0.5), backgroundColor: backgroundColor, authorColor: UIColor.osage, commentColor: theme.colors.primaryText, timeColor: timeColor, sizeDiffAdditionColor: theme.colors.accent, sizeDiffSubtractionColor: theme.colors.destructive, sizeDiffNoDifferenceColor: theme.colors.link)
+        return SelectionThemeModel(selectedImage: UIImage(named: "selected-accent"), borderColor: UIColor.orange50.withAlphaComponent(0.5), backgroundColor: backgroundColor, authorColor: UIColor.orange50, commentColor: theme.colors.primaryText, timeColor: timeColor, sizeDiffAdditionColor: theme.colors.accent, sizeDiffSubtractionColor: theme.colors.destructive, sizeDiffNoDifferenceColor: theme.colors.link)
     }()
 
     private lazy var secondSelectionThemeModel: SelectionThemeModel = {
         let backgroundColor: UIColor
         let timeColor: UIColor
+        // themeTODO: define a semantic color for this instead of checking isDark
         if theme.isDark {
             backgroundColor = theme.colors.link.withAlphaComponent(0.2)
             timeColor = theme.colors.tertiaryText
         } else {
-            backgroundColor = UIColor.wmf_lightBlue
-            timeColor = .battleshipGray
+            backgroundColor = .accent90
+            timeColor = .base30
         }
         return SelectionThemeModel(selectedImage: nil, borderColor: theme.colors.link, backgroundColor: backgroundColor, authorColor: theme.colors.link, commentColor: theme.colors.primaryText, timeColor: timeColor, sizeDiffAdditionColor: theme.colors.accent, sizeDiffSubtractionColor: theme.colors.destructive, sizeDiffNoDifferenceColor: theme.colors.link)
     }()
 
     private lazy var disabledSelectionThemeModel: SelectionThemeModel = {
-        return SelectionThemeModel(selectedImage: nil, borderColor: theme.colors.border, backgroundColor: theme.colors.paperBackground, authorColor: theme.colors.secondaryText, commentColor: theme.colors.secondaryText, timeColor: .battleshipGray, sizeDiffAdditionColor: theme.colors.secondaryText, sizeDiffSubtractionColor: theme.colors.secondaryText, sizeDiffNoDifferenceColor: theme.colors.secondaryText)
+        return SelectionThemeModel(selectedImage: nil, borderColor: theme.colors.border, backgroundColor: theme.colors.paperBackground, authorColor: theme.colors.secondaryText, commentColor: theme.colors.secondaryText, timeColor: .base30, sizeDiffAdditionColor: theme.colors.secondaryText, sizeDiffSubtractionColor: theme.colors.secondaryText, sizeDiffNoDifferenceColor: theme.colors.secondaryText)
     }()
 
     override func collectionView(_ collectionView: UICollectionView, estimatedHeightForItemAt indexPath: IndexPath, forColumnWidth columnWidth: CGFloat) -> ColumnarCollectionViewLayoutHeightEstimate {
@@ -575,7 +611,7 @@ class PageHistoryViewController: ColumnarCollectionViewController {
 
             var sectionOffset = 0
             var fromItemIndex = indexPath.item + 1
-            //if last revision in section, go to next section for selecting second
+            // if last revision in section, go to next section for selecting second
             let isLastInSection = indexPath.item == section.items.count - 1
             
             if isLastInSection {
@@ -717,6 +753,9 @@ extension PageHistoryViewController: PageHistoryComparisonSelectionViewControlle
     }
 
     func pageHistoryComparisonSelectionViewControllerDidTapCompare(_ pageHistoryComparisonSelectionViewController: PageHistoryComparisonSelectionViewController) {
+        
+        EditHistoryCompareFunnel.shared.logCompare2(articleURL: pageURL)
+        
         guard let firstIndexPath = indexPathsSelectedForComparisonGroupedByButtonTags[SelectionOrder.first.rawValue], let secondIndexPath = indexPathsSelectedForComparisonGroupedByButtonTags[SelectionOrder.second.rawValue] else {
             return
         }
@@ -728,7 +767,7 @@ extension PageHistoryViewController: PageHistoryComparisonSelectionViewControlle
                 return
         }
 
-        //show older revision as "from" no matter what order was selected
+        // show older revision as "from" no matter what order was selected
         let fromRevision: WMFPageHistoryRevision
         let toRevision: WMFPageHistoryRevision
         if date1.compare(date2) == .orderedAscending {
@@ -776,7 +815,7 @@ extension PageHistoryViewController: DiffRevisionRetrieving {
                         
                         guard let previousSection = previousSection else {
                             
-                            //user tapped latest revision, no later revision available.
+                            // user tapped latest revision, no later revision available.
                             return nil
                         }
                         

@@ -11,11 +11,13 @@ class SearchResultsViewController: ArticleCollectionViewController {
     }
 
     var delegatesSelection: Bool = false
+    var doesShowArticlePreviews = true
 
     override func viewDidLoad() {
         super.viewDidLoad()
         useNavigationBarVisibleHeightForScrollViewInsets = true
         reload()
+        NotificationCenter.default.addObserver(self, selector: #selector(updateArticleCell(_:)), name: NSNotification.Name.WMFArticleUpdated, object: nil)
     }
     
     func reload() {
@@ -65,7 +67,8 @@ class SearchResultsViewController: ArticleCollectionViewController {
             return
         }
         
-        navigate(to: articleURL)
+        let userInfo: [AnyHashable : Any] = [RoutingUserInfoKeys.source: RoutingUserInfoSourceValue.search.rawValue]
+        navigate(to: articleURL, userInfo: userInfo)
     }
 
     func redirectMappingForSearchResult(_ result: MWKSearchResult) -> MWKSearchRedirectMapping? {
@@ -75,7 +78,7 @@ class SearchResultsViewController: ArticleCollectionViewController {
     }
     
     func descriptionForSearchResult(_ result: MWKSearchResult) -> String? {
-        let capitalizedWikidataDescription = (result.wikidataDescription as NSString?)?.wmf_stringByCapitalizingFirstCharacter(usingWikipediaLanguage: searchSiteURL?.wmf_language)
+        let capitalizedWikidataDescription = (result.wikidataDescription as NSString?)?.wmf_stringByCapitalizingFirstCharacter(usingWikipediaLanguageCode: searchSiteURL?.wmf_languageCode)
         let mapping = redirectMappingForSearchResult(result)
         guard let redirectFromTitle = mapping?.redirectFromTitle else {
             return capitalizedWikidataDescription
@@ -92,25 +95,34 @@ class SearchResultsViewController: ArticleCollectionViewController {
     }
     
     override func configure(cell: ArticleRightAlignedImageCollectionViewCell, forItemAt indexPath: IndexPath, layoutOnly: Bool) {
+        configure(cell: cell, forItemAt: indexPath, layoutOnly: layoutOnly, configureForCompact: true)
+    }
+    
+    private func configure(cell: ArticleRightAlignedImageCollectionViewCell, forItemAt indexPath: IndexPath, layoutOnly: Bool, configureForCompact: Bool) {
         guard indexPath.item < results.count else {
             return
         }
         let result = results[indexPath.item]
-        guard let language = searchSiteURL?.wmf_language else {
+        guard let languageCode = searchSiteURL?.wmf_languageCode,
+              let contentLanguageCode = searchSiteURL?.wmf_contentLanguageCode else {
             return
         }
-        cell.configureForCompactList(at: indexPath.item)
+        
+        if configureForCompact {
+            cell.configureForCompactList(at: indexPath.item)
+        }
+        
         cell.setTitleHTML(result.displayTitleHTML, boldedString: resultsInfo?.searchTerm)
-       
-        cell.articleSemanticContentAttribute = MWLanguageInfo.semanticContentAttribute(forWMFLanguage: language)
-        cell.titleLabel.accessibilityLanguage = language
+        cell.articleSemanticContentAttribute = MWKLanguageLinkController.semanticContentAttribute(forContentLanguageCode: contentLanguageCode)
+        cell.titleLabel.accessibilityLanguage = languageCode
         cell.descriptionLabel.text = descriptionForSearchResult(result)
-        cell.descriptionLabel.accessibilityLanguage = language
+        cell.descriptionLabel.accessibilityLanguage = languageCode
+        editController.configureSwipeableCell(cell, forItemAt: indexPath, layoutOnly: layoutOnly)
         if layoutOnly {
             cell.isImageViewHidden = result.thumbnailURL != nil
         } else {
             cell.imageURL = result.thumbnailURL
-        } 
+        }
         cell.apply(theme: theme)
     }
     
@@ -122,5 +134,27 @@ class SearchResultsViewController: ArticleCollectionViewController {
         collectionView.backgroundColor = theme.colors.midBackground
     }
 
-}
+    @objc func updateArticleCell(_ notification: NSNotification) {
+        guard let updatedArticle = notification.object as? WMFArticle,
+              updatedArticle.hasChangedValuesForCurrentEventThatAffectSavedState,
+              let updatedArticleKey = updatedArticle.inMemoryKey else {
+            return
+        }
 
+        for indexPath in collectionView.indexPathsForVisibleItems {
+            guard articleURL(at: indexPath)?.wmf_inMemoryKey == updatedArticleKey,
+                  let cell = collectionView.cellForItem(at: indexPath) as? ArticleRightAlignedImageCollectionViewCell else {
+                continue
+            }
+
+            configure(cell: cell, forItemAt: indexPath, layoutOnly: false, configureForCompact: false)
+        }
+    }
+
+    override func collectionView(_ collectionView: UICollectionView, contextMenuConfigurationForItemAt indexPath: IndexPath, point: CGPoint) -> UIContextMenuConfiguration? {
+        guard doesShowArticlePreviews else {
+            return nil
+        }
+        return super.collectionView(collectionView, contextMenuConfigurationForItemAt: indexPath, point: point)
+    }
+}

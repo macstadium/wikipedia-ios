@@ -1,4 +1,6 @@
 import WMF
+import UIKit
+import CocoaLumberjackSwift
 
 protocol DetailPresentingFromContentGroup {
     var contentGroupIDURIString: String? { get }
@@ -8,6 +10,7 @@ protocol DetailPresentingFromContentGroup {
 final class NavigationStateController: NSObject {
     private let dataStore: MWKDataStore
     private var theme = Theme.standard
+    private weak var settingsNavController: UINavigationController?
 
     @objc init(dataStore: MWKDataStore) {
         self.dataStore = dataStore
@@ -28,6 +31,7 @@ final class NavigationStateController: NSObject {
             completion()
             return
         }
+        
         self.theme = theme
         let restore = {
             completion()
@@ -36,7 +40,7 @@ final class NavigationStateController: NSObject {
             }
         }
         if navigationState.shouldAttemptLogin {
-            WMFAuthenticationManager.sharedInstance.attemptLogin {
+            dataStore.authenticationManager.attemptLogin {
                 restore()
             }
         } else {
@@ -94,19 +98,21 @@ final class NavigationStateController: NSObject {
         } else {
             switch (viewController.kind, viewController.info) {
             case (.random, let info?) :
-                guard let articleURL = articleURL(from: info) else {
+                guard
+                    let articleURL = articleURL(from: info),
+                    let randomArticleVC = RandomArticleViewController(articleURL: articleURL, dataStore: dataStore, theme: theme)
+                else {
                     return
                 }
-                let randomArticleVC = WMFRandomArticleViewController(articleURL: articleURL, dataStore: dataStore, theme: theme)
-                randomArticleVC.calculateTableOfContentsDisplayState()
                 pushOrPresent(randomArticleVC, navigationController: navigationController, presentation: viewController.presentation)
             case (.article, let info?):
                 guard let articleURL = articleURL(from: info) else {
                     return
                 }
-                let articleVC = WMFArticleViewController(articleURL: articleURL, dataStore: dataStore, theme: theme)
-                articleVC.shouldRequestLatestRevisionOnInitialLoad = false
-                articleVC.calculateTableOfContentsDisplayState()
+                guard let articleVC = ArticleViewController(articleURL: articleURL, dataStore: dataStore, theme: theme) else {
+                    return
+                }
+                articleVC.isRestoringState = true
                 // never present an article modal, the nav bar disappears
                 pushOrPresent(articleVC, navigationController: navigationController, presentation: .push)
             case (.themeableNavigationController, _):
@@ -115,7 +121,9 @@ final class NavigationStateController: NSObject {
                 newNavigationController = themeableNavigationController
             case (.settings, _):
                 let settingsVC = WMFSettingsViewController(dataStore: dataStore)
+                self.settingsNavController = navigationController
                 pushOrPresent(settingsVC, navigationController: navigationController, presentation: viewController.presentation)
+                settingsVC.navigationController?.interactivePopGestureRecognizer?.delegate = self
             case (.account, _):
                 let accountVC = AccountViewController()
                 accountVC.dataStore = dataStore
@@ -126,22 +134,33 @@ final class NavigationStateController: NSObject {
                     let siteURL = URL(string: siteURLString),
                     let title = info.talkPageTitle,
                     let typeRawValue = info.talkPageTypeRawValue,
-                    let type = TalkPageType(rawValue: typeRawValue)
+                    let type = OldTalkPageType(rawValue: typeRawValue)
                 else {
                     return
                 }
                 
-                let talkPageContainer = TalkPageContainerViewController.talkPageContainer(title: title, siteURL: siteURL, type: type, dataStore: dataStore, theme: theme)
-                navigationController.isNavigationBarHidden = true
-                navigationController.pushViewController(talkPageContainer, animated: false)
-            case (.talkPageReplyList, let info?):
-                guard
-                    let talkPageTopic = managedObject(with: info.contentGroupIDURIString, in: moc) as? TalkPageTopic,
-                    let talkPageContainerVC = navigationController.viewControllers.last as? TalkPageContainerViewController
-                else {
+                if FeatureFlags.needsNewTalkPage {
+                    assertionFailure("Need to set up state restoration for new talk pages.")
                     return
+                } else {
+                    let talkPageContainer = TalkPageContainerViewController.talkPageContainer(title: title, siteURL: siteURL, type: type, dataStore: dataStore, theme: theme)
+                    navigationController.pushViewController(talkPageContainer, animated: false)
                 }
-                talkPageContainerVC.pushToReplyThread(topic: talkPageTopic, animated: false)
+                
+                navigationController.isNavigationBarHidden = true
+            case (.talkPageReplyList, let info?):
+                if FeatureFlags.needsNewTalkPage {
+                    DDLogDebug("Attempted to restore old talk page reply list. Ignoring.")
+                    return
+                } else {
+                    guard
+                        let talkPageTopic = managedObject(with: info.contentGroupIDURIString, in: moc) as? TalkPageTopic,
+                        let talkPageContainerVC = navigationController.viewControllers.last as? TalkPageContainerViewController
+                    else {
+                        return
+                    }
+                    talkPageContainerVC.pushToReplyThread(topic: talkPageTopic, animated: false)
+                }
             case (.readingListDetail, let info?):
                 guard let readingList = managedObject(with: info.readingListURIString, in: moc) as? ReadingList else {
                     return
@@ -154,6 +173,9 @@ final class NavigationStateController: NSObject {
                     let detailVC = contentGroup.detailViewControllerWithDataStore(dataStore, theme: theme) as? UIViewController & Themeable
                 else {
                     return
+                }
+                if let onThisDayVC = detailVC as? OnThisDayViewController, let shouldShowNavigationBar = viewController.info?.shouldShowNavigationBar {
+                    onThisDayVC.shouldShowNavigationBar = shouldShowNavigationBar
                 }
                 pushOrPresent(detailVC, navigationController: navigationController, presentation: viewController.presentation)
             case (.singleWebPage, let info):
@@ -233,7 +255,8 @@ final class NavigationStateController: NSObject {
             info = Info(readingListURIString: readingListDetailVC.readingList.objectID.uriRepresentation().absoluteString)
         case let detailPresenting as DetailPresentingFromContentGroup:
             kind = .detail
-            info = Info(contentGroupIDURIString: detailPresenting.contentGroupIDURIString)
+            let shouldShowNavigationBar = (viewController as? OnThisDayViewController)?.shouldShowNavigationBar
+            info = Info(shouldShowNavigationBar: shouldShowNavigationBar, contentGroupIDURIString: detailPresenting.contentGroupIDURIString)
         case let singlePageWebViewController as SinglePageWebViewController:
             kind = .singleWebPage
             info = Info(url: singlePageWebViewController.url)
@@ -251,12 +274,12 @@ final class NavigationStateController: NSObject {
         let kind: ViewController.Kind?
         let info: Info?
         switch obj {
-            case let articleViewController as WMFArticleViewController:
-                kind = obj is WMFRandomArticleViewController ? .random : .article
-                info = Info(articleKey: articleViewController.articleURL.wmf_databaseKey, articleSectionAnchor: articleViewController.visibleSectionAnchor)
-            case let talkPageContainerVC as TalkPageContainerViewController:
-                kind = .talkPage
-                info = Info(talkPageSiteURLString: talkPageContainerVC.siteURL.absoluteString, talkPageTitle: talkPageContainerVC.talkPageTitle, talkPageTypeRawValue: talkPageContainerVC.type.rawValue)
+        case let articleViewController as ArticleViewController:
+            kind = obj is RandomArticleViewController ? .random : .article
+            info = Info(articleKey: articleViewController.articleURL.wmf_databaseKey)
+        case let talkPageContainerVC as TalkPageContainerViewController:
+            kind = .talkPage
+            info = Info(talkPageSiteURLString: talkPageContainerVC.siteURL.absoluteString, talkPageTitle: talkPageContainerVC.talkPageTitle, talkPageTypeRawValue: talkPageContainerVC.type.rawValue)
         default:
             kind = nil
             info = nil
@@ -285,5 +308,14 @@ final class NavigationStateController: NSObject {
             }
         }
         return viewControllers
+    }
+}
+
+extension NavigationStateController: UIGestureRecognizerDelegate {
+    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        if let controller = self.settingsNavController?.viewControllers, controller.count > 1 {
+            return true
+        }
+        return false
     }
 }

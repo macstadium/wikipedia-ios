@@ -47,7 +47,7 @@ final class AppearanceSettingsViewController: SubSettingsViewController {
     var sections = [AppearanceSettingsSection]()
 
     @objc static var disclosureText: String {
-        return UserDefaults.wmf.themeDisplayName
+        return UserDefaults.standard.themeDisplayName
     }
     
     deinit {
@@ -60,6 +60,11 @@ final class AppearanceSettingsViewController: SubSettingsViewController {
         title = CommonStrings.readingPreferences
         tableView.register(WMFSettingsTableViewCell.wmf_classNib(), forCellReuseIdentifier: WMFSettingsTableViewCell.identifier)
         tableView.register(UITableViewCell.self, forCellReuseIdentifier: AppearanceSettingsViewController.customViewCellReuseIdentifier)
+        tableView.register(WMFTableHeaderFooterLabelView.wmf_classNib(), forHeaderFooterViewReuseIdentifier: WMFTableHeaderFooterLabelView.identifier)
+        tableView.sectionHeaderHeight = UITableView.automaticDimension
+        tableView.estimatedSectionHeaderHeight = 44
+        tableView.sectionFooterHeight = UITableView.automaticDimension
+        tableView.estimatedSectionFooterHeight = 44
         sections = sectionsForAppearanceSettings()
     }
     
@@ -71,26 +76,16 @@ final class AppearanceSettingsViewController: SubSettingsViewController {
             }
         }
 
-        let subtitle: String?
-        if #available(iOS 13, *) {
-            subtitle =  WMFLocalizedString("theme-default-explanation", value:"Matches system theme", comment: "Explains that the default theme matches the iOS system theme setting")
-        } else {
-            subtitle = nil
-        }
+        let subtitle =   WMFLocalizedString("theme-default-explanation", value:"Matches system theme", comment: "Explains that the default theme matches the iOS system theme setting")
         
         let defaultThemeItem = AppearanceSettingsCheckmarkItem(title: CommonStrings.defaultThemeDisplayName, subtitle: subtitle, theme: Theme.defaultThemeName, checkmarkAction: { [weak self] in
             self?.userDidSelect(theme: Theme.defaultThemeName)
         })
         
-        let items: [AppearanceSettingsCheckmarkItem]
-        if #available(iOS 13, *) {
-            items = [defaultThemeItem, checkmarkItem(for: Theme.light), checkmarkItem(for: Theme.sepia), checkmarkItem(for: Theme.dark), checkmarkItem(for: Theme.black)]
-        } else {
-            items = [defaultThemeItem, checkmarkItem(for: Theme.sepia), checkmarkItem(for: Theme.dark), checkmarkItem(for: Theme.black)]
-        }
+        let items = [defaultThemeItem, checkmarkItem(for: Theme.light), checkmarkItem(for: Theme.sepia), checkmarkItem(for: Theme.dark), checkmarkItem(for: Theme.black)]
         
         let readingThemesSection =
-            AppearanceSettingsSection(headerTitle: WMFLocalizedString("appearance-settings-reading-themes", value: "Reading themes", comment: "Title of the the Reading themes section in Appearance settings"), footerText: nil, items: items)
+            AppearanceSettingsSection(headerTitle: WMFLocalizedString("appearance-settings-reading-themes", value: "Reading themes", comment: "Title of the Reading themes section in Appearance settings"), footerText: nil, items: items)
         
         let themeOptionsSection = AppearanceSettingsSection(headerTitle: WMFLocalizedString("appearance-settings-theme-options", value: "Theme options", comment: "Title of the Theme options section in Appearance settings"), footerText: WMFLocalizedString("appearance-settings-image-dimming-footer", value: "Decrease the opacity of images on the dark and black themes", comment: "Footer of the Theme options section in Appearance settings, explaining image dimming"), items: [AppearanceSettingsCustomViewItem(title: nil, subtitle: nil, viewController: ImageDimmingExampleViewController(nibName: "ImageDimmingExampleViewController", bundle: nil)), AppearanceSettingsSpacerViewItem(title: nil, subtitle: nil, spacing: 15.0), AppearanceSettingsDimSwitchItem(title: CommonStrings.dimImagesTitle, subtitle: nil)])
         
@@ -130,8 +125,9 @@ final class AppearanceSettingsViewController: SubSettingsViewController {
             }
             
             if let dimming = vc as? ImageDimmingExampleViewController {
-                dimming.view.backgroundColor = self.theme.isDark ? self.theme.colors.paperBackground : .thermosphere
-                dimming.isImageDimmed = UserDefaults.wmf.wmf_isImageDimmingEnabled
+                // themeTODO: define a semantic color for this instead of checking isDark
+                dimming.view.backgroundColor = self.theme.isDark ? self.theme.colors.paperBackground : .darkBase20
+                dimming.isImageDimmed = UserDefaults.standard.wmf_isImageDimmingEnabled
             }
             
             cell.selectionStyle = .none
@@ -158,17 +154,16 @@ final class AppearanceSettingsViewController: SubSettingsViewController {
 
         if item is AppearanceSettingsDimSwitchItem {
             cell.disclosureType = .switch
-            cell.disclosureSwitch.isOn = UserDefaults.wmf.wmf_isImageDimmingEnabled
+            cell.disclosureSwitch.isOn = UserDefaults.standard.wmf_isImageDimmingEnabled
             cell.disclosureSwitch.addTarget(self, action: #selector(self.handleImageDimmingSwitchValueChange(_:)), for: .valueChanged)
             cell.iconName = "settings-image-dimming"
-            cell.iconBackgroundColor = .wmf_lightGray
+            cell.iconBackgroundColor = .base50
             cell.iconColor = .white
             cell.selectionStyle = .none
-        }
-        else if item is AppearanceSettingsAutomaticTableOpenSwitchItem {
+        } else if item is AppearanceSettingsAutomaticTableOpenSwitchItem {
             cell.disclosureType = .switch
             cell.disclosureSwitch.isEnabled = true
-            cell.disclosureSwitch.isOn = UserDefaults.wmf.wmf_isAutomaticTableOpeningEnabled
+            cell.disclosureSwitch.isOn = UserDefaults.standard.wmf_isAutomaticTableOpeningEnabled
             cell.disclosureSwitch.addTarget(self, action: #selector(self.handleAutomaticTableOpenSwitchValueChange(_:)), for: .valueChanged)
             cell.iconName = "settings-tables-expand"
             cell.iconBackgroundColor = UIColor.wmf_colorWithHex(0x5C97BF)
@@ -234,7 +229,7 @@ final class AppearanceSettingsViewController: SubSettingsViewController {
     }
     
     @objc public func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
-        let currentAppTheme = UserDefaults.wmf.themeName
+        let currentAppTheme = UserDefaults.standard.themeName
         
         if let checkmarkItem = sections[indexPath.section].items[indexPath.item] as? AppearanceSettingsCheckmarkItem {
             if currentAppTheme.hasPrefix(checkmarkItem.theme) {
@@ -248,7 +243,7 @@ final class AppearanceSettingsViewController: SubSettingsViewController {
     }
     
     @objc func applyImageDimmingChange(isOn: NSNumber) {
-        let currentTheme = UserDefaults.wmf.themeName
+        let currentTheme = UserDefaults.standard.themeName
         userDidSelect(theme: currentTheme, isImageDimmingEnabled: isOn.boolValue)
         tableView.reloadData()
     }
@@ -260,7 +255,7 @@ final class AppearanceSettingsViewController: SubSettingsViewController {
     }
     
     @objc func applyAutomaticTableOpenChange(isOn: NSNumber) {
-        UserDefaults.wmf.wmf_isAutomaticTableOpeningEnabled = isOn.boolValue
+        UserDefaults.standard.wmf_isAutomaticTableOpeningEnabled = isOn.boolValue
     }
     
     @objc func handleAutomaticTableOpenSwitchValueChange(_ sender: UISwitch) {
@@ -269,12 +264,30 @@ final class AppearanceSettingsViewController: SubSettingsViewController {
         perform(selector, with: NSNumber(value: sender.isOn), afterDelay: CATransaction.animationDuration())
     }
     
-    @objc public func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        return sections[section].headerTitle
+    @objc func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
+        return UITableView.automaticDimension
     }
     
-    @objc public func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
-        return sections[section].footerText
+    @objc func tableView(_ tableView: UITableView, viewForHeaderInSection section: Int) -> UIView? {
+        
+        let text = sections[safeIndex: section]?.headerTitle
+        return WMFTableHeaderFooterLabelView.headerFooterViewForTableView(tableView, text: text, type: .header, theme: theme)
+    }
+    
+    @objc func tableView(_ tableView: UITableView, heightForFooterInSection section: Int) -> CGFloat {
+        guard let text = sections[safeIndex: section]?.footerText,
+              !text.isEmpty else {
+               
+                  return section < (self.sections.count - 1) ? 0 : 44
+        }
+        
+        return UITableView.automaticDimension
+    }
+    
+    @objc func tableView(_ tableView: UITableView, viewForFooterInSection section: Int) -> UIView? {
+        
+        let text = sections[safeIndex: section]?.footerText
+        return WMFTableHeaderFooterLabelView.headerFooterViewForTableView(tableView, text: text, type: .footer, theme: theme)
     }
 
     // MARK: - Themeable

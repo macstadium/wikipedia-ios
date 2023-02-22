@@ -104,6 +104,16 @@ __attribute__((annotate("returns_localized_nsstring"))) static inline NSString *
     return activity;
 }
 
++ (instancetype)wmf_languageSettingsActivity {
+    NSUserActivity *activity = [self wmf_pageActivityWithName:@"LanguageSettings"];
+    return activity;
+}
+
++ (instancetype)wmf_notificationSettingsActivity {
+    NSUserActivity *activity = [self wmf_pageActivityWithName:@"NotificationSettings"];
+    return activity;
+}
+
 + (nullable instancetype)wmf_activityForWikipediaScheme:(NSURL *)url {
     if (![url.scheme isEqualToString:@"wikipedia"] && ![url.scheme isEqualToString:@"wikipedia-official"]) {
         return nil;
@@ -145,17 +155,6 @@ __attribute__((annotate("returns_localized_nsstring"))) static inline NSString *
     return [self wmf_articleViewActivityWithURL:wikipediaURL];
 }
 
-+ (instancetype)wmf_articleViewActivityWithArticle:(MWKArticle *)article {
-    NSParameterAssert(article.url.wmf_title);
-    NSParameterAssert(article.displaytitle);
-
-    NSUserActivity *activity = [self wmf_articleViewActivityWithURL:article.url];
-
-    activity.contentAttributeSet = article.searchableItemAttributes;
-
-    return activity;
-}
-
 + (instancetype)wmf_articleViewActivityWithURL:(NSURL *)url {
     NSParameterAssert(url.wmf_title);
 
@@ -167,7 +166,7 @@ __attribute__((annotate("returns_localized_nsstring"))) static inline NSString *
     [set addObjectsFromArray:[url.wmf_title componentsSeparatedByString:@" "]];
     activity.keywords = set;
     activity.expirationDate = [[NSDate date] dateByAddingTimeInterval:60 * 60 * 24 * 7];
-    activity.contentAttributeSet = url.searchableItemAttributes;
+    activity.contentAttributeSet = url.wmf_searchableItemAttributes;
 
     return activity;
 }
@@ -222,6 +221,8 @@ __attribute__((annotate("returns_localized_nsstring"))) static inline NSString *
             return WMFUserActivityTypeSearch;
         } else if ([page isEqualToString:@"AppearanceSettings"]) {
             return WMFUserActivityTypeAppearanceSettings;
+        } else if ([page isEqualToString:@"NotificationSettings"]) {
+            return WMFUserActivityTypeNotificationSettings;
         } else {
             return WMFUserActivityTypeSettings;
         }

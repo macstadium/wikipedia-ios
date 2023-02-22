@@ -31,13 +31,13 @@ extension ExploreFeedSettingsItem {
     }
 }
 
-enum ExploreFeedSettingsMasterType: Equatable {
+enum ExploreFeedSettingsMainType: Equatable {
     case entireFeed
     case singleFeedCard(WMFContentGroupKind)
 }
 
 private extension WMFContentGroupKind {
-    var masterSwitchTitle: String {
+    var switchTitle: String {
         switch self {
         case .news:
             return WMFLocalizedString("explore-feed-preferences-show-news-title", value: "Show In the news card", comment: "Text for the setting that allows users to toggle the visibility of the In the news card")
@@ -66,20 +66,20 @@ private extension WMFContentGroupKind {
     }
 }
 
-class ExploreFeedSettingsMaster: ExploreFeedSettingsItem {
+class ExploreFeedSettingsPrimary: ExploreFeedSettingsItem {
     let title: String
     let controlTag: Int = -1
     var isOn: Bool = false
-    let type: ExploreFeedSettingsMasterType
+    let type: ExploreFeedSettingsMainType
 
-    init(for type: ExploreFeedSettingsMasterType) {
+    init(for type: ExploreFeedSettingsMainType) {
         self.type = type
         if case let .singleFeedCard(contentGroupKind) = type {
-            title = contentGroupKind.masterSwitchTitle
+            title = contentGroupKind.switchTitle
             isOn = contentGroupKind.isInFeed
         } else {
             title = WMFLocalizedString("explore-feed-preferences-explore-tab", value: "Explore tab", comment: "Text for the setting that allows users to toggle whether the Explore tab is enabled or not")
-            isOn = UserDefaults.wmf.defaultTabType == .explore
+            isOn = UserDefaults.standard.defaultTabType == .explore
         }
     }
 
@@ -87,7 +87,7 @@ class ExploreFeedSettingsMaster: ExploreFeedSettingsItem {
         if case let .singleFeedCard(contentGroupKind) = type {
             isOn = contentGroupKind.isInFeed
         } else {
-            isOn = UserDefaults.wmf.defaultTabType == .explore
+            isOn = UserDefaults.standard.defaultTabType == .explore
         }
     }
 }
@@ -109,14 +109,14 @@ class ExploreFeedSettingsLanguage: ExploreFeedSettingsItem {
     init(_ languageLink: MWKLanguageLink, controlTag: Int, displayType: ExploreFeedSettingsDisplayType) {
         self.languageLink = languageLink
         title = languageLink.localizedName
-        subtitle = languageLink.languageCode.uppercased()
+        subtitle = languageLink.contentLanguageCode.uppercased()
         self.controlTag = controlTag
-        siteURL = languageLink.siteURL()
+        siteURL = languageLink.siteURL
         updateIsOn(for: displayType)
     }
 
     func updateIsOn(for displayType: ExploreFeedSettingsDisplayType) {
-        switch (displayType) {
+        switch displayType {
         case .singleLanguage:
             return
         case .multipleLanguages:
@@ -132,13 +132,13 @@ class ExploreFeedSettingsGlobalCards: ExploreFeedSettingsItem {
     let title: String = WMFLocalizedString("explore-feed-preferences-global-cards-title", value: "Global cards", comment: "Title for the setting that allows users to toggle non-language specific feed cards")
     let subtitle: String? = WMFLocalizedString("explore-feed-preferences-global-cards-description", value: "Non-language specific cards", comment: "Description of global feed cards")
     let controlTag: Int = -2
-    var isOn: Bool = SessionSingleton.sharedInstance().dataStore.feedContentController.areGlobalContentGroupKindsInFeed
+    var isOn: Bool = MWKDataStore.shared().feedContentController.areGlobalContentGroupKindsInFeed
 
     func updateIsOn(for displayType: ExploreFeedSettingsDisplayType) {
         guard displayType == .singleLanguage || displayType == .multipleLanguages else {
             return
         }
-        isOn = SessionSingleton.sharedInstance().dataStore.feedContentController.areGlobalContentGroupKindsInFeed
+        isOn = MWKDataStore.shared().feedContentController.areGlobalContentGroupKindsInFeed
     }
 }
 
@@ -160,6 +160,8 @@ class BaseExploreFeedSettingsViewController: SubSettingsViewController {
         super.viewDidLoad()
         tableView.register(WMFSettingsTableViewCell.wmf_classNib(), forCellReuseIdentifier: WMFSettingsTableViewCell.identifier)
         tableView.register(WMFTableHeaderFooterLabelView.wmf_classNib(), forHeaderFooterViewReuseIdentifier: WMFTableHeaderFooterLabelView.identifier)
+        tableView.sectionHeaderHeight = UITableView.automaticDimension
+        tableView.estimatedSectionHeaderHeight = 44
         tableView.sectionFooterHeight = UITableView.automaticDimension
         tableView.estimatedSectionFooterHeight = 44
         NotificationCenter.default.addObserver(self, selector: #selector(exploreFeedPreferencesDidSave(_:)), name: NSNotification.Name.WMFExploreFeedPreferencesDidSave, object: nil)
@@ -167,7 +169,7 @@ class BaseExploreFeedSettingsViewController: SubSettingsViewController {
     }
 
     var preferredLanguages: [MWKLanguageLink] {
-        return MWKLanguageLinkController.sharedInstance().preferredLanguages
+        return MWKDataStore.shared().languageLinkController.preferredLanguages
     }
 
     lazy var languages: [ExploreFeedSettingsLanguage] = {
@@ -229,9 +231,6 @@ class BaseExploreFeedSettingsViewController: SubSettingsViewController {
 
     @objc private func exploreFeedPreferencesDidSave(_ notification: Notification) {
         updateFeedBeforeViewDisappears = true
-        guard displayType != .singleLanguage else {
-            return
-        }
         DispatchQueue.main.async {
             self.reload()
         }
@@ -253,6 +252,9 @@ class BaseExploreFeedSettingsViewController: SubSettingsViewController {
         }
         view.backgroundColor = theme.colors.baseBackground
         tableView.backgroundColor = theme.colors.baseBackground
+        if viewIfLoaded?.window != nil {
+            tableView.reloadData()
+        }
     }
 
 }
@@ -287,28 +289,28 @@ extension BaseExploreFeedSettingsViewController {
 // MARK: - UITableViewDelegate
 
 extension BaseExploreFeedSettingsViewController {
-    @objc func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        let section = getSection(at: section)
-        return section.headerTitle
+    
+    @objc func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
+        return UITableView.automaticDimension
     }
-
+    
+    @objc func tableView(_ tableView: UITableView, viewForHeaderInSection section: Int) -> UIView? {
+        let text = getSection(at: section).headerTitle
+        return WMFTableHeaderFooterLabelView.headerFooterViewForTableView(tableView, text: text, theme: theme)
+    }
+    
     @objc func tableView(_ tableView: UITableView, viewForFooterInSection section: Int) -> UIView? {
-        guard let footer = tableView.dequeueReusableHeaderFooterView(withIdentifier: WMFTableHeaderFooterLabelView.identifier) as? WMFTableHeaderFooterLabelView else {
-            return nil
-        }
-        let section = getSection(at: section)
-        footer.setShortTextAsProse(section.footerTitle)
-        footer.type = .footer
-        if let footer = footer as Themeable? {
-            footer.apply(theme: theme)
-        }
-        return footer
+        let text = getSection(at: section).footerTitle
+        return WMFTableHeaderFooterLabelView.headerFooterViewForTableView(tableView, text: text, type: .footer, setShortTextAsProse: true, theme: theme)
     }
 
     @objc func tableView(_ tableView: UITableView, heightForFooterInSection section: Int) -> CGFloat {
-        guard let _ = self.tableView(tableView, viewForFooterInSection: section) as? WMFTableHeaderFooterLabelView else {
+        
+        let text = getSection(at: section).footerTitle
+        guard !text.isEmpty else {
             return 0
         }
+        
         return UITableView.automaticDimension
     }
 }
@@ -318,5 +320,31 @@ extension BaseExploreFeedSettingsViewController {
 extension BaseExploreFeedSettingsViewController: WMFSettingsTableViewCellDelegate {
     open func settingsTableViewCell(_ settingsTableViewCell: WMFSettingsTableViewCell!, didToggleDisclosureSwitch sender: UISwitch!) {
         assertionFailure("Subclassers should override")
+    }
+}
+
+// MARK: - MWKLanguageLink Convenience Methods
+
+fileprivate extension MWKLanguageLink {
+    private var feedContentController: WMFExploreFeedContentController {
+        MWKDataStore.shared().feedContentController
+    }
+    
+    /**
+     Flag indicating whether there are any visible customizable feed content sources in this language.
+     Returns true if there is at least one content source in this language visible in the feed.
+     Returns false if there are no content sources in this language visible in the feed.
+     */
+    var isInFeed: Bool {
+        feedContentController.anyContentGroupsVisibleInTheFeed(forSiteURL: siteURL)
+    }
+    
+    /**
+     Flag indicating whether the content group of given kind is visible in the feed in this language.
+     Returns YES if the content group of given kind is visible in the feed in this language.
+     Returns NO if the content group of given kind is not visible in the feed in this language.
+     */
+    func isInFeed(for contentGroupKind: WMFContentGroupKind) -> Bool {
+        feedContentController.contentLanguageCodes(for: contentGroupKind).contains(contentLanguageCode)
     }
 }

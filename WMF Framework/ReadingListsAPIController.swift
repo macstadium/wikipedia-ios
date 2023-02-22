@@ -1,4 +1,5 @@
 import Foundation
+import CocoaLumberjackSwift
 
 internal let APIReadingListUpdateLimitForFullSyncFallback = 1000 // if we receive over this # of updated items, fall back to full sync
 
@@ -44,7 +45,7 @@ struct APIReadingLists: Codable {
     }
 }
 
-struct APIReadingList: Codable {
+public struct APIReadingList: Codable {
     enum CodingKeys: String, CodingKey {
         case id
         case name
@@ -55,7 +56,7 @@ struct APIReadingList: Codable {
         case isDefault = "default"
     }
     
-    let id: Int64
+    public let id: Int64
     let name: String
     let description: String
     let created: String
@@ -69,7 +70,7 @@ struct APIReadingListEntries: Codable {
     let next: String?
 }
 
-struct APIReadingListEntry: Codable {
+public struct APIReadingListEntry: Codable {
     let id: Int64
     let project: String
     let title: String
@@ -103,6 +104,18 @@ enum APIReadingListRequestType: String {
     case setup, teardown
 }
 
+/* Note that because the reading list API does not support language variants,
+ * the articleURL will always have a nil language variant.
+ *
+ * The RemoteReadingListArticleKey type is a type alias for String.
+ * Since ReadingListsSyncOperation handles remote entries that don't have a variant,
+ * and local entries that do have a variant, this type makes it more clear when
+ * a non-variant aware key is being used.
+ *
+ * Also, if the remote API adds variant support, it should be straightforward to
+ * update the type alias from String to WMFInMemoryURLKey.
+*/
+typealias RemoteReadingListArticleKey = String
 extension APIReadingListEntry {
     var articleURL: URL? {
         guard let site = URL(string: project) else {
@@ -111,19 +124,19 @@ extension APIReadingListEntry {
         return site.wmf_URL(withTitle: title)
     }
     
-    var articleKey: String? {
+    var articleKey: RemoteReadingListArticleKey? {
         return articleURL?.wmf_databaseKey
     }
 }
 
-class ReadingListsAPIController: Fetcher {
-    private let api = Configuration.current.mobileAppsServicesAPIURLComponentsBuilderForHost("en.wikipedia.org")
+public class ReadingListsAPIController: Fetcher {
+    private let builder = Configuration.current.pageContentServiceBuilder(withWikiHost: "en.wikipedia.org")
     private let basePathComponents = ["data", "lists"]
-    public var lastRequestType: APIReadingListRequestType?
+    var lastRequestType: APIReadingListRequestType?
 
     fileprivate func get<T: Codable>(path: [String], queryParameters: [String: Any]? = nil, completionHandler: @escaping (T?, URLResponse?, Error?) -> Swift.Void) {
         let key = UUID().uuidString
-        let components = api.components(byAppending: basePathComponents + path, queryParameters: queryParameters)
+        let components = builder.components(byAppending: basePathComponents + path, queryParameters: queryParameters)
         guard
             let task = session.jsonDecodableTaskWithDecodableError(with: components.url, method: .get, completionHandler: { (result: T?, errorResult: APIReadingListErrorResponse?, response, error) in
             if let errorResult = errorResult, let error = APIReadingListError(rawValue: errorResult.title) {
@@ -140,7 +153,7 @@ class ReadingListsAPIController: Fetcher {
     }
     
     fileprivate func requestWithCSRF(path: [String], method: Session.Request.Method, bodyParameters: [String: Any]? = nil, completion: @escaping ([String: Any]?, URLResponse?, Error?) -> Void) {
-        let components = api.components(byAppending: basePathComponents + path)
+        let components = builder.components(byAppending: basePathComponents + path)
         requestMediaWikiAPIAuthToken(for: components.url, type: .csrf) { (result) in
             switch result {
             case .failure(let error):
@@ -213,7 +226,7 @@ class ReadingListsAPIController: Fetcher {
      */
     func createList(name: String, description: String?, completion: @escaping (_ listID: Int64?,_ error: Error?) -> Swift.Void ) {
         let bodyParams = ["name": name.precomposedStringWithCanonicalMapping, "description": description ?? ""]
-        // empty string path is required to add the the trailing slash, server 404s otherwise
+        // empty string path is required to add the trailing slash, server 404s otherwise
         post(path: [""], bodyParameters: bodyParams) { (result, response, error) in
             guard let id = result?["id"] as? Int64 else {
                 completion(nil, error ?? ReadingListError.unableToCreateList)
@@ -496,12 +509,12 @@ class ReadingListsAPIController: Fetcher {
          - since: The string to use for the next /changes/since call
          - error: Any error
      */
-    func getAllReadingLists(next: String? = nil, nextSince: String? = nil, lists: [APIReadingList] = [], completion: @escaping ([APIReadingList], String?, Error?) -> Swift.Void ) {
+    public func getAllReadingLists(next: String? = nil, nextSince: String? = nil, lists: [APIReadingList] = [], completion: @escaping ([APIReadingList], String?, Error?) -> Swift.Void ) {
         var queryParameters: [String: Any]? = nil
         if let next = next {
             queryParameters = ["next": next]
         }
-        // empty string path is required to add the the trailing slash, server 404s otherwise
+        // empty string path is required to add the trailing slash, server 404s otherwise
         get(path: [""], queryParameters: queryParameters) { (apiListsResponse: APIReadingLists?, response, error) in
             guard let apiListsResponse = apiListsResponse else {
                 completion([], nil, error)
@@ -518,7 +531,7 @@ class ReadingListsAPIController: Fetcher {
         }
     }
     
-    func getAllEntriesForReadingListWithID(next: String? = nil, entries: [APIReadingListEntry] = [], readingListID: Int64, completion: @escaping ([APIReadingListEntry], Error?) -> Swift.Void ) {
+    public func getAllEntriesForReadingListWithID(next: String? = nil, entries: [APIReadingListEntry] = [], readingListID: Int64, completion: @escaping ([APIReadingListEntry], Error?) -> Swift.Void ) {
         var queryParameters: [String: Any]? = nil
         if let next = next {
             queryParameters = ["next": next]

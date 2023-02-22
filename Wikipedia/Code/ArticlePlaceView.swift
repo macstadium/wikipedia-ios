@@ -1,10 +1,6 @@
 import UIKit
 import WMF
-#if OSM
-import Mapbox
-#else
 import MapKit
-#endif
 
 protocol ArticlePlaceViewDelegate: NSObjectProtocol {
     func articlePlaceViewWasTapped(_ articlePlaceView: ArticlePlaceView)
@@ -238,11 +234,11 @@ class ArticlePlaceView: MapAnnotationView {
             }
         }
         
-        if (animated && rasterizeOnAnimations) {
+        if animated && rasterizeOnAnimations {
             self.imageView.layer.shouldRasterize = true
         }
         let done = {
-            if (animated && self.rasterizeOnAnimations) {
+            if animated && self.rasterizeOnAnimations {
                 self.imageView.layer.shouldRasterize = false
             }
             guard let articlePlace = self.annotation as? ArticlePlace else {
@@ -275,7 +271,6 @@ class ArticlePlaceView: MapAnnotationView {
             done()
         }
     }
-    
 
     override func didMoveToSuperview() {
         super.didMoveToSuperview()
@@ -286,9 +281,7 @@ class ArticlePlaceView: MapAnnotationView {
         
         selectedImageButton.addTarget(self, action: #selector(selectedImageViewWasTapped), for: .touchUpInside)
     }
-    
 
-    
     @objc func selectedImageViewWasTapped(_ sender: UIButton) {
         delegate?.articlePlaceViewWasTapped(self)
     }
@@ -385,16 +378,6 @@ class ArticlePlaceView: MapAnnotationView {
         }
     }
 
-    #if OSM
-    override var annotation: MGLAnnotation? {
-        didSet {
-            guard isSetup, let articlePlace = annotation as? ArticlePlace else {
-                return
-            }
-            update(withArticlePlace: articlePlace)
-        }
-    }
-    #else
     override var annotation: MKAnnotation? {
         didSet {
             guard isSetup, let articlePlace = annotation as? ArticlePlace else {
@@ -403,7 +386,6 @@ class ArticlePlaceView: MapAnnotationView {
             update(withArticlePlace: articlePlace)
         }
     }
-    #endif
     
     override func prepareForReuse() {
         super.prepareForReuse()
@@ -479,11 +461,11 @@ class ArticlePlaceView: MapAnnotationView {
                 self.selectedImageView.alpha = 0
             }
         }
-        if (animated && rasterizeOnAnimations) {
+        if animated && rasterizeOnAnimations {
             shouldRasterize = true
         }
         let done = {
-            if (animated && self.rasterizeOnAnimations) {
+            if animated && self.rasterizeOnAnimations {
                 self.shouldRasterize = false
             }
             if !selected {

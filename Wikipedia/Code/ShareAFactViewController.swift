@@ -29,7 +29,7 @@ class ShareAFactViewController: UIViewController {
     @IBOutlet var imageViewLetterboxConstraints: [NSLayoutConstraint]!
     
     override func viewDidLoad() {
-        let theme = Theme.standard //always use the standard theme for now
+        let theme = Theme.standard // always use the standard theme for now
         view.backgroundColor = theme.colors.paperBackground
         articleTitleLabel.textColor = theme.colors.primaryText
         separatorView.backgroundColor = theme.colors.border
@@ -47,7 +47,7 @@ class ShareAFactViewController: UIViewController {
     }
     
     public func update(with articleURL: URL, articleTitle: String?, text: String?, image: UIImage?, imageLicense: MWKLicense?) {
-        view.semanticContentAttribute = MWLanguageInfo.semanticContentAttribute(forWMFLanguage: articleURL.wmf_language)
+        view.semanticContentAttribute = MWKLanguageLinkController.semanticContentAttribute(forContentLanguageCode: articleURL.wmf_contentLanguageCode)
         textLabel.semanticContentAttribute = view.semanticContentAttribute
         articleTitleLabel.semanticContentAttribute = view.semanticContentAttribute
         imageContainerView.semanticContentAttribute = view.semanticContentAttribute

@@ -1,8 +1,12 @@
-@import WMF.WMFBlockDefinitions;
-@import WMF.WMFLegacyFetcher;
+@import Foundation;
+#import <WMF/WMFLegacyFetcher.h>
+#import <WMF/WMFBlockDefinitions.h>
+#import <WMF/WMFPreferredLanguageInfoProvider.h>
 
-@class MWKArticle;
+NS_ASSUME_NONNULL_BEGIN
+
 @class NSURLSessionDataTask;
+@class MWKDataStore;
 
 @protocol MWKImageInfoRequest <NSObject>
 
@@ -11,6 +15,8 @@
 @end
 
 @interface MWKImageInfoFetcher : WMFLegacyFetcher
+
+- (instancetype)initWithDataStore:(MWKDataStore *)dataStore;
 
 /**
  * Fetch the imageinfo for the given image page titles.
@@ -49,4 +55,12 @@
                               failure:(WMFErrorHandler)failure
                               success:(WMFSuccessIdHandler)success;
 
+- (nullable NSURL *)galleryInfoURLForImageTitles: (NSArray *)imageTitles fromSiteURL: (NSURL *)siteURL;
+
+- (nullable NSURLRequest *)urlRequestForFromURL: (NSURL *)url;
+
+@property (weak, nonatomic) id<WMFPreferredLanguageInfoProvider> preferredLanguageDelegate;
+
 @end
+
+NS_ASSUME_NONNULL_END

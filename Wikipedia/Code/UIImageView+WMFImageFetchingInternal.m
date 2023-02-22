@@ -1,4 +1,3 @@
-@import FLAnimatedImage;
 #import "UIImageView+WMFImageFetchingInternal.h"
 #import <WMF/UIImageView+WMFImageFetching.h>
 #import "UIImageView+WMFContentOffset.h"
@@ -15,33 +14,9 @@ static const char *const MWKFaceDetectionURLToCancelAssociationKey = "MWKFaceDet
 
 static const char *const MWKTokenToCancelAssociationKey = "MWKTokenToCancel";
 
-static const char *const MWKImageAssociationKey = "MWKImage";
-
-static const char *const WMFImageControllerAssociationKey = "WMFImageController";
-
 @implementation UIImageView (WMFImageFetchingInternal)
 
 #pragma mark - Associated Objects
-
-- (WMFImageController *__nullable)wmf_imageController {
-    WMFImageController *controller = objc_getAssociatedObject(self, WMFImageControllerAssociationKey);
-    if (!controller) {
-        controller = [WMFImageController sharedInstance];
-    }
-    return controller;
-}
-
-- (void)wmf_setImageController:(nullable WMFImageController *)imageController {
-    objc_setAssociatedObject(self, WMFImageControllerAssociationKey, imageController, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-}
-
-- (MWKImage *__nullable)wmf_imageMetadata {
-    return objc_getAssociatedObject(self, MWKImageAssociationKey);
-}
-
-- (void)wmf_setImageMetadata:(nullable MWKImage *)imageMetadata {
-    objc_setAssociatedObject(self, MWKImageAssociationKey, imageMetadata, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-}
 
 - (NSURL *__nullable)wmf_imageURL {
     return objc_getAssociatedObject(self, MWKURLAssociationKey);
@@ -82,7 +57,7 @@ static const char *const WMFImageControllerAssociationKey = "WMFImageController"
 }
 
 - (NSURL *)imageURLForFaceDetection {
-    return self.wmf_imageURL ? self.wmf_imageURL : self.wmf_imageMetadata.sourceURL;
+    return self.wmf_imageURL;
 }
 
 - (BOOL)wmf_imageRequiresFaceDetection {
@@ -144,7 +119,7 @@ static const char *const WMFImageControllerAssociationKey = "WMFImageController"
 }
 
 - (void)wmf_setImage:(UIImage *)image
-       animatedImage:(FLAnimatedImage *)animatedImage
+       animatedImage:(nullable FLAnimatedImage *)animatedImage
          detectFaces:(BOOL)detectFaces
                onGPU:(BOOL)onGPU
             animated:(BOOL)animated
@@ -184,7 +159,7 @@ static const char *const WMFImageControllerAssociationKey = "WMFImageController"
 }
 
 - (void)wmf_setImage:(UIImage *)image
-       animatedImage:(FLAnimatedImage *)animatedImage
+       animatedImage:(nullable FLAnimatedImage *)animatedImage
          detectFaces:(BOOL)detectFaces
      faceBoundsValue:(nullable NSValue *)faceBoundsValue
             animated:(BOOL)animated
@@ -242,10 +217,16 @@ static const char *const WMFImageControllerAssociationKey = "WMFImageController"
 }
 
 - (void)wmf_cancelImageDownload {
-    [self.wmf_imageController cancelFetchWithURL:[self wmf_imageURLToCancel] token:[self wmf_imageTokenToCancel]];
-    [[UIImageView faceDetectionCache] cancelFaceDetectionForURL:[self wmf_faceDetectionImageURLToCancel]];
+    NSURL *imageURLToCancel = [self wmf_imageURLToCancel];
+    NSString *imageTokenToCancel = [self wmf_imageTokenToCancel];
+    if (imageURLToCancel || imageTokenToCancel) {
+        [self.wmf_imageController cancelImageFetchWithURL:imageURLToCancel token:imageTokenToCancel];
+    }
+    NSURL *faceDetectionURLToCancel = [self wmf_faceDetectionImageURLToCancel];
+    if (faceDetectionURLToCancel) {
+        [[UIImageView faceDetectionCache] cancelFaceDetectionForURL:faceDetectionURLToCancel];
+    }
     self.wmf_imageURL = nil;
-    self.wmf_imageMetadata = nil;
     self.wmf_imageURLToCancel = nil;
     self.wmf_imageTokenToCancel = nil;
     self.wmf_faceDetectionImageURLToCancel = nil;

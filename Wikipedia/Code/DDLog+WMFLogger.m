@@ -10,13 +10,7 @@
 }
 
 + (void)wmf_addLoggersForCurrentConfiguration {
-// only add TTY in debug mode
-#if DEBUG
-    [self wmf_addWMFFormattedLogger:[DDTTYLogger sharedInstance]];
-#endif
-    // always add ASLLogger
-    [self wmf_addWMFFormattedLogger:[DDOSLogger sharedInstance]];
-
+    [self wmf_addWMFFormattedLogger:[BasicLogger new]];
     DDFileLogger *fileLogger = [[DDFileLogger alloc] init];
     fileLogger.logFileManager.maximumNumberOfLogFiles = 7;
     [self wmf_addWMFFormattedLogger:fileLogger];
@@ -27,13 +21,16 @@
     [DDLog addLogger:logger];
 }
 
-+ (NSString *)wmf_currentLogFile {
++ (NSString *)wmf_currentLogFilePath {
     DDFileLogger *logger = [[DDLog allLoggers] wmf_match:^BOOL(id obj) {
         return [obj isKindOfClass:[DDFileLogger class]];
     }];
 
-    NSString *logPath = [[logger.logFileManager sortedLogFilePaths] firstObject];
-    NSString *logContents = [NSString stringWithContentsOfFile:logPath encoding:NSUTF8StringEncoding error:nil];
+    return [[logger.logFileManager sortedLogFilePaths] firstObject];
+}
+
++ (NSString *)wmf_currentLogFile {
+    NSString *logContents = [NSString stringWithContentsOfFile:[self wmf_currentLogFilePath] encoding:NSUTF8StringEncoding error:nil];
     return logContents;
 }
 

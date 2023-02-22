@@ -1,7 +1,7 @@
 import UIKit
 
 @objc (WMFFindAndReplaceKeyboardBarDelegate)
-protocol FindAndReplaceKeyboardBarDelegate: class {
+protocol FindAndReplaceKeyboardBarDelegate: AnyObject {
     func keyboardBar(_ keyboardBar: FindAndReplaceKeyboardBar, didChangeSearchTerm searchTerm: String?)
     func keyboardBarDidTapClose(_ keyboardBar: FindAndReplaceKeyboardBar)
     func keyboardBarDidTapClear(_ keyboardBar: FindAndReplaceKeyboardBar)
@@ -11,7 +11,7 @@ protocol FindAndReplaceKeyboardBarDelegate: class {
     func keyboardBarDidTapReplace(_ keyboardBar: FindAndReplaceKeyboardBar, replaceText: String, replaceType: ReplaceType)
 }
 
-protocol FindAndReplaceKeyboardBarDisplayDelegate: class {
+protocol FindAndReplaceKeyboardBarDisplayDelegate: AnyObject {
     func keyboardBarDidTapReplaceSwitch(_ keyboardBar: FindAndReplaceKeyboardBar)
     func keyboardBarDidShow(_ keyboardBar: FindAndReplaceKeyboardBar)
     func keyboardBarDidHide(_ keyboardBar: FindAndReplaceKeyboardBar)
@@ -71,7 +71,7 @@ final class FindAndReplaceKeyboardBar: UIInputView {
     @objc weak var delegate: FindAndReplaceKeyboardBarDelegate?
     weak var displayDelegate: FindAndReplaceKeyboardBarDisplayDelegate?
     
-    //represents current match label values
+    // represents current match label values
     private var matchPlacement = FindMatchPlacement(index: 0, total: 0) {
         didSet {
             if matchPlacement.index == nil && matchPlacement.total > 0 {
@@ -100,14 +100,7 @@ final class FindAndReplaceKeyboardBar: UIInputView {
     }
     
     @objc var isVisible: Bool {
-        get {
-            return findTextField.isFirstResponder || replaceTextField.isFirstResponder
-        }
-    }
-    
-    required init?(coder aDecoder: NSCoder) {
-        super.init(coder: aDecoder)
-        tintColor = UIColor.wmf_darkGray
+        return findTextField.isFirstResponder || replaceTextField.isFirstResponder
     }
     
     override func awakeFromNib() {
@@ -159,7 +152,7 @@ final class FindAndReplaceKeyboardBar: UIInputView {
         updatePreviousNextButtonsState(total: 0)
     }
     
-    //MARK: IBActions
+    // MARK: IBActions
     
     @IBAction func tappedFindClear() {
         delegate?.keyboardBarDidTapClear(self)
@@ -215,7 +208,7 @@ final class FindAndReplaceKeyboardBar: UIInputView {
     }
 }
 
-//MARK: UITextFieldDelegate
+// MARK: UITextFieldDelegate
 
 extension FindAndReplaceKeyboardBar: UITextFieldDelegate {
     func textFieldShouldReturn(_ textField: UITextField) -> Bool {
@@ -247,7 +240,7 @@ extension FindAndReplaceKeyboardBar: UITextFieldDelegate {
     }
 }
 
-//MARK: Themeable
+// MARK: Themeable
 
 extension FindAndReplaceKeyboardBar: Themeable {
     func apply(theme: Theme) {
@@ -276,7 +269,7 @@ extension FindAndReplaceKeyboardBar: Themeable {
     }
 }
 
-//MARK: Private
+// MARK: Private
 
 private extension FindAndReplaceKeyboardBar {
     
@@ -336,7 +329,7 @@ private extension FindAndReplaceKeyboardBar {
         
         switch (replaceTextField.isFirstResponder, count) {
         case (false, 0):
-            replaceTypeLabel.text = nil //niling out so longer placeholder strings will bump up against the X button
+            replaceTypeLabel.text = nil // niling out so longer placeholder strings will bump up against the X button
             replaceTypeLabel.isHidden = true
             replacePlaceholderLabel.isHidden = false
         case (true, 0):
@@ -387,8 +380,8 @@ private extension FindAndReplaceKeyboardBar {
     }
 }
 
-#if (TEST)
-//MARK: Helpers for testing
+#if TEST
+// MARK: Helpers for testing
 extension FindAndReplaceKeyboardBar {
     func setFindTextForTesting(_ text: String) {
         findTextField.text = text

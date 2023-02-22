@@ -1,7 +1,5 @@
 #import "WMFSettingsMenuItem.h"
-#import <WMF/SessionSingleton.h>
 #import "Wikipedia-Swift.h"
-#import <WMF/MWKLanguageLinkController.h>
 
 @interface WMFSettingsMenuItem ()
 
@@ -24,7 +22,8 @@
 + (WMFSettingsMenuItem *)itemForType:(WMFSettingsMenuItemType)type {
     switch (type) {
         case WMFSettingsMenuItemType_LoginAccount: {
-            NSString *userName = [WMFAuthenticationManager sharedInstance].loggedInUsername;
+            // SINGLETONTODO
+            NSString *userName = [MWKDataStore shared].authenticationManager.loggedInUsername;
 
             NSString *loginString = (userName) ? WMFCommonStrings.account : WMFLocalizedStringWithDefaultValue(@"main-menu-account-login", nil, nil, @"Log in", @"Button text for logging in. {{Identical|Log in}}");
 
@@ -54,7 +53,7 @@
                                                  iconName:@"settings-language"
                                                 iconColor:[UIColor wmf_colorWithHex:0x1F95DE]
                                            disclosureType:WMFSettingsMenuItemDisclosureType_ViewControllerWithDisclosureText
-                                           disclosureText:[[[MWKLanguageLinkController sharedInstance] appLanguage].languageCode uppercaseString]
+                                           disclosureText:[MWKDataStore.shared.languageLinkController.appLanguage.languageCode uppercaseString]
                                                isSwitchOn:NO];
         }
         case WMFSettingsMenuItemType_Search: {
@@ -62,7 +61,7 @@
                 [[WMFSettingsMenuItem alloc] initWithType:type
                                                     title:[WMFCommonStrings searchTitle]
                                                  iconName:@"settings-search"
-                                                iconColor:[UIColor wmf_green]
+                                                iconColor:[UIColor wmf_green50]
                                            disclosureType:WMFSettingsMenuItemDisclosureType_ViewController
                                            disclosureText:nil
                                                isSwitchOn:NO];
@@ -74,13 +73,13 @@
                                                  iconName:@"settings-explore"
                                                 iconColor:[UIColor wmf_colorWithHex:0x5ac8fa]
                                            disclosureType:WMFSettingsMenuItemDisclosureType_ViewControllerWithDisclosureText
-                                           disclosureText:[NSUserDefaults wmf].defaultTabType != WMFAppDefaultTabTypeExplore ? @"Off" : @"On"
+                                           disclosureText:[NSUserDefaults standardUserDefaults].defaultTabType != WMFAppDefaultTabTypeExplore ? @"Off" : @"On"
                                                isSwitchOn:NO];
         }
         case WMFSettingsMenuItemType_Notifications: {
             return
                 [[WMFSettingsMenuItem alloc] initWithType:type
-                                                    title:[WMFCommonStrings notifications]
+                                                    title:[WMFCommonStrings pushNotifications]
                                                  iconName:@"settings-notifications"
                                                 iconColor:[UIColor wmf_colorWithHex:0xFF1B33]
                                            disclosureType:WMFSettingsMenuItemDisclosureType_ViewController
@@ -128,6 +127,7 @@
                                                isSwitchOn:NO];
         }
         case WMFSettingsMenuItemType_SendUsageReports: {
+            BOOL loggingEnabled = [WMFEventLoggingService sharedInstance].isEnabled;
             return
                 [[WMFSettingsMenuItem alloc] initWithType:type
                                                     title:WMFLocalizedStringWithDefaultValue(@"preference-title-eventlogging-opt-in", nil, nil, @"Send usage reports", @"Title of preference that when checked enables data collection of user behavior.")
@@ -135,7 +135,7 @@
                                                 iconColor:[UIColor wmf_colorWithHex:0x95D15A]
                                            disclosureType:WMFSettingsMenuItemDisclosureType_Switch
                                            disclosureText:nil
-                                               isSwitchOn:[WMFEventLoggingService sharedInstance].isEnabled];
+                                               isSwitchOn:loggingEnabled];
         }
         case WMFSettingsMenuItemType_StorageAndSyncingDebug: {
             return
@@ -194,16 +194,6 @@
                                                  iconName:@"settings-clear-cache"
                                                 iconColor:[UIColor wmf_colorWithHex:0xFFBF02]
                                            disclosureType:WMFSettingsMenuItemDisclosureType_None
-                                           disclosureText:nil
-                                               isSwitchOn:NO];
-        }
-        case WMFSettingsMenuItemType_DevSettings: {
-            return
-                [[WMFSettingsMenuItem alloc] initWithType:type
-                                                    title:WMFLocalizedStringWithDefaultValue(@"main-menu-debug-tweaks", nil, nil, @"Developer settings", @"Title for button that shows debugging settings options.")
-                                                 iconName:@"settings-dev"
-                                                iconColor:[UIColor wmf_colorWithHex:0x1F95DE]
-                                           disclosureType:WMFSettingsMenuItemDisclosureType_ViewController
                                            disclosureText:nil
                                                isSwitchOn:NO];
         }

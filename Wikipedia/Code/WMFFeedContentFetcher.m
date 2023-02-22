@@ -4,7 +4,6 @@
 #import <WMF/WMFLogging.h>
 #import <WMF/NSURL+WMFLinkParsing.h>
 #import <WMF/NSError+WMFExtensions.h>
-#import <WMF/WMFNetworkUtilities.h>
 #import <WMF/NSString+WMFExtras.h>
 #import <WMF/NSCalendar+WMFCommonCalendars.h>
 #import <WMF/WMF-Swift.h>
@@ -19,13 +18,25 @@ static const NSInteger WMFFeedContentFetcherMinimumMaxAge = 18000; // 5 minutes
 
 @implementation WMFFeedContentFetcher
 
+- (instancetype)initWithSession:(WMFSession *)session configuration:(WMFConfiguration *)configuration {
+    self = [super initWithSession:session configuration:configuration];
+    if (self) {
+        [self setup];
+    }
+    return self;
+}
+
 - (instancetype)init {
     self = [super init];
     if (self) {
-        NSString *queueID = [NSString stringWithFormat:@"org.wikipedia.feedcontentfetcher.accessQueue.%@", [[NSUUID UUID] UUIDString]];
-        self.serialQueue = dispatch_queue_create([queueID cStringUsingEncoding:NSUTF8StringEncoding], DISPATCH_QUEUE_SERIAL);
+        [self setup];
     }
     return self;
+}
+
+- (void)setup {
+    NSString *queueID = [NSString stringWithFormat:@"org.wikipedia.feedcontentfetcher.accessQueue.%@", [[NSUUID UUID] UUIDString]];
+    self.serialQueue = dispatch_queue_create([queueID cStringUsingEncoding:NSUTF8StringEncoding], DISPATCH_QUEUE_SERIAL);
 }
 
 + (NSURL *)feedContentURLForSiteURL:(NSURL *)siteURL onDate:(NSDate *)date configuration:(WMFConfiguration *)configuration {
@@ -43,7 +54,7 @@ static const NSInteger WMFFeedContentFetcherMinimumMaxAge = 18000; // 5 minutes
     } else {
         path = @[@"feed", @"featured"];
     }
-    return [[configuration wikipediaMobileAppsServicesAPIURLComponentsForHost:siteURL.host appendingPathComponents:path] URL];
+    return [configuration feedContentAPIURLForURL:siteURL appendingPathComponents:path];
 }
 
 + (NSRegularExpression *)cacheControlRegex {
@@ -88,7 +99,7 @@ static const NSInteger WMFFeedContentFetcherMinimumMaxAge = 18000; // 5 minutes
                              }
 
                              NSError *mantleError = nil;
-                             WMFFeedDayResponse *responseObject = [MTLJSONAdapter modelOfClass:[WMFFeedDayResponse class] fromJSONDictionary:jsonDictionary error:&mantleError];
+        WMFFeedDayResponse *responseObject = [MTLJSONAdapter modelOfClass:[WMFFeedDayResponse class] fromJSONDictionary:jsonDictionary languageVariantCode: siteURL.wmf_languageVariantCode error:&mantleError];
                              if (mantleError) {
                                  DDLogError(@"Error parsing feed day response: %@", mantleError);
                                  failure(mantleError);
@@ -120,7 +131,7 @@ static const NSInteger WMFFeedContentFetcherMinimumMaxAge = 18000; // 5 minutes
     NSParameterAssert(titleURL);
 
     NSString *title = [titleURL.wmf_titleWithUnderscores wmf_UTF8StringWithPercentEscapes];
-    NSString *language = titleURL.wmf_language;
+    NSString *language = titleURL.wmf_languageCode;
     NSString *domain = titleURL.wmf_domain;
 
     NSParameterAssert(title);
@@ -145,8 +156,8 @@ static const NSInteger WMFFeedContentFetcherMinimumMaxAge = 18000; // 5 minutes
     }
 
     NSString *domainPathComponent = [NSString stringWithFormat:@"%@.%@", language, domain];
-    NSArray<NSString *> *path = @[@"metrics", @"pageviews", @"per-article", domainPathComponent, @"all-access", @"user", title, @"daily", startDateString, endDateString];
-    NSURLComponents *components = [self.configuration wikimediaMobileAppsServicesAPIURLComponentsAppendingPathComponents:path];
+    NSArray<NSString *> *path = @[@"pageviews", @"per-article", domainPathComponent, @"all-access", @"user", title, @"daily", startDateString, endDateString];
+    NSURLComponents *components = [self.configuration metricsAPIURLComponentsAppendingPathComponents:path];
     NSCalendar *calendar = [NSCalendar wmf_utcGregorianCalendar];
 
     [self.session getJSONDictionaryFromURL:components.URL

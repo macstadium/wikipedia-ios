@@ -25,7 +25,7 @@ class ReadingListsTests: XCTestCase {
             XCTAssert(false, "Should be able to create \(originalName) reading list: \(error)")
         }
         do {
-            let _ = try dataStore.readingListsController.createReadingList(named: casedName, description: "Foo")
+            _ = try dataStore.readingListsController.createReadingList(named: casedName, description: "Foo")
             XCTAssert(true, "Should be able to create list with same title and different case")
         } catch let error {
             XCTAssert(false, "Should not throw an error: \(error) when creating a list with the same title and different case")
@@ -151,16 +151,6 @@ class ReadingListsTests: XCTestCase {
             XCTAssert(existingArticleKeys.wmf_containsObjectsInAnyOrder(articleKeys) && existingArticleKeys.count == 1)
         } catch let error {
             XCTAssert(false, "Should be able to add articles to \(readingListName) reading list: \(error)")
-        }
-    }
-    
-    // MARK: - Performance
-    
-    func testPerformanceCreatingReadingList() {
-        let name = "foo"
-        
-        self.measure {
-            _ = try? dataStore.readingListsController.createReadingList(named: name)
         }
     }
 }

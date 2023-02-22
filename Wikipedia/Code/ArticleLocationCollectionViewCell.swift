@@ -88,7 +88,7 @@ class ArticleLocationCollectionViewCell: ArticleCollectionViewCell {
         origin.y += layoutMargins.bottom
         let height = max(origin.y, minHeight)
         
-        if (apply && !isImageViewHidden) {
+        if apply && !isImageViewHidden {
             let compassViewY = floor(0.5 * (height - compassViewDimension))
             let compassViewX = isLTR ? layoutMargins.left : size.width - layoutMargins.right - compassViewDimension
             compassView.frame = CGRect(x: compassViewX, y: compassViewY, width: compassViewDimension, height: compassViewDimension)
@@ -122,7 +122,7 @@ class ArticleLocationCollectionViewCell: ArticleCollectionViewCell {
     
     override func apply(theme: Theme) {
         super.apply(theme: theme)
-        imageView.backgroundColor = .wmf_green
+        imageView.backgroundColor = .green50
         distanceLabel.textColor = theme.colors.secondaryText
         distanceLabelBackground.layer.borderColor = theme.colors.distanceBorder.cgColor
         compassView.lineColor = theme.colors.accent

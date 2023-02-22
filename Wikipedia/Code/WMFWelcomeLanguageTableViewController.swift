@@ -1,4 +1,3 @@
-
 // https://stackoverflow.com/a/34902501/135557
 class WMFWelcomeLanguageIntrinsicTableView: UITableView {
     override var contentSize: CGSize {
@@ -43,17 +42,17 @@ class WMFWelcomeLanguageTableViewController: ThemeableViewController, WMFPreferr
     
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
-        UserDefaults.wmf.wmf_setShowSearchLanguageBar(MWKLanguageLinkController.sharedInstance().preferredLanguages.count > 1)
+        UserDefaults.standard.wmf_setShowSearchLanguageBar(MWKDataStore.shared().languageLinkController.preferredLanguages.count > 1)
     }
     
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return MWKLanguageLinkController.sharedInstance().preferredLanguages.count
+        return MWKDataStore.shared().languageLinkController.preferredLanguages.count
     }
     
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: WMFLanguageCell.wmf_nibName(), for: indexPath) as! WMFLanguageCell
         cell.collapseSideSpacing()
-        let langLink = MWKLanguageLinkController.sharedInstance().preferredLanguages[indexPath.row]
+        let langLink = MWKDataStore.shared().languageLinkController.preferredLanguages[indexPath.row]
         cell.languageName = langLink.name
         cell.isPrimary = indexPath.row == 0
         (cell as Themeable).apply(theme: theme)
@@ -61,15 +60,14 @@ class WMFWelcomeLanguageTableViewController: ThemeableViewController, WMFPreferr
     }
     
     @IBAction func addLanguages(withSender sender: AnyObject) {
-        if let langsVC = WMFPreferredLanguagesViewController.preferredLanguagesViewController() {
-            langsVC.showExploreFeedCustomizationSettings = false
-            langsVC.delegate = self
-            let navC = WMFThemeableNavigationController(rootViewController: langsVC, theme: self.theme)
-            present(navC, animated: true, completion: nil)
-        }
+        let langsVC = WMFPreferredLanguagesViewController.preferredLanguagesViewController()
+        langsVC.showExploreFeedCustomizationSettings = false
+        langsVC.delegate = self
+        let navC = WMFThemeableNavigationController(rootViewController: langsVC, theme: self.theme)
+        present(navC, animated: true, completion: nil)
     }
     
-    func languagesController(_ controller: WMFPreferredLanguagesViewController, didUpdatePreferredLanguages languages:[MWKLanguageLink]){
+    func languagesController(_ controller: WMFPreferredLanguagesViewController, didUpdatePreferredLanguages languages:[MWKLanguageLink]) {
         languageTableView.reloadData()
         languageTableView.layoutIfNeeded() // Needed for the content offset reset below to work
         languageTableView.contentOffset = .zero

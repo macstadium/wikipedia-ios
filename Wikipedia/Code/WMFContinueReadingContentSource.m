@@ -1,7 +1,5 @@
 #import <WMF/WMFContinueReadingContentSource.h>
 #import <WMF/MWKDataStore.h>
-#import <WMF/MWKHistoryEntry.h>
-#import <WMF/MWKArticle.h>
 #import <WMF/WMF-Swift.h>
 
 NS_ASSUME_NONNULL_BEGIN
@@ -10,7 +8,7 @@ static NSTimeInterval const WMFTimeBeforeDisplayingLastReadArticle = 60 * 60 * 2
 
 @interface WMFContinueReadingContentSource ()
 
-@property (readwrite, nonatomic, strong) MWKDataStore *userDataStore;
+@property (readwrite, nonatomic, weak) MWKDataStore *userDataStore;
 
 @end
 
@@ -34,18 +32,20 @@ static NSTimeInterval const WMFTimeBeforeDisplayingLastReadArticle = 60 * 60 * 2
 }
 
 - (void)loadNewContentInManagedObjectContext:(NSManagedObjectContext *)moc force:(BOOL)force completion:(nullable dispatch_block_t)completion {
-    NSURL *lastRead = [moc wmf_openArticleURL] ?: [self.userDataStore.historyList mostRecentEntryInManagedObjectContext:moc].URL;
-
-    if (!lastRead) {
-        completion();
-        return;
-    }
-
-    NSDate *resignActiveDate = [[NSUserDefaults wmf] wmf_appResignActiveDate];
-
-    BOOL shouldShowContinueReading = fabs([resignActiveDate timeIntervalSinceNow]) >= WMFTimeBeforeDisplayingLastReadArticle || force;
 
     [moc performBlock:^{
+        
+        NSURL *lastRead = [moc wmf_openArticleURL] ?: moc.mostRecentlyReadArticle.URL;
+
+        if (!lastRead) {
+            completion();
+            return;
+        }
+
+        NSDate *resignActiveDate = [[NSUserDefaults standardUserDefaults] wmf_appResignActiveDate];
+
+        BOOL shouldShowContinueReading = fabs([resignActiveDate timeIntervalSinceNow]) >= WMFTimeBeforeDisplayingLastReadArticle || force;
+        
         NSArray<WMFContentGroup *> *groups = [moc contentGroupsOfKind:WMFContentGroupKindContinueReading];
         if (!shouldShowContinueReading) {
             if (groups.count > 0) {

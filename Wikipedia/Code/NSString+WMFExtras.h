@@ -22,7 +22,7 @@ NS_ASSUME_NONNULL_BEGIN
  */
 - (NSString *)wmf_asMIMEType;
 
-- (NSDate *)wmf_iso8601Date;
+- (nullable NSDate *)wmf_iso8601Date;
 
 - (NSString *)wmf_randomlyRepeatMaxTimes:(NSUInteger)maxTimes;
 
@@ -32,12 +32,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (NSString *)wmf_stringBySanitizingForJavaScript;
 
-// Can use ES6 backticks ` now instead of 'wmf_stringBySanitizingForJavaScript' with apostrophes.
-// Doing so means we *only* have to escape backticks instead of apostrophes, quotes and line breaks.
-// (May consider switching other native-to-JS messaging to do same later.)
-- (NSString *)wmf_stringBySanitizingForBacktickDelimitedJavascript;
-
-- (NSString *)wmf_stringByCapitalizingFirstCharacterUsingWikipediaLanguage:(nullable NSString *)wikipediaLanguage; //Language is the string `en` in `en.wikipedia.org` or `de` in `de.wikipedia.org`. nil will use the current locale
+- (NSString *)wmf_stringByCapitalizingFirstCharacterUsingWikipediaLanguageCode:(nullable NSString *)wikipediaLanguageCode; // Wikipedia language code is the string `en` in `en.wikipedia.org` or `de` in `de.wikipedia.org`. nil will use the current locale
 
 - (BOOL)wmf_containsString:(NSString *)string;
 

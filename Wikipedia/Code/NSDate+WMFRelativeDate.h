@@ -4,7 +4,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface WMFLocalizedDateFormatStrings : NSObject
 
-+ (NSString *)yearsAgoForWikiLanguage:(nullable NSString *)language;
++ (NSString *)hoursAgo;
+
++ (NSString *)minutesAgo;
 
 @end
 
@@ -18,6 +20,8 @@ extern NSString *const WMFAbbreviatedRelativeDate;
 - (NSString *)wmf_fullyLocalizedRelativeDateStringFromLocalDateToNow;
 
 - (NSString *)wmf_localizedRelativeDateStringFromLocalDateToLocalDate:(NSDate *)date;
+
+- (NSString *)wmf_localizedShortDateStringRelativeToDate:(nonnull NSDate *)date;
 
 - (NSString *)wmf_localizedRelativeDateFromMidnightUTCDate;
 

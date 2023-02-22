@@ -1,3 +1,5 @@
+import CocoaLumberjackSwift
+
 extension WMFArticle {
     func merge(_ article: WMFArticle) {
         guard article.objectID != objectID else {
@@ -63,24 +65,35 @@ extension WMFArticle {
         }
        
         wikidataDescription = summary.articleDescription
+        wikidataID = summary.wikidataID
         displayTitleHTML = summary.displayTitle ?? summary.title ?? ""
         snippet = summary.extract?.wmf_summaryFromText()
-
+        
         if let summaryCoordinate = summary.coordinates {
             coordinate = CLLocationCoordinate2D(latitude: summaryCoordinate.lat, longitude: summaryCoordinate.lon)
         } else {
             coordinate = nil
         }
+        if let id = summary.id {
+            pageID = NSNumber(value: id)
+        } else {
+            pageID = nil
+        }
+        if let timestamp = summary.timestamp {
+            lastModifiedDate = DateFormatter.wmf_iso8601()?.date(from: timestamp)
+        } else {
+            lastModifiedDate = nil
+        }
     }
 }
 
 extension NSManagedObjectContext {
-    @objc public func wmf_createOrUpdateArticleSummmaries(withSummaryResponses summaryResponses: [String: ArticleSummary]) throws -> [String: WMFArticle] {
+    @objc public func wmf_createOrUpdateArticleSummmaries(withSummaryResponses summaryResponses: [WMFInMemoryURLKey: ArticleSummary]) throws -> [WMFInMemoryURLKey: WMFArticle] {
         guard !summaryResponses.isEmpty else {
             return [:]
         }
-        var keys: [String] = []
-        var reverseRedirectedKeys: [String: String] = [:]
+        var keys: [WMFInMemoryURLKey] = []
+        var reverseRedirectedKeys: [WMFInMemoryURLKey: WMFInMemoryURLKey] = [:]
         keys.reserveCapacity(summaryResponses.count)
         for (key, summary) in summaryResponses {
             guard
@@ -93,8 +106,8 @@ extension NSManagedObjectContext {
             reverseRedirectedKeys[summaryKey] = key
             keys.append(summaryKey)
             do {
-                let articlesWithKey = try fetchArticles(withKey: key)
-                let articlesWithSummaryKey = try fetchArticles(withKey: summaryKey)
+                let articlesWithKey = try fetchArticles(with: key.url)
+                let articlesWithSummaryKey = try fetchArticles(with: summaryKey.url)
                 guard let canonicalArticle = articlesWithSummaryKey.first ?? articlesWithKey.first else {
                     continue
                 }
@@ -106,19 +119,18 @@ extension NSManagedObjectContext {
                     canonicalArticle.merge(article)
                     delete(article)
                 }
-                canonicalArticle.key = summaryKey
+                canonicalArticle.key = summaryKey.databaseKey
+                canonicalArticle.variant = summaryKey.languageVariantCode
             } catch let error {
                 DDLogError("Error fetching articles for merge: \(error)")
             }
         }
         var keysToCreate = Set(keys)
-        let articlesToUpdateFetchRequest = WMFArticle.fetchRequest()
-        articlesToUpdateFetchRequest.predicate = NSPredicate(format: "key IN %@", keys)
-        var articles: [String: WMFArticle] = [:]
+        var articles: [WMFInMemoryURLKey: WMFArticle] = [:]
         articles.reserveCapacity(keys.count)
-        let fetchedArticles = try self.fetch(articlesToUpdateFetchRequest)
+        let fetchedArticles = try self.fetchArticlesWithInMemoryURLKeys(keys)
         for articleToUpdate in fetchedArticles {
-            guard let articleKey = articleToUpdate.key else {
+            guard let articleKey = articleToUpdate.inMemoryKey else {
                     continue
             }
             let requestedKey = reverseRedirectedKeys[articleKey] ?? articleKey
@@ -133,7 +145,7 @@ extension NSManagedObjectContext {
         for key in keysToCreate {
             let requestedKey = reverseRedirectedKeys[key] ?? key
             guard let result = summaryResponses[requestedKey], // responses are by requested key
-                let article = self.createArticle(withKey: key) else { // article should have redirected key
+                  let article = self.createArticle(with: key.url) else { // article should have redirected key
                     continue
             }
             article.update(withSummary: result)

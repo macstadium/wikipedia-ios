@@ -34,6 +34,22 @@
 			<string>ခု</string>
 		</dict>
 	</dict>
+	<key>diff-single-header-editor-number-edits-format</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@v1@</string>
+		<key>v1</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d တည်းဖြတ်မှု</string>
+			<key>other</key>
+			<string>%1$d တည်းဖြတ်မှုများ</string>
+		</dict>
+	</dict>
 	<key>move-articles-to-reading-list</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -66,26 +82,10 @@
 			<string>%1$d သမိုင်းဝင်ဖြစ်ရပ်များ</string>
 		</dict>
 	</dict>
-	<key>page-last-edited</key>
+	<key>page-history-stats-text</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@v1@</string>
-		<key>v1</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>other</key>
-			<string>%1$d ရက်အကြာက တည်းဖြတ်ခဲ့သည်</string>
-			<key>zero</key>
-			<string>ယနေ့တည်းဖြတ်ခဲ့သည်</string>
-		</dict>
-	</dict>
-	<key>page-read-in-other-languages</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@v1@တွင် ရရှိနိုင်သည်</string>
+		<string>%2$@ ကတည်းက %#@v1@</string>
 		<key>v1</key>
 		<dict>
 			<key>NSStringFormatSpecTypeKey</key>
@@ -93,9 +93,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%1$d အခြားဘာသာစကား</string>
+			<string>%1$d တည်းဖြတ်မှု</string>
 			<key>other</key>
-			<string>%1$d အခြားဘာသာစကားများ</string>
+			<string>%1$d တည်းဖြတ်မှုများ</string>
 		</dict>
 	</dict>
 	<key>places-filter-top-articles-count</key>
@@ -172,6 +172,8 @@
 			<string>NSStringPluralRuleType</string>
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
+			<key>one</key>
+			<string>မနေ့က</string>
 			<key>other</key>
 			<string>%1$d ရက်အကြာက</string>
 			<key>zero</key>
@@ -179,6 +181,24 @@
 		</dict>
 	</dict>
 	<key>relative-date-hours-ago</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@v1@</string>
+		<key>v1</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d နာရီအကြာက</string>
+			<key>other</key>
+			<string>%1$d နာရီအကြာက</string>
+			<key>zero</key>
+			<string>မကြာသေးခင်</string>
+		</dict>
+	</dict>
+	<key>relative-date-hrs-ago</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@v1@</string>
@@ -214,6 +234,24 @@
 			<string>ယခုလေးတင်</string>
 		</dict>
 	</dict>
+	<key>relative-date-months-ago</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@v1@</string>
+		<key>v1</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>ယခင်လ</string>
+			<key>other</key>
+			<string>%1$d လအကြာက</string>
+			<key>zero</key>
+			<string>ဤလ</string>
+		</dict>
+	</dict>
 	<key>relative-date-years-ago</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -224,6 +262,8 @@
 			<string>NSStringPluralRuleType</string>
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
+			<key>one</key>
+			<string>ယခင်နှစ်</string>
 			<key>other</key>
 			<string>%1$d နှစ်အကြာက</string>
 			<key>zero</key>

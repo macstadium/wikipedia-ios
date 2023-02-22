@@ -1,12 +1,25 @@
 import WebKit
+import CocoaLumberjackSwift
 
 class SinglePageWebViewController: ViewController {
     let url: URL
-    
-    required init(url: URL, theme: Theme) {
+    var doesUseSimpleNavigationBar: Bool {
+        didSet {
+            if doesUseSimpleNavigationBar {
+                navigationItem.setRightBarButtonItems([], animated: false)
+                navigationItem.titleView = nil
+            }
+        }
+    }
+
+    required init(url: URL, theme: Theme, doesUseSimpleNavigationBar: Bool = false) {
         self.url = url
+        self.doesUseSimpleNavigationBar = doesUseSimpleNavigationBar
         super.init()
         self.theme = theme
+        
+        self.navigationItem.backButtonTitle = url.lastPathComponent
+        self.navigationItem.backButtonDisplayMode = .generic
     }
     
     required init?(coder aDecoder: NSCoder) {
@@ -22,7 +35,7 @@ class SinglePageWebViewController: ViewController {
             style.innerHTML = '.header-chrome { display: none; }'
             document.head.appendChild(style)
         """
-        controller.addUserScript(WKUserScript(source: script, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
+        controller.addUserScript(PageUserScript(source: script, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
         config.userContentController = controller
         config.applicationNameForUserAgent = "WikipediaApp"
         return config
@@ -44,15 +57,14 @@ class SinglePageWebViewController: ViewController {
         view.wmf_addSubviewWithConstraintsToEdges(webView)
         scrollView = webView.scrollView
         scrollView?.delegate = self
-        let safariItem = UIBarButtonItem(barButtonSystemItem: .action, target: self, action: #selector(tappedAction(_:)))
-        let searchItem = AppSearchBarButtonItem.newAppSearchBarButtonItem
-        navigationItem.setRightBarButtonItems([searchItem, safariItem], animated: false)
-        
-        let wButton = UIButton(type: .custom)
-        wButton.setImage(UIImage(named: "W"), for: .normal)
-        wButton.sizeToFit()
-        wButton.addTarget(self, action: #selector(wButtonTapped(_:)), for: .touchUpInside)
-        navigationItem.titleView = wButton
+
+        if !doesUseSimpleNavigationBar {
+            let safariItem = UIBarButtonItem(barButtonSystemItem: .action, target: self, action: #selector(tappedAction(_:)))
+            let searchItem = AppSearchBarButtonItem.newAppSearchBarButtonItem
+            navigationItem.setRightBarButtonItems([searchItem, safariItem], animated: false)
+
+            setupWButton()
+        }
 
         super.viewDidLoad()
     }
@@ -91,7 +103,9 @@ class SinglePageWebViewController: ViewController {
             return true
         }
     
-        navigate(to: actionURL)
+        let userInfo: [AnyHashable : Any] = [RoutingUserInfoKeys.source: RoutingUserInfoSourceValue.inAppWebView.rawValue]
+        navigate(to: actionURL, userInfo: userInfo)
+        
         return false
     }
     
@@ -102,12 +116,9 @@ class SinglePageWebViewController: ViewController {
             popover.barButtonItem = sender
             popover.permittedArrowDirections = .any
         }
-        
+
+        activityViewController.excludedActivityTypes = [.addToReadingList]
         present(activityViewController, animated: true)
-    }
-    
-    @objc func wButtonTapped(_ sender: UIButton) {
-        navigationController?.popToRootViewController(animated: true)
     }
     
     @objc func closeButtonTapped(_ sender: UIButton) {
@@ -124,7 +135,6 @@ extension SinglePageWebViewController: WKNavigationDelegate {
         decisionHandler(.allow)
     }
     
-    @available(iOS 13.0, *)
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, preferences: WKWebpagePreferences, decisionHandler: @escaping (WKNavigationActionPolicy, WKWebpagePreferences) -> Void) {
         guard handleNavigation(with: navigationAction) else {
             decisionHandler(.cancel, preferences)
@@ -132,10 +142,17 @@ extension SinglePageWebViewController: WKNavigationDelegate {
         }
         decisionHandler(.allow, preferences)
     }
+
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        DDLogError("Error loading single page - did fail provisional navigation: \(error)")
+        WMFAlertManager.sharedInstance.showErrorAlert(error as NSError, sticky: false, dismissPreviousAlerts: true)
+        fakeProgressController.finish()
+    }
     
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
         DDLogError("Error loading single page: \(error)")
         WMFAlertManager.sharedInstance.showErrorAlert(error as NSError, sticky: false, dismissPreviousAlerts: false)
+        fakeProgressController.finish()
     }
     
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {

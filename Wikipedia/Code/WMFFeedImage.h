@@ -1,8 +1,8 @@
-#import <Mantle/Mantle.h>
+#import <WMF/WMFMTLModel.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface WMFFeedImage : MTLModel <MTLJSONSerializing>
+@interface WMFFeedImage : WMFMTLModel <MTLJSONSerializing>
 
 @property (nonatomic, readonly, copy) NSString *canonicalPageTitle;
 
@@ -13,6 +13,12 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly, copy) NSURL *imageThumbURL;
 
 @property (nonatomic, readonly, copy) NSURL *imageURL;
+
+@property (nonatomic, readonly, copy, nullable) NSNumber *imageWidth;
+
+@property (nonatomic, readonly, copy, nullable) NSNumber *imageHeight;
+
+- (nullable NSURL *)getImageURLForWidth:(double)width height:(double)height;
 
 @end
 

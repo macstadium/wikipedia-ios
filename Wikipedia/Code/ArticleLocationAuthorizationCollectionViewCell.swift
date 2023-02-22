@@ -1,6 +1,6 @@
 import UIKit
 
-protocol ArticleLocationAuthorizationCollectionViewCellDelegate: class {
+protocol ArticleLocationAuthorizationCollectionViewCellDelegate: AnyObject {
     func articleLocationAuthorizationCollectionViewCellDidTapAuthorize(_ cell: ArticleLocationAuthorizationCollectionViewCell)
 }
 
@@ -41,9 +41,6 @@ class ArticleLocationAuthorizationCollectionViewCell: ArticleLocationExploreColl
     }
 
     public func updateForLocationEnabled() {
-        guard WMFLocationManager.isAuthorized() else {
-            return
-        }
         authorizeButton.setTitle(WMFLocalizedString("places-location-enabled", value: "Location enabled", comment: "Title for button informing user that they successfully enabled location services"), for: .normal)
         authorizeButton.removeTarget(self, action: #selector(authorizeButtonPressed(_:)), for: .touchUpInside)
         authorizeButton.isEnabled = false
@@ -60,5 +57,9 @@ class ArticleLocationAuthorizationCollectionViewCell: ArticleLocationExploreColl
     
     @objc public func authorizeButtonPressed(_ sender: Any?) {
         authorizationDelegate?.articleLocationAuthorizationCollectionViewCellDidTapAuthorize(self)
+    }
+    
+    override var isSwipeEnabled: Bool {
+        return false
     }
 }

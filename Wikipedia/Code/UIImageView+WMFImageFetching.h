@@ -1,5 +1,7 @@
 @import UIKit;
 @class MWKImage;
+@class WMFPermanentCacheController;
+
 #import <WMF/WMFBlockDefinitions.h>
 
 NS_ASSUME_NONNULL_BEGIN
@@ -26,21 +28,19 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)wmf_setImageWithURL:(NSURL *)imageURL detectFaces:(BOOL)detectFaces onGPU:(BOOL)onGPU failure:(WMFErrorHandler)failure success:(WMFSuccessHandler)success;
 
 /**
- *  Set the receiver's @c image to the @c sourceURL of the given @c imageMetadata, optionally centering any faces found.
- *  Face detection data will be persisted in the imageMetadata
- *  THIS IS THE PREFERRED METHOD OF RESOLVING FACE DETECTION AS IT WILL PERSIST THE RESULTS
- *
- *  @param imageMetadata Metadata with the `sourceURL` of the image you want to set.
- *  @param detectFaces Set to YES to detect faces.
- */
-- (void)wmf_setImageWithMetadata:(MWKImage *)imageMetadata detectFaces:(BOOL)detectFaces onGPU:(BOOL)onGPU failure:(WMFErrorHandler)failure success:(WMFSuccessHandler)success;
-
-/**
  *  The URL to fetch, depending on the current values of @c wmf_imageMetadata and @c wmf_imageURL.
  *
  *  @return A URL to the image to display in the receiver, or @c nil if none is set.
  */
 @property (nonatomic, strong, nullable, readonly) NSURL *wmf_imageURLToFetch;
+
+/**
+ *  The image controller used to fetch image data.
+ *
+ *  Used to cancel the previous fetch executed by the receiver. Defaults to @c [MWKDataStore shared]'s cacheController.
+ */
+@property (nonatomic, weak, nullable, setter=wmf_setImageController:) WMFPermanentCacheController *wmf_imageController;
+
 
 @end
 

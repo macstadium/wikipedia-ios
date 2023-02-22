@@ -3,9 +3,9 @@ import MobileCoreServices
 import CoreSpotlight
 import CocoaLumberjackSwift
 
-public extension NSURL {
-    @objc func searchableItemAttributes() -> CSSearchableItemAttributeSet? {
-        guard self.wmf_isWikiResource else {
+extension URL {
+    var searchableItemAttributes: CSSearchableItemAttributeSet? {
+        guard wikiResourcePath != nil else {
             return nil
         }
         guard let title = self.wmf_title else {
@@ -22,18 +22,9 @@ public extension NSURL {
     }
 }
 
-public extension MWKArticle {
-    @objc func searchableItemAttributes() -> CSSearchableItemAttributeSet {
-        let castURL = url as NSURL
-        let searchableItem = castURL.searchableItemAttributes() ??
-                CSSearchableItemAttributeSet(itemContentType: kUTTypeInternetLocation as String)
-
-        searchableItem.subject = entityDescription
-        searchableItem.contentDescription = summary
-        if let string = imageURL {
-            searchableItem.thumbnailData = ImageController.shared.permanentlyCachedTypedDiskDataForImage(withURL: URL(string: string)).data
-        }
-        return searchableItem
+extension NSURL {
+    @objc var wmf_searchableItemAttributes: CSSearchableItemAttributeSet? {
+        return (self as URL).searchableItemAttributes
     }
 }
 
@@ -58,21 +49,42 @@ public class WMFSavedPageSpotlightManager: NSObject {
         }
     }
     
+    private func searchableItemAttributes(for article: WMFArticle) -> CSSearchableItemAttributeSet {
+        let searchableItem = article.url?.searchableItemAttributes ??
+                CSSearchableItemAttributeSet(itemContentType: kUTTypeInternetLocation as String)
+
+        searchableItem.subject = article.wikidataDescription
+        searchableItem.contentDescription = article.snippet
+        if let imageURL = article.imageURL(forWidth: WMFImageWidth.medium.rawValue) {
+            searchableItem.thumbnailData = dataStore.cacheController.imageCache.data(withURL: imageURL)?.data
+        }
+        return searchableItem
+    }
+    
     @objc public func addToIndex(url: NSURL) {
-        guard let article = dataStore.existingArticle(with: url as URL), let identifier = NSURL.wmf_desktopURL(for: url as URL)?.absoluteString else {
+        guard let article = dataStore.fetchArticle(with: url as URL), let identifier = NSURL.wmf_desktopURL(for: url as URL)?.absoluteString else {
             return
         }
         
-        queue.async {
-            let searchableItemAttributes = article.searchableItemAttributes()
-            searchableItemAttributes.keywords?.append("Saved")
+        dataStore.viewContext.perform { [weak self] in
             
-            let item = CSSearchableItem(uniqueIdentifier: identifier, domainIdentifier: "org.wikimedia.wikipedia", attributeSet: searchableItemAttributes)
-            item.expirationDate = NSDate.distantFuture
+            guard let self = self else {
+                return
+            }
             
-            CSSearchableIndex.default().indexSearchableItems([item]) { (error) -> Void in
-                if let error = error {
-                    DDLogError("Indexing error: \(error.localizedDescription)")
+            let searchableItemAttributes = self.searchableItemAttributes(for: article)
+            
+            self.queue.async {
+                
+                searchableItemAttributes.keywords?.append("Saved")
+                
+                let item = CSSearchableItem(uniqueIdentifier: identifier, domainIdentifier: "org.wikimedia.wikipedia", attributeSet: searchableItemAttributes)
+                item.expirationDate = NSDate.distantFuture
+                
+                CSSearchableIndex.default().indexSearchableItems([item]) { (error) -> Void in
+                    if let error = error {
+                        DDLogError("Indexing error: \(error.localizedDescription)")
+                    }
                 }
             }
         }

@@ -13,8 +13,8 @@
 @dynamic imageHeight;
 @dynamic imageURLString;
 @dynamic imageWidth;
-@dynamic isCached;
 @dynamic isDownloaded;
+@dynamic isConversionFromMobileViewNeeded;
 @dynamic isExcludedFromFeed;
 @dynamic key;
 @dynamic latitude;
@@ -26,6 +26,7 @@
 @dynamic signedQuadKey;
 @dynamic snippet;
 @dynamic thumbnailURLString;
+@dynamic variant;
 @dynamic viewedDate;
 @dynamic viewedDateWithoutTime;
 @dynamic viewedFragment;
@@ -37,5 +38,9 @@
 @dynamic previewReadingLists;
 @dynamic errorCodeNumber;
 @dynamic ns;
+@dynamic pageID;
+@dynamic lastModifiedDate;
+@dynamic downloadRetryDate;
+@dynamic downloadAttemptCount;
 
 @end

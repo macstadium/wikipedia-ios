@@ -35,6 +35,8 @@ class SavedArticlesCollectionViewCell: ArticleCollectionViewCell {
                 return
             }
             var alertLabelText: String? = nil
+            let alertImage: UIImage? = UIImage(named: "error-icon")
+            
             switch alertType {
             case .listLimitExceeded:
                 alertLabelText = WMFLocalizedString("reading-lists-article-not-synced-list-limit-exceeded", value: "List limit exceeded, unable to sync article", comment: "Text of the alert label informing the user that article couldn't be synced.")
@@ -48,11 +50,9 @@ class SavedArticlesCollectionViewCell: ArticleCollectionViewCell {
                 alertLabelText = articleError.localizedDescription
             }
             
-            alertLabel.text = alertLabelText
-
-            if !isAlertIconHidden {
-                alertIcon.image = UIImage(named: "error-icon")
-            }
+            alertButton.setTitle(alertLabelText, for: .normal)
+            alertButton.setImage(alertImage, for: .normal)
+            setNeedsLayout()
         }
     }
     
@@ -166,7 +166,7 @@ class SavedArticlesCollectionViewCell: ArticleCollectionViewCell {
         
         descriptionLabel.isHidden = !descriptionLabel.wmf_hasText
         
-        if (apply && !isStatusViewHidden) {
+        if apply && !isStatusViewHidden {
             let x = isArticleRTL ? titleLabel.frame.minX - spacing - statusViewDimension : titleLabel.frame.maxX + spacing
             let statusViewFrame = CGRect(x: x, y: (titleLabel.frame.midY - 0.5 * statusViewDimension), width: statusViewDimension, height: statusViewDimension)
             statusView.frame = statusViewFrame
@@ -179,17 +179,17 @@ class SavedArticlesCollectionViewCell: ArticleCollectionViewCell {
         let separatorXPositon: CGFloat = 0
         let separatorWidth = size.width
         
-        if (apply) {
-            if (!bottomSeparator.isHidden) {
+        if apply {
+            if !bottomSeparator.isHidden {
                 bottomSeparator.frame = CGRect(x: separatorXPositon, y: height - singlePixelDimension, width: separatorWidth, height: singlePixelDimension)
             }
             
-            if (!topSeparator.isHidden) {
+            if !topSeparator.isHidden {
                 topSeparator.frame = CGRect(x: separatorXPositon, y: 0, width: separatorWidth, height: singlePixelDimension)
             }
         }
         
-        if (apply) {
+        if apply {
             let imageViewY = floor(0.5*height - 0.5*imageViewDimension)
             var x = layoutMargins.right
             if !isArticleRTL {
@@ -204,34 +204,17 @@ class SavedArticlesCollectionViewCell: ArticleCollectionViewCell {
             yAlignedWithImageBottom -= layoutMargins.bottom
         }
         
-        if (apply && !isAlertIconHidden) {
-            var x = origin.x
-            if isArticleRTL {
-                x = size.width - layoutMargins.right - alertIconDimension
-            }
-            alertIcon.frame = CGRect(x: x, y: yAlignedWithImageBottom, width: alertIconDimension, height: alertIconDimension)
-            origin.y += alertIcon.frame.layoutHeight(with: 0)
+        if apply && !isAlertButtonHidden {
+            let effectiveImageDimension = isImageViewHidden ? 0 : imageViewDimension + spacing
+            let xPosition = isArticleRTL ? layoutMargins.right + effectiveImageDimension : layoutMargins.left
+            let maxButtonHeight: CGFloat = 44
+            let yPosition = height - layoutMargins.bottom - maxButtonHeight
+            let availableWidth = layoutWidth(for: size) - spacing - effectiveImageDimension // don't reuse widthMinusMargins
+            let origin = CGPoint(x: xPosition, y: yPosition)
+            alertButton.wmf_preferredFrame(at: origin, maximumSize: CGSize(width: availableWidth, height: maxButtonHeight), minimumSize: .zero, horizontalAlignment: isArticleRTL ? .right : .left, verticalAlignment: .bottom, apply: apply)
         }
         
-        if (apply && !isAlertLabelHidden) {
-            let xPosition: CGFloat
-            if isAlertIconHidden {
-                xPosition = origin.x
-            } else if isArticleRTL {
-                xPosition = alertIcon.frame.origin.x - widthMinusMargins + alertIconDimension
-            } else {
-                xPosition = alertIcon.frame.maxX + spacing
-            }
-            var yPosition = alertIcon.frame.midY - 0.5 * alertIconDimension
-            var availableWidth = widthMinusMargins - alertIconDimension - spacing
-            if isAlertIconHidden {
-                yPosition = yAlignedWithImageBottom
-                availableWidth = widthMinusMargins
-            }
-            _ = alertLabel.wmf_preferredFrame(at: CGPoint(x: xPosition, y: yPosition), maximumWidth: availableWidth, alignedBy: articleSemanticContentAttribute, apply: apply)
-        }
-        
-        if (apply && !isTagsViewHidden) {
+        if apply && !isTagsViewHidden {
             collectionViewAvailableWidth = widthMinusMargins
             collectionView.frame = CGRect(x: origin.x, y: yAlignedWithImageBottom, width: collectionViewAvailableWidth, height: collectionViewHeight)
             collectionView.semanticContentAttribute = articleSemanticContentAttribute
@@ -244,24 +227,20 @@ class SavedArticlesCollectionViewCell: ArticleCollectionViewCell {
         if let error = entry.APIError {
             switch error {
             case .entryLimit where isInDefaultReadingList:
-                isAlertLabelHidden = false
-                isAlertIconHidden = false
+                isAlertButtonHidden = false
                 alertType = .genericNotSynced
             case .entryLimit:
-                isAlertLabelHidden = false
-                isAlertIconHidden = false
+                isAlertButtonHidden = false
                 alertType = .entryLimitExceeded(limit: entryLimit)
             default:
-                isAlertLabelHidden = true
-                isAlertIconHidden = true
+                isAlertButtonHidden = true
             }
         }
         
         if let error = readingList?.APIError {
             switch error {
             case .listLimit:
-                isAlertLabelHidden = false
-                isAlertIconHidden = false
+                isAlertButtonHidden = false
                 alertType = .listLimitExceeded(limit: listLimit)
             default:
                 break
@@ -273,16 +252,13 @@ class SavedArticlesCollectionViewCell: ArticleCollectionViewCell {
             fallthrough
         case .articleError:
             if article.error != .none {
-                isAlertLabelHidden = false
-                isAlertIconHidden = false
+                isAlertButtonHidden = false
                 alertType = .articleError(article.error)
             } else if !article.isDownloaded {
-                isAlertLabelHidden = false
-                isAlertIconHidden = false
+                isAlertButtonHidden = false
                 alertType = .downloading
             } else {
-                isAlertLabelHidden = true
-                isAlertIconHidden = true
+                isAlertButtonHidden = true
                 alertType = nil
             }
         default:
@@ -295,7 +271,7 @@ class SavedArticlesCollectionViewCell: ArticleCollectionViewCell {
         titleHTML = article.displayTitleHTML
         descriptionLabel.text = article.capitalizedWikidataDescriptionOrSnippet
         
-        let imageWidthToRequest = imageView.frame.size.width < 300 ? traitCollection.wmf_nearbyThumbnailWidth : traitCollection.wmf_leadImageWidth // 300 is used to distinguish between full-awidth images and thumbnails. Ultimately this (and other thumbnail requests) should be updated with code that checks all the available buckets for the width that best matches the size of the image view.
+        let imageWidthToRequest = imageView.frame.size.width < 300 ? traitCollection.wmf_nearbyThumbnailWidth : traitCollection.wmf_leadImageWidth // 300 is used to distinguish between full-width images and thumbnails. Ultimately this (and other thumbnail requests) should be updated with code that checks all the available buckets for the width that best matches the size of the image view.
         if let imageURL = article.imageURL(forWidth: imageWidthToRequest) {
             isImageViewHidden = false
             if !layoutOnly {
@@ -305,15 +281,15 @@ class SavedArticlesCollectionViewCell: ArticleCollectionViewCell {
             isImageViewHidden = true
         }
         
-        let articleLanguage = article.url?.wmf_language
-        titleLabel.accessibilityLanguage = articleLanguage
-        descriptionLabel.accessibilityLanguage = articleLanguage
-        extractLabel?.accessibilityLanguage = articleLanguage
-        articleSemanticContentAttribute = MWLanguageInfo.semanticContentAttribute(forWMFLanguage: articleLanguage)
+        let articleLanguageCode = article.url?.wmf_languageCode
+        titleLabel.accessibilityLanguage = articleLanguageCode
+        descriptionLabel.accessibilityLanguage = articleLanguageCode
+        extractLabel?.accessibilityLanguage = articleLanguageCode
+        articleSemanticContentAttribute = MWKLanguageLinkController.semanticContentAttribute(forContentLanguageCode: article.url?.wmf_contentLanguageCode)
         
         isStatusViewHidden = article.isDownloaded
         
-        isTagsViewHidden = tags.readingLists.isEmpty || !isAlertLabelHidden
+        isTagsViewHidden = tags.readingLists.isEmpty || !isAlertButtonHidden
         
         if shouldShowSeparators {
             topSeparator.isHidden = index != 0

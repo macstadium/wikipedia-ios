@@ -18,8 +18,8 @@ class HintController: NSObject {
 
     var theme = Theme.standard
     
-    //if true, hint will extend below safe area to the bottom of the view, and hint content within will align to safe area
-    //must also override extendsUnderSafeArea to true in HintViewController
+    // if true, hint will extend below safe area to the bottom of the view, and hint content within will align to safe area
+    // must also override extendsUnderSafeArea to true in HintViewController
     var extendsUnderSafeArea: Bool {
         return false
     }
@@ -78,18 +78,19 @@ class HintController: NSObject {
         }
 
         containerView.translatesAutoresizingMaskIntoConstraints = false
-
-        if let wmfVCPresenter = presenter as? WMFViewController { // not ideal, violates encapsulation
+        
+        var bottomAnchor: NSLayoutYAxisAnchor = extendsUnderSafeArea ? presenter.view.bottomAnchor : presenter.view.safeAreaLayoutGuide.bottomAnchor
+        
+        if let wmfVCPresenter = presenter as? ViewController { // not ideal, violates encapsulation
             wmfVCPresenter.view.insertSubview(containerView, belowSubview: wmfVCPresenter.toolbar)
-            additionalBottomSpacing = wmfVCPresenter.toolbar.frame.size.height
+            if !wmfVCPresenter.isToolbarHidden && wmfVCPresenter.toolbar.superview != nil {
+                bottomAnchor = wmfVCPresenter.toolbar.topAnchor
+            }
         } else if let subview = subview {
             presenter.view.insertSubview(containerView, belowSubview: subview)
         } else {
             presenter.view.addSubview(containerView)
         }
-
-        var bottomAnchor: NSLayoutYAxisAnchor
-        bottomAnchor = extendsUnderSafeArea ? presenter.view.bottomAnchor : presenter.view.safeAreaLayoutGuide.bottomAnchor
 
         // `containerBottomConstraint` is activated when the hint is visible
         containerViewConstraint.bottom = containerView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: 0 - additionalBottomSpacing)
@@ -102,7 +103,7 @@ class HintController: NSObject {
 
         NSLayoutConstraint.activate([containerViewConstraint.top!, leadingConstraint, trailingConstraint])
 
-        if presenter.isKind(of: SearchResultsViewController.self){
+        if presenter.isKind(of: SearchResultsViewController.self) {
             presenter.wmf_hideKeyboard()
         }
 
@@ -183,13 +184,12 @@ class HintController: NSObject {
 
     private func adjustSpacingIfPresenterHasSecondToolbar(hintHidden: Bool) {
         guard
-            let viewController = presenter as? WMFViewController,
-            !viewController.isSecondToolbarHidden
+            let viewController = presenter as? ViewController,
+            !viewController.isSecondToolbarHidden && !hintHidden
         else {
             return
         }
-        let spacing = hintHidden ? 0 : containerView.frame.height
-        viewController.setAdditionalSecondToolbarSpacing(spacing, animated: true)
+        viewController.setSecondToolbarHidden(true, animated: true)
     }
 }
 

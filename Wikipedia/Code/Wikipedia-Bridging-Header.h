@@ -1,3 +1,5 @@
+#import <WMF/WMF.h> // without this, compilation fails with Abort trap: 6
+
 #import "WMFAppViewController.h"
 
 #import "RMessage.h"
@@ -5,7 +7,6 @@
 
 #import "NSString+FormattedAttributedString.h"
 #import "WMFPageHistoryRevision.h"
-#import "UIViewController+WMFArticlePresentation.h"
 #import "UIViewController+WMFStoryboardUtilities.h"
 #import "WMFGradientView.h"
 
@@ -19,28 +20,22 @@
 
 #import "WMFChange.h"
 
-#import "WMFArticleFetcher.h"
-#import "SavedArticlesFetcher.h"
-#import "WikiTextSectionFetcher.h"
-#import "PreviewHtmlFetcher.h"
-#import "MWKImageInfoFetcher.h"
+#import "WMFWebView.h"
 
 #import "WikiTextSectionUploader.h"
-#import "WMFArticleJSONCompilationHelper.h"
+#import "WMFShareFunnel.h"
+#import "WMFLanguagesViewControllerDelegate.h"
 
 // Model
 #import "MWKLicense.h"
-#import "MWKImageInfoFetcher.h"
 #import "WMFArticleRevisionFetcher.h"
 #import "WMFRevisionQueryResults.h"
 #import "WMFArticleRevision.h"
+#import "MWKLanguageLinkFetcher.h"
 
 // View Controllers
 #import "WMFThemeableNavigationController.h"
-#import "WMFArticleViewController_Private.h"
-#import "WebViewController.h"
 #import "WMFLanguagesViewController.h"
-#import "WMFTableOfContentsDisplay.h"
 #import "WMFReferencePopoverMessageViewController.h"
 #import "WMFSettingsTableViewCell.h"
 #import "WMFSettingsViewController.h"
@@ -49,6 +44,7 @@
 #import "UIViewController+WMFDynamicHeightPopoverMessage.h"
 #import "WMFThemeableNavigationController.h"
 #import "WMFFirstRandomViewController.h"
+#import "WMFImageGalleryViewController.h"
 
 // Views
 #import "WMFTableHeaderFooterLabelView.h"
@@ -58,11 +54,11 @@
 #import "UIButton+WMFButton.h"
 #import "UIView+WMFSnapshotting.h"
 #import "WMFLanguageCell.h"
-#import "WMFRandomArticleViewController.h"
 #import "WMFCompassView.h"
 #import "WKWebView+ElementLocation.h"
 #import "UIScrollView+WMFContentOffsetUtils.h"
 #import "WKWebView+WMFWebViewControllerJavascript.h"
+#import "WMFRandomDiceButton.h"
 
 // Diagnostics
 #import "WMFSearchFunnel.h"
@@ -73,3 +69,5 @@
 
 // Third Party
 #import "TUSafariActivity.h"
+#import "DDLog+WMFLogger.h"
+#import "NYTPhotoViewer.h"

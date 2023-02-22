@@ -209,7 +209,7 @@ class ColumnarCollectionViewController: ViewController, ColumnarCollectionViewLa
     }
     
     
-    // MARK - UICollectionViewDataSourcePrefetching
+    // MARK: - UICollectionViewDataSourcePrefetching
     
     private lazy var imageURLsCurrentlyBeingPrefetched: Set<URL> = {
         return []
@@ -225,7 +225,8 @@ class ColumnarCollectionViewController: ViewController, ColumnarCollectionViewLa
                 continue
             }
             let imageURLsToPrefetch = imageURLs.subtracting(imageURLsCurrentlyBeingPrefetched)
-            let imageController = ImageController.shared
+            // SINGLETONTODO
+            let imageController = MWKDataStore.shared().cacheController.imageCache
             imageURLsCurrentlyBeingPrefetched.formUnion(imageURLsToPrefetch)
             for imageURL in imageURLsToPrefetch {
                 imageController.prefetch(withURL: imageURL) {
@@ -257,7 +258,7 @@ class ColumnarCollectionViewController: ViewController, ColumnarCollectionViewLa
         footer.apply(theme: theme)
     }
     
-    // MARK - ColumnarCollectionViewLayoutDelegate
+    // MARK: - ColumnarCollectionViewLayoutDelegate
     
     func collectionView(_ collectionView: UICollectionView, estimatedHeightForHeaderInSection section: Int, forColumnWidth columnWidth: CGFloat) -> ColumnarCollectionViewLayoutHeightEstimate {
         var estimate = ColumnarCollectionViewLayoutHeightEstimate(precalculated: true, height: 0)
@@ -305,20 +306,6 @@ class ColumnarCollectionViewController: ViewController, ColumnarCollectionViewLa
     func metrics(with size: CGSize, readableWidth: CGFloat, layoutMargins: UIEdgeInsets) -> ColumnarCollectionViewLayoutMetrics {
         return ColumnarCollectionViewLayoutMetrics.tableViewMetrics(with: size, readableWidth: readableWidth, layoutMargins: layoutMargins)
     }
-    
-    // MARK - Previewing
-    
-    final func collectionViewIndexPathForPreviewingContext(_ previewingContext: UIViewControllerPreviewing, location: CGPoint) -> IndexPath? {
-        let translatedLocation = view.convert(location, to: collectionView)
-        guard
-            let indexPath = collectionView.indexPathForItem(at: translatedLocation),
-            let cell = collectionView.cellForItem(at: indexPath)
-        else {
-                return nil
-        }
-        previewingContext.sourceRect = view.convert(cell.bounds, from: cell)
-        return indexPath
-    }
 
     // MARK: - Event logging utiities
 
@@ -346,6 +333,7 @@ class ColumnarCollectionViewController: ViewController, ColumnarCollectionViewLa
     }
 }
 
+// MARK: - UICollectionViewDataSource
 extension ColumnarCollectionViewController: UICollectionViewDataSource {
     open func numberOfSections(in collectionView: UICollectionView) -> Int {
         return 0
@@ -383,39 +371,10 @@ extension ColumnarCollectionViewController: UICollectionViewDelegate {
     
 }
 
-// MARK: - WMFArticlePreviewingActionsDelegate
-extension ColumnarCollectionViewController: WMFArticlePreviewingActionsDelegate {
-    func saveArticlePreviewActionSelected(withArticleController articleController: WMFArticleViewController, didSave: Bool, articleURL: URL) {
-        if let eventLoggingEventValuesProviding = self as? EventLoggingEventValuesProviding {
-            if didSave {
-                ReadingListsFunnel.shared.logSave(category: eventLoggingEventValuesProviding.eventLoggingCategory, label: eventLoggingEventValuesProviding.eventLoggingLabel, articleURL: articleURL)
-            } else {
-                ReadingListsFunnel.shared.logUnsave(category: eventLoggingEventValuesProviding.eventLoggingCategory, label: eventLoggingEventValuesProviding.eventLoggingLabel, articleURL: articleURL)
-            }
-        }
-    }
-    
-    func readMoreArticlePreviewActionSelected(withArticleController articleController: WMFArticleViewController) {
-        articleController.wmf_removePeekableChildViewControllers()
-        wmf_push(articleController, animated: true)
-    }
-    
-    func shareArticlePreviewActionSelected(withArticleController articleController: WMFArticleViewController, shareActivityController: UIActivityViewController) {
-        articleController.wmf_removePeekableChildViewControllers()
-        present(shareActivityController, animated: true, completion: nil)
-    }
-    
-    func viewOnMapArticlePreviewActionSelected(withArticleController articleController: WMFArticleViewController) {
-        articleController.wmf_removePeekableChildViewControllers()
-        let placesURL = NSUserActivity.wmf_URLForActivity(of: .places, withArticleURL: articleController.articleURL)
-        UIApplication.shared.open(placesURL, options: [:], completionHandler: nil)
-    }
-}
-
 extension ColumnarCollectionViewController {
-    func wmf_push(_ viewController: UIViewController, context: FeedFunnelContext?, index: Int?, animated: Bool) {
+    func push(_ viewController: UIViewController, context: FeedFunnelContext?, index: Int?, animated: Bool) {
         logFeedEventIfNeeded(for: context, index: index, pushedViewController: viewController)
-        wmf_push(viewController, animated: animated)
+        push(viewController, animated: animated)
     }
 
     func logFeedEventIfNeeded(for context: FeedFunnelContext?, index: Int?, pushedViewController: UIViewController) {
@@ -426,7 +385,7 @@ extension ColumnarCollectionViewController {
         let isPushedFromExplore = viewControllers.count == 1 && isFirstViewControllerExplore
         let isPushedFromExploreDetail = viewControllers.count == 2 && isFirstViewControllerExplore
         if isPushedFromExplore {
-            let isArticle = pushedViewController is WMFArticleViewController
+            let isArticle = pushedViewController is ArticleViewController
             if isArticle {
                 FeedFunnel.shared.logFeedCardReadingStarted(for: context, index: index)
             } else {
@@ -436,5 +395,36 @@ extension ColumnarCollectionViewController {
             FeedFunnel.shared.logArticleInFeedDetailReadingStarted(for: context, index: index, maxViewed: maxViewed)
         }
 
+    }
+}
+
+// MARK: - CollectionViewContextMenuShowing
+extension ColumnarCollectionViewController {
+    func collectionView(_ collectionView: UICollectionView, contextMenuConfigurationForItemAt indexPath: IndexPath, point: CGPoint) -> UIContextMenuConfiguration? {
+        guard let contextMenuCollectionVC = self as? CollectionViewContextMenuShowing, let vc = contextMenuCollectionVC.previewingViewController(for: indexPath, at: point) else {
+            return nil
+        }
+        let previewProvider: () -> UIViewController? = {
+            return vc
+        }
+        return UIContextMenuConfiguration(identifier: nil, previewProvider: previewProvider) { (suggestedActions) -> UIMenu? in
+            guard let previewActions = (vc as? ArticleViewController)?.contextMenuItems else {
+                return nil
+            }
+            return UIMenu(title: "", image: nil, identifier: nil, options: [], children: previewActions)
+        }
+    }
+
+    func collectionView(_ collectionView: UICollectionView, willPerformPreviewActionForMenuWith configuration: UIContextMenuConfiguration, animator: UIContextMenuInteractionCommitAnimating) {
+
+        guard let previewedViewController = animator.previewViewController else {
+            assertionFailure("Should be able to find previewed VC")
+            return
+        }
+        animator.addCompletion { [weak self] in
+            (self as? CollectionViewContextMenuShowing)?.poppingIntoVCCompletion()
+            previewedViewController.wmf_removePeekableChildViewControllers()
+            self?.push(previewedViewController, animated: true)
+        }
     }
 }

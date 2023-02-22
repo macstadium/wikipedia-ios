@@ -123,16 +123,16 @@ static NSString *const kWMFContributorsKey = @"contributors";
 
 - (void)viewDidLoad {
     WKWebViewConfiguration *config = [[WKWebViewConfiguration alloc] init];
-    SchemeHandler *schemeHandler = [SchemeHandler shared];
-    [config setURLSchemeHandler:schemeHandler forURLScheme:schemeHandler.scheme];
     WKWebView *wv = [[WKWebView alloc] initWithFrame:CGRectZero configuration:config];
     [super viewDidLoad];
     [self.view wmf_addSubviewWithConstraintsToEdges:wv];
 
     wv.navigationDelegate = self;
-    [wv loadHTMLFromAssetsFile:kWMFAboutHTMLFile scrolledToFragment:@"#top"];
-    self.webView = wv;
 
+    self.webView = wv;
+    
+    [self loadAboutHTML];
+    
     self.webView.opaque = NO;
     [self applyTheme:self.theme];
 
@@ -146,14 +146,18 @@ static NSString *const kWMFContributorsKey = @"contributors";
     [self updateNavigationBar];
 }
 
+- (void)loadAboutHTML {
+    NSURL *assetsFolderURL = [[NSBundle wmf] wmf_assetsFolderURL];
+    NSURL *aboutFileURL = [assetsFolderURL URLByAppendingPathComponent:@"about.html" isDirectory:NO];
+    [self.webView loadFileURL:aboutFileURL allowingReadAccessToURL:assetsFolderURL];
+}
 - (void)closeButtonPressed {
     [self.presentingViewController dismissViewControllerAnimated:YES
                                                       completion:nil];
 }
 
 - (void)leftButtonPressed {
-    [self.webView loadHTMLFromAssetsFile:kWMFAboutHTMLFile
-                      scrolledToFragment:nil];
+    [self loadAboutHTML];
 }
 
 - (BOOL)prefersStatusBarHidden {
@@ -223,7 +227,7 @@ static NSString *const kWMFContributorsKey = @"contributors";
     };
 
     setDivHTML(@"version", [[NSBundle mainBundle] wmf_versionForCurrentBundleIdentifier]);
-    setDivHTML(@"wikipedia", WMFLocalizedStringWithDefaultValue(@"about-wikipedia", nil, nil, @"Wikipedia", @"Wikipedia {{Identical|Wikipedia}}"));
+    setDivHTML(@"wikipedia", WMFCommonStrings.plainWikipediaName);
     setDivHTML(@"contributors_title", WMFLocalizedStringWithDefaultValue(@"about-contributors", nil, nil, @"Contributors", @"Header text for contributors section of the about page. Is not capitalised for aesthetic reasons, but could be capitalised in translations. {{Identical|Contributor}}"));
     setDivHTML(@"contributors_body", self.contributors);
     setDivHTML(@"translators_title", WMFLocalizedStringWithDefaultValue(@"about-translators", nil, nil, @"Translators", @"Header text for translators section of the about page. Is not capitalised for aesthetic reasons, but could be capitalised in translations. {{Identical|Translator}}"));
@@ -266,7 +270,7 @@ static NSString *const kWMFContributorsKey = @"contributors";
     return NO;
 }
 
-#pragma mark - UIWebViewDelegate
+#pragma mark - WKWebViewDelegate
 
 - (void)webView:(WKWebView *)webView decidePolicyForNavigationAction:(WKNavigationAction *)navigationAction decisionHandler:(void (^)(WKNavigationActionPolicy))decisionHandler {
     WKNavigationType navigationType = navigationAction.navigationType;
@@ -347,6 +351,8 @@ static NSString *const kWMFContributorsKey = @"contributors";
         return;
     }
     self.view.backgroundColor = theme.colors.paperBackground;
+    [self.webView wmf_setTextFontColor:theme];
+    [self.webView wmf_setLogoStyleWithTheme:theme];
 }
 
 @end

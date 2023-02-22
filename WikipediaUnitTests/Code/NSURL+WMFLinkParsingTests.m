@@ -1,6 +1,6 @@
 #import <XCTest/XCTest.h>
 #import <WMF/NSURL+WMFLinkParsing.h>
-#import "NSString+WMFPageUtilities.h"
+#import <WMF/NSURLComponents+WMFLinkParsing.h>
 
 @interface NSURL_WMFLinkParsingTests : XCTestCase
 
@@ -9,7 +9,7 @@
 @implementation NSURL_WMFLinkParsingTests
 
 - (void)testCitationURL {
-    XCTAssertTrue(([[NSURL URLWithString:[NSString stringWithFormat:@"#%@-0", WMFCitationFragmentSubstring]] wmf_isWikiCitation]));
+    XCTAssertTrue(([[NSURL URLWithString:@"#cite_note-0"] wmf_isWikiCitation]));
 }
 
 - (void)testURLWithoutFragmentIsNotCitation {
@@ -57,7 +57,7 @@
     NSString *urlString = @"https://en.wikipedia.org/api/rest_v1/page/talk/Username";
     NSURL *url = [[NSURL alloc] initWithString:urlString];
     NSString *talkPageDatabaseKey = [url wmf_databaseKey];
-    XCTAssertTrue([talkPageDatabaseKey isEqualToString: urlString]);
+    XCTAssertTrue([talkPageDatabaseKey isEqualToString:urlString]);
     //todo: flesh this out. how do we handle sub paths after username/, query items after that, underscores for spaces, url percent encoding, etc.
 }
 
@@ -65,7 +65,24 @@
     NSString *urlString = @"https://es.wikipedia.org/api/rest_v1/page/talk/Username";
     NSURL *url = [[NSURL alloc] initWithString:urlString];
     NSString *talkPageDatabaseKey = [url wmf_databaseKey];
-    XCTAssertTrue([talkPageDatabaseKey isEqualToString: urlString]);
+    XCTAssertTrue([talkPageDatabaseKey isEqualToString:urlString]);
+}
+
+- (void)testLanguageVariantCodeProperty {
+    NSURL *url = [[NSURL alloc] initWithString: @"https://zh.wikipedia.org"];
+    XCTAssertNil(url.wmf_languageVariantCode);
+    NSString *languageVariantCode = @"zh-hant";
+    url.wmf_languageVariantCode = languageVariantCode;
+    XCTAssertEqualObjects(url.wmf_languageVariantCode, languageVariantCode);
+}
+
+- (void)testLanguageVariantCodePropertyFromURLComponents {
+    NSURLComponents *components = [NSURLComponents componentsWithString:@"https://sr.wikipedia.org"];
+    NSString *languageVariantCode = @"sr-ec";
+    XCTAssertNotNil(components);
+    NSURL *url = [components wmf_URLWithLanguageVariantCode:languageVariantCode];
+    XCTAssertNotNil(url);
+    XCTAssertEqualObjects(url.wmf_languageVariantCode, languageVariantCode);
 }
 
 @end

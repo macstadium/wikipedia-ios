@@ -28,6 +28,11 @@
 
 @end
 
+NS_SWIFT_NAME(RMessageSuppressing)
+@protocol RMessageSuppressProtocol <NSObject>
+
+@end
+
 @interface RMessageView : UIView
 
 @property (nonatomic, weak) id<RMessageViewProtocol> delegate;
@@ -77,6 +82,8 @@
 @property (nonatomic, strong) UIImage *warningIcon UI_APPEARANCE_SELECTOR;
 @property (nonatomic, strong) UIColor *closeIconColor UI_APPEARANCE_SELECTOR;
 @property (nonatomic, strong) UIColor *buttonTitleColor UI_APPEARANCE_SELECTOR;
+@property (nonatomic, strong) UIColor *imageViewTintColor UI_APPEARANCE_SELECTOR;
+@property (nonatomic, strong) UIFont *buttonFont UI_APPEARANCE_SELECTOR;
 
 /**
  Inits the message view. Do not call this from outside this library.

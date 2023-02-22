@@ -15,10 +15,6 @@ static int const kMinimumTextSelectionLength = 2;
            }];
 }
 
-- (void)wmf_scrollToFragment:(NSString *)fragment {
-    [self evaluateJavaScript:[NSString stringWithFormat:@"window.wmf.utilities.scrollToFragment('%@')", fragment] completionHandler:nil];
-}
-
 - (void)wmf_accessibilityCursorToFragment:(NSString *)fragment {
     if (UIAccessibilityIsVoiceOverRunning()) {
         [self evaluateJavaScript:[NSString stringWithFormat:@"window.wmf.utilities.accessibilityCursorToFragment('%@')", fragment] completionHandler:nil];
@@ -26,12 +22,12 @@ static int const kMinimumTextSelectionLength = 2;
 }
 
 - (void)wmf_highlightLinkID:(NSString *)linkID {
-    [self evaluateJavaScript:[NSString stringWithFormat:@"document.getElementById('%@').classList.add('reference_highlight');", linkID]
+    [self evaluateJavaScript:[NSString stringWithFormat:@"document.getElementById('%@').classList.add('reference-highlight');", linkID]
            completionHandler:NULL];
 }
 
-- (void)wmf_unHighlightLinkID:(NSString *)linkID {
-    [self evaluateJavaScript:[NSString stringWithFormat:@"document.getElementById('%@').classList.remove('reference_highlight');", linkID]
+- (void)wmf_unHighlightAllLinkIDs {
+    [self evaluateJavaScript:[NSString stringWithFormat:@"document.querySelectorAll('.reference-highlight').forEach(e => {e.classList.remove('reference-highlight')});"]
            completionHandler:NULL];
 }
 

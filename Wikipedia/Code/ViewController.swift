@@ -1,7 +1,12 @@
 import UIKit
 import WMF
 
-class ViewController: PreviewingViewController, NavigationBarHiderDelegate {    
+class ViewController: ThemeableViewController, NavigationBarHiderDelegate {
+    @objc public init(theme: Theme) {
+        super.init(nibName: nil, bundle: nil)
+        self.theme = theme
+    }
+    
     init() {
         super.init(nibName: nil, bundle: nil)
     }
@@ -24,22 +29,35 @@ class ViewController: PreviewingViewController, NavigationBarHiderDelegate {
         return NavigationBarHider()
     }()
 
-    var keyboardFrame: CGRect? {
+    var isProgramaticallyScrolling: Bool = false {
+        didSet {
+            guard let yOffset = scrollView?.contentOffset.y, let topInset = scrollView?.contentInset.top else {
+                return
+            }
+            navigationBarHider.setIsProgramaticallyScrolling(isProgramaticallyScrolling, yOffset: yOffset, topContentInset: topInset)
+        }
+    }
+
+    private(set) var keyboardFrame: CGRect? {
         didSet {
             keyboardDidChangeFrame(from: oldValue, newKeyboardFrame: keyboardFrame)
         }
     }
-    open var showsNavigationBar: Bool = false
-    var ownsNavigationBar: Bool = true
+    private var showsNavigationBar: Bool = false
+    private var ownsNavigationBar: Bool = true
     
     public enum NavigationMode {
         case bar
         case detail
+        case forceBar
     }
     
     var navigationMode: NavigationMode = .bar {
         didSet {
             switch navigationMode {
+            case .forceBar:
+                showsNavigationBar = true
+                ownsNavigationBar = true
             case .detail:
                 showsNavigationBar = false
                 ownsNavigationBar = false
@@ -56,7 +74,7 @@ class ViewController: PreviewingViewController, NavigationBarHiderDelegate {
         }
     }
     
-    // MARK - Close Button
+    // MARK: - Close Button
     
     @objc private func close() {
         navigationController?.popViewController(animated: true)
@@ -124,7 +142,7 @@ class ViewController: PreviewingViewController, NavigationBarHiderDelegate {
         guard navigationMode != .detail else {
             return true
         }
-        return UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiom.phone ? view.bounds.size.width > view.bounds.size.height : false
+        return UIDevice.current.userInterfaceIdiom == UIUserInterfaceIdiom.phone ? view.bounds.size.width > view.bounds.size.height : false
     }
     
     open var scrollView: UIScrollView? {
@@ -140,9 +158,7 @@ class ViewController: PreviewingViewController, NavigationBarHiderDelegate {
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        if #available(iOS 13.0, *) {
-            scrollView?.automaticallyAdjustsScrollIndicatorInsets = false
-        }
+        scrollView?.automaticallyAdjustsScrollIndicatorInsets = false
         scrollView?.contentInsetAdjustmentBehavior = .never
  
         NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillChangeFrame(_:)), name: UIWindow.keyboardWillChangeFrameNotification, object: nil)
@@ -150,13 +166,13 @@ class ViewController: PreviewingViewController, NavigationBarHiderDelegate {
         NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillHide(_ :)), name: UIWindow.keyboardWillHideNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillShow(_ :)), name: UIWindow.keyboardWillShowNotification, object: nil)
     }
-
+    
     var isFirstAppearance = true
     
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        
-        guard navigationMode == .bar else {
+        setupGestureRecognizerDependencies()
+        guard navigationMode == .bar || navigationMode == .forceBar else {
             if let closeButton = closeButton, view.accessibilityElements?.first as? UIButton !== closeButton {
                 var updatedElements: [Any] = [closeButton]
                 let existingElements: [Any] = view.accessibilityElements ?? view.subviews
@@ -170,12 +186,19 @@ class ViewController: PreviewingViewController, NavigationBarHiderDelegate {
             }
             return
         }
-        
-        if let parentVC = parent as? ViewController {
+
+        /// Need to prune on every VC appearance, and must be done prior to updateNavigationItems being called.
+        (navigationController as? RootNavigationController)?.pruneSearchControllers()
+
+        if navigationMode == .forceBar {
+            ownsNavigationBar = true
+            showsNavigationBar = true
+            navigationBar.updateNavigationItems()
+        } else if let parentVC = parent as? ViewController {
             showsNavigationBar = true
             ownsNavigationBar = false
             navigationBar = parentVC.navigationBar
-        }  else if let navigationController = navigationController {
+        } else if let navigationController = navigationController {
             ownsNavigationBar = true
             showsNavigationBar = (parent is UITabBarController || parent == navigationController) && navigationController.isNavigationBarHidden
             navigationBar.updateNavigationItems()
@@ -213,22 +236,33 @@ class ViewController: PreviewingViewController, NavigationBarHiderDelegate {
             }
         }
     }
+
+    override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
+        super.viewWillTransition(to: size, with: coordinator)
+        navigationBar.updateHackyConstraint()
+    }
  
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         updateScrollViewInsets()
     }
     
-    // MARK - Scroll View Insets
+    // MARK: - Scroll View Insets
     
     override func viewSafeAreaInsetsDidChange() {
         super.viewSafeAreaInsetsDidChange()
-        self.updateScrollViewInsets()
+        toolbarHeightConstraint.constant = toolbarHeightForCurrentSafeAreaInsets
+        updateScrollViewInsets()
     }
     
     var useNavigationBarVisibleHeightForScrollViewInsets: Bool = false
     
-    public final func updateScrollViewInsets(preserveAnimation: Bool = false) {
+    // override if needed to preserve scroll view inset animation
+    public var shouldAnimateWhileUpdatingScrollViewInsets: Bool {
+        return false
+    }
+    
+    public final func updateScrollViewInsets() {
         guard let scrollView = scrollView, scrollView.contentInsetAdjustmentBehavior == .never else {
             return
         }
@@ -250,11 +284,18 @@ class ViewController: PreviewingViewController, NavigationBarHiderDelegate {
         let safeInsets = view.safeAreaInsets
         
         var bottom = safeInsets.bottom
-        if let keyboardFrame = keyboardFrame {
+        if let keyboardFrame = keyboardFrame,
+           keyboardIsIncludedInBottomContentInset {
             let adjustedKeyboardFrame = view.convert(keyboardFrame, to: scrollView)
             let keyboardIntersection = adjustedKeyboardFrame.intersection(scrollView.bounds)
             bottom = max(bottom, scrollView.bounds.maxY - keyboardIntersection.minY)
         }
+        
+        if !isToolbarHidden {
+            bottom += toolbar.frame.height
+        }
+        
+        bottom += additionalBottomContentInset
         
         let scrollIndicatorInsets: UIEdgeInsets = UIEdgeInsets(top: top, left: safeInsets.left, bottom: bottom, right: safeInsets.right)
         
@@ -262,9 +303,19 @@ class ViewController: PreviewingViewController, NavigationBarHiderDelegate {
             top += rc.frame.height
         }
         let contentInset = UIEdgeInsets(top: top, left: scrollView.contentInset.left, bottom: bottom, right: scrollView.contentInset.right)
-        if scrollView.setContentInset(contentInset, scrollIndicatorInsets: scrollIndicatorInsets, preserveContentOffset: navigationBar.isAdjustingHidingFromContentInsetChangesEnabled, preserveAnimation: preserveAnimation) {
+        if scrollView.setContentInset(contentInset, verticalScrollIndicatorInsets: scrollIndicatorInsets, preserveContentOffset: navigationBar.isAdjustingHidingFromContentInsetChangesEnabled, preserveAnimation: shouldAnimateWhileUpdatingScrollViewInsets) {
             scrollViewInsetsDidChange()
         }
+    }
+    
+    /// Override to add any additional bottom insets during content inset calculations
+    var additionalBottomContentInset: CGFloat {
+        return 0
+    }
+    
+    /// Override if needed - useful when needing to calculate your own additionalBottomContentInset
+    var keyboardIsIncludedInBottomContentInset: Bool {
+        return true
     }
 
     open func scrollViewInsetsDidChange() {
@@ -296,11 +347,11 @@ class ViewController: PreviewingViewController, NavigationBarHiderDelegate {
     }
     
     @objc func keyboardWillHide(_ notification: Notification) {
-        //subclasses to override if needed
+        // subclasses to override if needed
     }
     
     @objc func keyboardWillShow(_ notification: Notification) {
-        //subclasses to override if needed
+        // subclasses to override if needed
     }
     
     // MARK: - Scrolling
@@ -311,6 +362,12 @@ class ViewController: PreviewingViewController, NavigationBarHiderDelegate {
         }
         navigationBarHider.scrollViewWillScrollToTop(scrollView)
         scrollView.setContentOffset(CGPoint(x: scrollView.contentOffset.x, y: 0 - scrollView.contentInset.top), animated: true)
+    }
+    
+    // MARK: - NavigationBar
+    
+    func showNavigationBar() {
+        navigationBar.setNavigationBarPercentHidden(0, underBarViewPercentHidden: 0, extendedViewPercentHidden: 0, topSpacingPercentHidden: 0, animated: false)
     }
     
     // MARK: - WMFNavigationBarHiderDelegate
@@ -331,9 +388,177 @@ class ViewController: PreviewingViewController, NavigationBarHiderDelegate {
         navigationBar.apply(theme: theme)
         applyThemeToCloseButton()
         scrollView?.refreshControl?.tintColor = theme.colors.refreshControlTint
+        
+        toolbar.setBackgroundImage(theme.navigationBarBackgroundImage, forToolbarPosition: .any, barMetrics: .default)
+        toolbar.isTranslucent = false
+        
+        secondToolbar.setBackgroundImage(theme.clearImage, forToolbarPosition: .any, barMetrics: .default)
+        secondToolbar.setShadowImage(theme.clearImage, forToolbarPosition: .any)
+    }
+    
+    // MARK: Toolbars
+    
+    static let toolbarHeight: CGFloat = 44
+    static let constrainedToolbarHeight: CGFloat = 32
+    static let secondToolbarSpacing: CGFloat = 8
+    static let toolbarAnimationDuration: TimeInterval = 0.3
+    
+    var toolbarHeightForCurrentSafeAreaInsets: CGFloat {
+        return view.safeAreaInsets.top == 0 ? ViewController.constrainedToolbarHeight : ViewController.toolbarHeight
+    }
+
+    lazy var toolbar: UIToolbar = {
+        let tb = UIToolbar(frame: CGRect(origin: .zero, size: CGSize(width: 44, height: 44)))
+        tb.translatesAutoresizingMaskIntoConstraints = false
+        return tb
+    }()
+    
+    lazy var toolbarHeightConstraint: NSLayoutConstraint = {
+        return toolbar.heightAnchor.constraint(equalToConstant: toolbarHeightForCurrentSafeAreaInsets)
+    }()
+    
+    lazy var toolbarVisibleConstraint: NSLayoutConstraint = {
+        return view.safeAreaLayoutGuide.bottomAnchor.constraint(equalTo: toolbar.bottomAnchor)
+    }()
+    
+    lazy var toolbarHiddenConstraint: NSLayoutConstraint = {
+        return view.bottomAnchor.constraint(equalTo: toolbar.topAnchor)
+    }()
+    
+    lazy var secondToolbar: UIToolbar = {
+        let tb = UIToolbar()
+        tb.translatesAutoresizingMaskIntoConstraints = false
+        return tb
+    }()
+    
+    lazy var secondToolbarHeightConstraint: NSLayoutConstraint = {
+        return secondToolbar.heightAnchor.constraint(equalToConstant: ViewController.toolbarHeight)
+    }()
+    
+    lazy var secondToolbarVisibleConstraint: NSLayoutConstraint = {
+        return toolbar.topAnchor.constraint(equalTo: secondToolbar.bottomAnchor, constant: ViewController.secondToolbarSpacing)
+    }()
+    
+    lazy var secondToolbarHiddenConstraint: NSLayoutConstraint = {
+        return secondToolbar.topAnchor.constraint(equalTo: toolbar.topAnchor)
+    }()
+    
+    /// Setup toolbars for use
+    private var isToolbarEnabled: Bool = false
+    func enableToolbar() {
+        guard !isToolbarEnabled else {
+            return
+        }
+        isToolbarEnabled = true
+        view.addSubview(toolbar)
+        let leadingConstraint = view.leadingAnchor.constraint(equalTo: toolbar.leadingAnchor)
+        let trailingConstraint = toolbar.trailingAnchor.constraint(equalTo: view.trailingAnchor)
+        
+        view.insertSubview(secondToolbar, belowSubview: toolbar)
+        let secondLeadingConstraint = view.leadingAnchor.constraint(equalTo: secondToolbar.leadingAnchor)
+        let secondTrailingConstraint = secondToolbar.trailingAnchor.constraint(equalTo: view.trailingAnchor)
+        
+        NSLayoutConstraint.activate([toolbarHeightConstraint, secondToolbarHeightConstraint, toolbarHiddenConstraint, leadingConstraint, trailingConstraint, secondToolbarHiddenConstraint, secondLeadingConstraint, secondTrailingConstraint])
+    }
+
+    var isToolbarHidden: Bool {
+        guard isToolbarEnabled else {
+            return true
+        }
+        return toolbarHiddenConstraint.isActive
+    }
+    
+    func setToolbarHidden(_ hidden: Bool, animated: Bool) {
+        guard isToolbarEnabled else {
+            assert(false, "Toolbar not enabled. Call enableToolbar before this function.")
+            return
+        }
+        let animations = {
+            if hidden {
+                NSLayoutConstraint.deactivate([self.toolbarVisibleConstraint])
+                NSLayoutConstraint.activate([self.toolbarHiddenConstraint])
+            } else {
+                NSLayoutConstraint.deactivate([self.toolbarHiddenConstraint])
+                NSLayoutConstraint.activate([self.toolbarVisibleConstraint])
+            }
+            self.view.layoutIfNeeded()
+        }
+        if animated {
+            UIView.animate(withDuration: ViewController.toolbarAnimationDuration, animations: animations)
+        } else {
+            animations()
+        }
+    }
+    
+    var isSecondToolbarHidden: Bool {
+        guard isToolbarEnabled else {
+            return true
+        }
+        return secondToolbarHiddenConstraint.isActive
+    }
+    
+    func setSecondToolbarHidden(_ hidden: Bool, animated: Bool) {
+        guard isToolbarEnabled else {
+            assert(false, "Toolbars not enabled. Call enableToolbar before this function.")
+            return
+        }
+        let animations = {
+            if hidden {
+                NSLayoutConstraint.deactivate([self.secondToolbarVisibleConstraint])
+                NSLayoutConstraint.activate([self.secondToolbarHiddenConstraint])
+            } else {
+                NSLayoutConstraint.deactivate([self.secondToolbarHiddenConstraint])
+                NSLayoutConstraint.activate([self.secondToolbarVisibleConstraint])
+            }
+            self.view.layoutIfNeeded()
+        }
+        if animated {
+            UIView.animate(withDuration: ViewController.toolbarAnimationDuration, animations: animations)
+        } else {
+            animations()
+        }
+    }
+    
+    func setAdditionalSecondToolbarSpacing(_ spacing: CGFloat, animated: Bool) {
+        guard isToolbarEnabled else {
+            assert(false, "Toolbars not enabled. Call enableToolbar before this function.")
+            return
+        }
+        let animations = {
+            self.secondToolbarVisibleConstraint.constant = 0 - ViewController.secondToolbarSpacing - spacing
+            self.view.layoutIfNeeded()
+        }
+        if animated {
+            UIView.animate(withDuration: ViewController.toolbarAnimationDuration, animations: animations)
+        } else {
+            animations()
+        }
+    }
+    
+    // MARK: W button
+    
+    func setupWButton() {
+        let wButton = UIButton(type: .custom)
+        wButton.setImage(UIImage(named: "W"), for: .normal)
+        wButton.sizeToFit()
+        wButton.addTarget(self, action: #selector(wButtonTapped(_:)), for: .touchUpInside)
+        navigationItem.titleView = wButton
+    }
+    
+    @objc func wButtonTapped(_ sender: UIButton) {
+        navigationController?.popToRootViewController(animated: true)
+    }
+    
+    // MARK: Gestures
+    
+    func setupGestureRecognizerDependencies() {
+        // Prevent the scroll view from scrolling while interactively dismissing
+        guard let popGR = navigationController?.interactivePopGestureRecognizer else {
+            return
+        }
+        scrollView?.panGestureRecognizer.require(toFail: popGR)
     }
 }
-
 
 extension ViewController: WMFEmptyViewContainer {
     func addEmpty(_ emptyView: UIView) {
@@ -404,6 +629,11 @@ extension ViewController: UIScrollViewDelegate {
     
     func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
         navigationBarHider.scrollViewDidEndScrollingAnimation(scrollView)
+
+        if let scrollableArticle = self as? ArticleScrolling {
+            // call the first completion
+            scrollableArticle.scrollViewAnimationCompletions.popLast()?()
+        }
     }
 
     func scrollViewShouldScrollToTop(_ scrollView: UIScrollView) -> Bool {

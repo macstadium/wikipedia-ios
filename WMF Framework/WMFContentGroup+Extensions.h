@@ -1,6 +1,8 @@
-#import "WMFContentGroup+CoreDataClass.h"
+#import <WMF/WMFContentGroup+CoreDataClass.h>
 
 @import CoreLocation;
+
+@class WMFInMemoryURLKey;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -56,9 +58,11 @@ typedef NS_ENUM(int16_t, WMFContentGroupUndoType) {
 @property (nonatomic, strong, nullable) NSURL *articleURL;
 @property (nonatomic, strong, nullable) NSURL *siteURL;
 
+@property (nonatomic, readonly, nullable) WMFInMemoryURLKey *inMemoryKey;
+
 - (void)updateKey; //Sets key property based on content group kind
 - (void)updateContentType;
-- (void)updateDailySortPriorityWithSiteURLSortOrder:(nullable NSDictionary<NSString *, NSNumber *> *)siteURLSortOrder;
+- (void)updateDailySortPriorityWithSortOrderByContentLanguageCode:(nullable NSDictionary<NSString *, NSNumber *> *)sortOrderByContentLanguageCode;
 
 + (nullable NSURL *)mainPageURLForSiteURL:(NSURL *)URL;
 + (nullable NSURL *)continueReadingContentGroupURLForArticleURL:(NSURL *)articleURL;
@@ -67,14 +71,15 @@ typedef NS_ENUM(int16_t, WMFContentGroupUndoType) {
 + (nullable NSURL *)announcementURLForSiteURL:(NSURL *)siteURL identifier:(NSString *)identifier;
 + (nullable NSURL *)randomContentGroupURLForSiteURL:(NSURL *)url midnightUTCDate:(NSDate *)midnightUTCDate;
 + (nullable NSURL *)onThisDayContentGroupURLForSiteURL:(NSURL *)url midnightUTCDate:(NSDate *)midnightUTCDate;
-+ (nullable NSURL *)locationContentGroupURLForLocation:(CLLocation *)location;
-+ (nullable NSURL *)locationPlaceholderContentGroupURL;
-+ (nullable NSURL *)notificationContentGroupURL;
-+ (nullable NSURL *)themeContentGroupURL;
-+ (nullable NSURL *)readingListContentGroupURL;
++ (nullable NSURL *)locationContentGroupURLForLocation:(CLLocation *)location languageVariantCode:(NSString *)languageVariantCode;
++ (nullable NSURL *)locationPlaceholderContentGroupURLWithLanguageVariantCode:(NSString *)languageVariantCode;
++ (nullable NSURL *)notificationContentGroupURLWithLanguageVariantCode:(NSString *)languageVariantCode;
++ (nullable NSURL *)themeContentGroupURLWithLanguageVariantCode:(NSString *)languageVariantCode;
++ (nullable NSURL *)readingListContentGroupURLWithLanguageVariantCode:(NSString *)languageVariantCode;
 
 - (BOOL)isForLocalDate:(NSDate *)date;           //date is a date in the user's time zone
 @property (nonatomic, readonly) BOOL isForToday; //is for today in the user's time zone
+@property (nonatomic, readonly) BOOL isRTL; //content is in an RTL language
 
 // Utilizes featuredContentIdentifier for storage so can't be set along with featuredContentIdentifier
 @property (nonatomic) NSInteger featuredContentIndex;
@@ -111,15 +116,21 @@ typedef NS_ENUM(int16_t, WMFContentGroupUndoType) {
 
 - (nullable WMFContentGroup *)newestVisibleGroupOfKind:(WMFContentGroupKind)kind;
 
+- (nullable WMFContentGroup *)newestVisibleGroupOfKind:(WMFContentGroupKind)kind forSiteURL:(nullable NSURL *)siteURL;
+
 - (nullable WMFContentGroup *)newestVisibleGroupOfKind:(WMFContentGroupKind)kind withPredicate:(nullable NSPredicate *)predicate;
 
 - (nullable WMFContentGroup *)newestGroupOfKind:(WMFContentGroupKind)kind;
 
+- (nullable WMFContentGroup *)newestGroupOfKind:(WMFContentGroupKind)kind forSiteURL:(nullable NSURL *)siteURL;
+
 - (nullable WMFContentGroup *)groupOfKind:(WMFContentGroupKind)kind forDate:(NSDate *)date;
 
-- (nullable WMFContentGroup *)groupOfKind:(WMFContentGroupKind)kind forDate:(NSDate *)date siteURL:(NSURL *)url;
+- (nullable WMFContentGroup *)groupOfKind:(WMFContentGroupKind)kind forDate:(NSDate *)date siteURL:(NSURL *)siteURL;
 
 - (nullable NSArray<WMFContentGroup *> *)groupsOfKind:(WMFContentGroupKind)kind forDate:(NSDate *)date;
+
+- (nullable NSArray<WMFContentGroup *> *)orderedGroupsOfKind:(WMFContentGroupKind)kind withPredicate:(nullable NSPredicate *)predicate;
 
 - (nullable WMFContentGroup *)locationContentGroupWithSiteURL:(nullable NSURL *)siteURL withinMeters:(CLLocationDistance)meters ofLocation:(CLLocation *)location;
 

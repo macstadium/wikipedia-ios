@@ -1,6 +1,8 @@
 import UIKit
+import CocoaLumberjackSwift
+import WMF
 
-protocol ExploreCardViewControllerDelegate {
+protocol ExploreCardViewControllerDelegate: NestedCollectionViewContextMenuDelegate {
     var saveButtonsController: SaveButtonsController { get }
     var layoutCache: ColumnarCollectionViewControllerLayoutCache { get }
     func exploreCardViewController(_ exploreCardViewController: ExploreCardViewController, didSelectItemAtIndexPath: IndexPath)
@@ -24,10 +26,10 @@ class ExploreCardViewController: UIViewController, UICollectionViewDataSource, U
         return ColumnarCollectionViewLayout()
     }()
     
-    lazy var locationManager: WMFLocationManager = {
-        let lm = WMFLocationManager.fine()
-        lm.delegate = self
-        return lm
+    lazy var locationManager: LocationManagerProtocol = {
+        let locationManager = LocationManager()
+        locationManager.delegate = self
+        return locationManager
     }()
     
     deinit {
@@ -50,7 +52,7 @@ class ExploreCardViewController: UIViewController, UICollectionViewDataSource, U
     
     var dataStore: MWKDataStore!
     
-    // MARK - View Lifecycle
+    // MARK: - View Lifecycle
     
     override func loadView() {
         super.loadView()
@@ -59,12 +61,12 @@ class ExploreCardViewController: UIViewController, UICollectionViewDataSource, U
         self.collectionView.dataSource = self
     }
     
-    public func savedStateDidChangeForArticleWithKey(_ changedArticleKey: String) {
+    public func savedStateDidChangeForArticleWithKey(_ changedArticleKey: WMFInMemoryURLKey) {
         for i in 0..<numberOfItems {
             let indexPath = IndexPath(item: i, section: 0)
             guard
                 let articleURL = articleURL(at: indexPath),
-                let articleKey = articleURL.wmf_databaseKey,
+                let articleKey = articleURL.wmf_inMemoryKey,
                 changedArticleKey == articleKey,
                 let cell = collectionView.cellForItem(at: indexPath)
             else {
@@ -119,7 +121,7 @@ class ExploreCardViewController: UIViewController, UICollectionViewDataSource, U
         delegateVC.dismiss(animated: flag, completion: completion)
     }
     
-    // MARK - Data
+    // MARK: - Data
     private var visibleLocationCellCount: Int = 0
 
     public var contentGroup: WMFContentGroup? {
@@ -211,7 +213,7 @@ class ExploreCardViewController: UIViewController, UICollectionViewDataSource, U
         return dataStore.fetchArticle(with: url)
     }
     
-    // MARK - cell configuration
+    // MARK: - cell configuration
     
     private func configureArticleCell(_ cell: UICollectionViewCell, forItemAt indexPath: IndexPath, with displayType: WMFFeedDisplayType, layoutOnly: Bool) {
         guard let cell = cell as? ArticleCollectionViewCell, let articleURL = articleURL(at: indexPath), let article = dataStore?.fetchArticle(with: articleURL) else {
@@ -230,7 +232,7 @@ class ExploreCardViewController: UIViewController, UICollectionViewDataSource, U
         }
         cell.configure(article: article, displayType: displayType, index: indexPath.row, theme: theme, layoutOnly: layoutOnly)
         if let authCell = cell as? ArticleLocationAuthorizationCollectionViewCell {
-            if WMFLocationManager.isAuthorized() {
+            if locationManager.isAuthorized {
                 authCell.updateForLocationEnabled()
             } else {
                 authCell.authorizeButton.setTitle(CommonStrings.localizedEnableLocationButtonTitle, for: .normal)
@@ -243,7 +245,7 @@ class ExploreCardViewController: UIViewController, UICollectionViewDataSource, U
             return
         }
         cell.articleLocation = article.location
-        if WMFLocationManager.isAuthorized() {
+        if locationManager.isAuthorized {
             locationManager.startMonitoringLocation()
             cell.update(userLocation: locationManager.location, heading: locationManager.heading)
         } else {
@@ -276,7 +278,7 @@ class ExploreCardViewController: UIViewController, UICollectionViewDataSource, U
             let eventsCount = contentGroup?.countOfFullContent?.intValue {
             let otherEventsCount = eventsCount - collectionView.numberOfItems(inSection: 0)
             if otherEventsCount > 0 {
-                return String.localizedStringWithFormat(WMFLocalizedString("on-this-day-footer-with-event-count", value: "%1$d more historical events on this day", comment: "Footer for presenting user option to see longer list of 'On this day' articles. %1$@ will be substituted with the number of events"), otherEventsCount)
+                return CommonStrings.onThisDayFooterWith(with: otherEventsCount)
             } else {
                 return contentGroup?.footerText
             }
@@ -289,7 +291,7 @@ class ExploreCardViewController: UIViewController, UICollectionViewDataSource, U
         guard let cell = cell as? ImageCollectionViewCell, let imageInfo = contentGroup?.contentPreview as? WMFFeedImage else {
             return
         }
-        if !layoutOnly, let imageURL = contentGroup?.imageURLsCompatibleWithTraitCollection(traitCollection, dataStore: dataStore)?.first {
+        if !layoutOnly, let imageURL = contentGroup?.imageURLsCompatibleWithTraitCollection(traitCollection, dataStore: dataStore, viewSize: view.bounds.size)?.first {
             cell.imageView.wmf_setImage(with: imageURL, detectFaces: true, onGPU: true, failure: WMFIgnoreErrorHandler, success: WMFIgnoreSuccessHandler)
         }
         if !imageInfo.imageDescription.isEmpty {
@@ -321,7 +323,7 @@ class ExploreCardViewController: UIViewController, UICollectionViewDataSource, U
             } else {
                 cell.isImageViewHidden = true
             }
-            cell.isUrgent = announcement.type == "fundraising"
+            cell.isUrgent = announcement.announcementType == .fundraising
             cell.messageHTML = announcement.text
             cell.actionButton.setTitle(announcement.actionTitle, for: .normal)
             cell.captionHTML = announcement.captionHTML
@@ -333,19 +335,20 @@ class ExploreCardViewController: UIViewController, UICollectionViewDataSource, U
             cell.isImageViewHidden = false
             cell.imageView.image = UIImage(named: "feed-card-notification")
             cell.imageViewDimension = cell.imageView.image?.size.height ?? 0
-            cell.messageHTML = WMFLocalizedString("feed-news-notification-text", value: "Enable notifications to be notified by Wikipedia when articles are trending in the news.", comment: "Text shown to users to notify them that it is now possible to get notifications for articles related to trending news")
-            cell.actionButton.setTitle(WMFLocalizedString("feed-news-notification-button-text", value: "Turn on notifications", comment: "Text for button to turn on trending news notifications"), for:.normal)
+            cell.messageHTML = WMFLocalizedString("notifications-center-feed-news-notification-text", value: "Editing notifications for all Wikimedia projects are now available through the app. Opt in to push notifications to keep up to date with your messages on Wikipedia while on the go.", comment: "Text shown to users to notify them that it is now possible to get push notifications for all Wikimedia projects through the app")
+            cell.actionButton.setTitle(WMFLocalizedString("notifications-center-feed-news-notification-button-text", value: "Turn on push notifications", comment: "Text for button to turn on push notifications"), for:.normal)
+            cell.dismissButton.setTitle(WMFLocalizedString("notifications-center-feed-news-notification-dismiss-button-text", value: "Not now", comment: "Text for the dismiss button on the explore feed notifications card"), for: .normal)
         case .theme:
             cell.isImageViewHidden = false
             cell.imageView.image = UIImage(named: "feed-card-themes")
             cell.imageViewDimension = cell.imageView.image?.size.height ?? 0
-            cell.messageHTML = WMFLocalizedString("home-themes-prompt", value: "Adjust your Reading preferences including text size and theme from the article tool bar or in your user settings for a more comfortable reading experience.", comment: "Description on feed card that describes how to adjust reading preferences.");
+            cell.messageHTML = WMFLocalizedString("home-themes-prompt", value: "Adjust your Reading preferences including text size and theme from the article tool bar or in your user settings for a more comfortable reading experience.", comment: "Description on feed card that describes how to adjust reading preferences.")
             cell.actionButton.setTitle(WMFLocalizedString("home-themes-action-title", value: "Manage preferences", comment: "Action on the feed card that describes the theme feature. Takes the user to manage theme preferences."), for:.normal)
         case .readingList:
             cell.isImageViewHidden = false
             cell.imageView.image = UIImage(named: "feed-card-reading-list")
             cell.imageViewDimension = cell.imageView.image?.size.height ?? 0
-            cell.messageHTML = WMFLocalizedString("home-reading-list-prompt", value: "Your saved articles can now be organized into reading lists and synced across devices. Log in to allow your reading lists to be saved to your user preferences.", comment: "Description on feed card that describes reading lists.");
+            cell.messageHTML = WMFLocalizedString("home-reading-list-prompt", value: "Your saved articles can now be organized into reading lists and synced across devices. Log in to allow your reading lists to be saved to your user preferences.", comment: "Description on feed card that describes reading lists.")
             cell.actionButton.setTitle(CommonStrings.readingListLoginButtonTitle, for:.normal)
         default:
             break
@@ -371,8 +374,19 @@ class ExploreCardViewController: UIViewController, UICollectionViewDataSource, U
         }
         cell.layoutMargins = layout.itemLayoutMargins
     }
-    
-    // MARK - UICollectionViewDataSource
+
+    func updateLocationCells() {
+        let userLocation = locationManager.location
+        let heading = locationManager.heading
+        for cell in collectionView.visibleCells {
+            guard let cell = cell as? ArticleLocationExploreCollectionViewCell else {
+                return
+            }
+            cell.update(userLocation: userLocation, heading: heading)
+        }
+    }
+
+    // MARK: - UICollectionViewDataSource
     
     func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
         let displayType = displayTypeAt(indexPath)
@@ -387,7 +401,7 @@ class ExploreCardViewController: UIViewController, UICollectionViewDataSource, U
         }
         if cell is ArticleLocationExploreCollectionViewCell {
             visibleLocationCellCount += 1
-            if WMFLocationManager.isAuthorized() {
+            if locationManager.isAuthorized {
                 locationManager.startMonitoringLocation()
             }
         }
@@ -406,7 +420,7 @@ class ExploreCardViewController: UIViewController, UICollectionViewDataSource, U
         editController.deconfigureSwipeableCell(cell, forItemAt: indexPath)
     }
     
-    // MARK - UICollectionViewDelegate
+    // MARK: - UICollectionViewDelegate
     
     func collectionView(_ collectionView: UICollectionView, shouldSelectItemAt indexPath: IndexPath) -> Bool {
         return contentGroup?.isSelectable ?? false
@@ -416,18 +430,18 @@ class ExploreCardViewController: UIViewController, UICollectionViewDataSource, U
         delegate?.exploreCardViewController(self, didSelectItemAtIndexPath: indexPath)
     }
     
-    // MARK - ColumnarCollectionViewLayoutDelegate
+    // MARK: - ColumnarCollectionViewLayoutDelegate
     
     func collectionView(_ collectionView: UICollectionView, estimatedHeightForItemAt indexPath: IndexPath, forColumnWidth columnWidth: CGFloat) -> ColumnarCollectionViewLayoutHeightEstimate {
         let displayType = displayTypeAt(indexPath)
         let reuseIdentifier = resuseIdentifierFor(displayType)
         let key: String?
-        let articleKey: String? = self.article(at: indexPath)?.key
-        let groupKey: String? = contentGroup?.key
-        if displayType == .story || displayType == .event, let contentGroupKey = contentGroup?.key {
-            key = "\(contentGroupKey)-\(indexPath.row)"
+        let articleKey: WMFInMemoryURLKey? = self.article(at: indexPath)?.inMemoryKey
+        let groupKey: WMFInMemoryURLKey? = contentGroup?.inMemoryKey
+        if displayType == .story || displayType == .event, let contentGroupKey = contentGroup?.inMemoryKey {
+            key = "\(contentGroupKey.userInfoString)-\(indexPath.row)"
         } else {
-            key = articleKey ?? groupKey
+            key = articleKey?.userInfoString ?? groupKey?.userInfoString
         }
         let userInfo = "\(key ?? "")-\(displayType.rawValue)"
         if let height = delegate?.layoutCache.cachedHeightForCellWithIdentifier(reuseIdentifier, columnWidth: columnWidth, userInfo: userInfo) {
@@ -484,6 +498,13 @@ class ExploreCardViewController: UIViewController, UICollectionViewDataSource, U
         
         return ColumnarCollectionViewLayoutMetrics.exploreCardMetrics(with: size, readableWidth: size.width, layoutMargins: layoutMargins)
     }
+    
+    func userDidTapTurnOnNotifications() {
+        let pushSettingsVC = PushNotificationsSettingsViewController.init(authenticationManager: self.dataStore.authenticationManager, notificationsController: self.dataStore.notificationsController)
+        pushSettingsVC.apply(theme: self.theme)
+        self.navigationController?.pushViewController(pushSettingsVC, animated: true)
+    }
+    
 }
 
 extension ExploreCardViewController: ActionDelegate, ShareableArticlesProvider {
@@ -496,11 +517,11 @@ extension ExploreCardViewController: ActionDelegate, ShareableArticlesProvider {
         }
         let alertController = ReadingListsAlertController()
         let cancel = ReadingListsAlertActionType.cancel.action()
-        let delete = ReadingListsAlertActionType.unsave.action { let _ = self.editController.didPerformAction(action) }
+        let delete = ReadingListsAlertActionType.unsave.action { _ = self.editController.didPerformAction(action) }
         let actions = [cancel, delete]
         alertController.showAlertIfNeeded(presenter: self, for: [article], with: actions) { showed in
             if !showed {
-                let _ = self.editController.didPerformAction(action)
+                _ = self.editController.didPerformAction(action)
             }
         }
         return true
@@ -513,10 +534,10 @@ extension ExploreCardViewController: ActionDelegate, ShareableArticlesProvider {
         
         var actions: [Action] = []
         
-        if article.savedDate == nil {
-            actions.append(ActionType.save.action(with: self, indexPath: indexPath))
-        } else {
+        if article.isAnyVariantSaved {
             actions.append(ActionType.unsave.action(with: self, indexPath: indexPath))
+        } else {
+            actions.append(ActionType.save.action(with: self, indexPath: indexPath))
         }
         
         actions.append(ActionType.share.action(with: self, indexPath: indexPath))
@@ -560,7 +581,7 @@ extension ExploreCardViewController: SideScrollingCollectionViewCellDelegate {
 extension ExploreCardViewController: AnnouncementCollectionViewCellDelegate {
     func dismissAnnouncementCell(_ cell: AnnouncementCollectionViewCell) {
         contentGroup?.markDismissed()
-        contentGroup?.updateVisibilityForUserIsLogged(in: Session.shared.isAuthenticated)
+        contentGroup?.updateVisibilityForUserIsLogged(in: dataStore.session.isAuthenticated)
         do {
             try dataStore.save()
         } catch let error {
@@ -585,12 +606,7 @@ extension ExploreCardViewController: AnnouncementCollectionViewCellDelegate {
             LoginFunnel.shared.logLoginStartInFeed()
             dismissAnnouncementCell(cell)
         case .notification:
-            WMFNotificationsController.shared().requestAuthenticationIfNecessary { (granted, error) in
-                if let error = error {
-                    self.wmf_showAlertWithError(error as NSError)
-                }
-            }
-            UserDefaults.wmf.wmf_setInTheNewsNotificationsEnabled(true)
+            userDidTapTurnOnNotifications()
             dismissAnnouncementCell(cell)
         default:
             guard let announcement = contentGroup?.contentPreview as? WMFAnnouncement,
@@ -607,22 +623,22 @@ extension ExploreCardViewController: AnnouncementCollectionViewCellDelegate {
     }
 }
 
-extension ExploreCardViewController: WMFArticlePreviewingActionsDelegate {
-    func readMoreArticlePreviewActionSelected(withArticleController articleController: WMFArticleViewController) {
+extension ExploreCardViewController: ArticlePreviewingDelegate {
+    func readMoreArticlePreviewActionSelected(with articleController: ArticleViewController) {
         articleController.wmf_removePeekableChildViewControllers()
-        wmf_push(articleController, animated: true)
+        push(articleController, animated: true)
     }
     
-    func saveArticlePreviewActionSelected(withArticleController articleController: WMFArticleViewController, didSave: Bool, articleURL: URL) {
-
+    func saveArticlePreviewActionSelected(with articleController: ArticleViewController, didSave: Bool, articleURL: URL) {
+        
     }
     
-    func shareArticlePreviewActionSelected(withArticleController articleController: WMFArticleViewController, shareActivityController: UIActivityViewController) {
+    func shareArticlePreviewActionSelected(with articleController: ArticleViewController, shareActivityController: UIActivityViewController) {
         articleController.wmf_removePeekableChildViewControllers()
         present(shareActivityController, animated: true, completion: nil)
     }
     
-    func viewOnMapArticlePreviewActionSelected(withArticleController articleController: WMFArticleViewController) {
+    func viewOnMapArticlePreviewActionSelected(with articleController: ArticleViewController) {
         articleController.wmf_removePeekableChildViewControllers()
         let placesURL = NSUserActivity.wmf_URLForActivity(of: .places, withArticleURL: articleController.articleURL)
         UIApplication.shared.open(placesURL)
@@ -631,8 +647,8 @@ extension ExploreCardViewController: WMFArticlePreviewingActionsDelegate {
 
 extension ExploreCardViewController: ArticleLocationAuthorizationCollectionViewCellDelegate {
     func articleLocationAuthorizationCollectionViewCellDidTapAuthorize(_ cell: ArticleLocationAuthorizationCollectionViewCell) {
-        UserDefaults.wmf.wmf_setExploreDidPromptForLocationAuthorization(true)
-        if WMFLocationManager.isAuthorizationNotDetermined() {
+        UserDefaults.standard.wmf_setExploreDidPromptForLocationAuthorization(true)
+        if locationManager.authorizationStatus == .notDetermined {
             locationManager.startMonitoringLocation()
             return
         }
@@ -640,30 +656,20 @@ extension ExploreCardViewController: ArticleLocationAuthorizationCollectionViewC
     }
 }
 
-extension ExploreCardViewController: WMFLocationManagerDelegate {
-    func updateLocationCells() {
-        let userLocation = locationManager.location
-        let heading = locationManager.heading
-        for cell in collectionView.visibleCells {
-            guard let cell = cell as? ArticleLocationExploreCollectionViewCell else {
-                return
-            }
-            cell.update(userLocation: userLocation, heading: heading)
-        }
-    }
-    
-    func locationManager(_ controller: WMFLocationManager, didUpdate location: CLLocation) {
+extension ExploreCardViewController: LocationManagerDelegate {
+    func locationManager(_ locationManager: LocationManagerProtocol, didUpdate location: CLLocation) {
         updateLocationCells()
     }
-    
-    func locationManager(_ controller: WMFLocationManager, didUpdate heading: CLHeading) {
+
+    func locationManager(_ locationManager: LocationManagerProtocol, didUpdate heading: CLHeading) {
         updateLocationCells()
     }
-    
-    func locationManager(_ controller: WMFLocationManager, didChangeEnabledState enabled: Bool) {
-        UserDefaults.wmf.wmf_setLocationAuthorized(enabled)
+
+    func locationManager(_ locationManager: LocationManagerProtocol, didUpdateAuthorized authorized: Bool) {
+        UserDefaults.standard.wmf_setLocationAuthorized(authorized)
+
         for cell in collectionView.visibleCells {
-            guard let cell = cell as? ArticleLocationAuthorizationCollectionViewCell else {
+            guard let cell = cell as? ArticleLocationAuthorizationCollectionViewCell, locationManager.isAuthorized else {
                 return
             }
             cell.updateForLocationEnabled()
@@ -690,5 +696,20 @@ extension ExploreCardViewController: EventLoggingEventValuesProviding {
     
     var eventLoggingCategory: EventLoggingCategory {
         return EventLoggingCategory.feed
+    }
+}
+
+// MARK: - Context Menu
+extension ExploreCardViewController {
+    public func collectionView(_ collectionView: UICollectionView, contextMenuConfigurationForItemAt indexPath: IndexPath, point: CGPoint) -> UIContextMenuConfiguration? {
+        guard indexPath.item < numberOfItems else {
+            return nil
+        }
+
+        return delegate?.contextMenu(with: contentGroup, for: nil, at: indexPath.item)
+    }
+
+    public func collectionView(_ collectionView: UICollectionView, willPerformPreviewActionForMenuWith configuration: UIContextMenuConfiguration, animator: UIContextMenuInteractionCommitAnimating) {
+        delegate?.willCommitPreview(with: animator)
     }
 }

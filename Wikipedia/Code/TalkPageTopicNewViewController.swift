@@ -1,7 +1,6 @@
-
 import UIKit
 
-protocol TalkPageTopicNewViewControllerDelegate: class {
+protocol TalkPageTopicNewViewControllerDelegate: AnyObject {
     func tappedPublish(subject: String, body: String, viewController: TalkPageTopicNewViewController)
 }
 
@@ -51,7 +50,7 @@ class TalkPageTopicNewViewController: ViewController {
             "</a>"
         )
         
-        let attributedString = substitutedString.byAttributingHTML(with: .caption1, boldWeight: .regular, matching: traitCollection, withBoldedString: nil, color: theme.colors.secondaryText, linkColor: theme.colors.link, tagMapping: nil, additionalTagAttributes: nil)
+        let attributedString = substitutedString.byAttributingHTML(with: .caption1, boldWeight: .regular, matching: traitCollection, color: theme.colors.secondaryText, linkColor: theme.colors.link, tagMapping: nil, additionalTagAttributes: nil)
         
         return attributedString
     }
@@ -165,7 +164,7 @@ class TalkPageTopicNewViewController: ViewController {
     }
 }
 
-//MARK: Private
+// MARK: Private
 
 private extension TalkPageTopicNewViewController {
     
@@ -246,7 +245,7 @@ private extension TalkPageTopicNewViewController {
                 return
         }
         
-        //first get the size bodyTextView wants to be without a height limit (bodyTextView.contentSize.height doesn't seem reliable here)
+        // first get the size bodyTextView wants to be without a height limit (bodyTextView.contentSize.height doesn't seem reliable here)
         bodyContainerViewHeightConstraint.isActive = false
         bodyTextView.setNeedsLayout()
         bodyTextView.layoutIfNeeded()
@@ -271,7 +270,7 @@ private extension TalkPageTopicNewViewController {
     }
     
     func updateContentInsets() {
-        if (!bodyContainerViewHeightConstraint.isActive) {
+        if !bodyContainerViewHeightConstraint.isActive {
             talkPageScrollView.contentInset.bottom += beKindInputAccessoryView.height
         }
     }
@@ -287,7 +286,7 @@ private extension TalkPageTopicNewViewController {
     }
 }
 
-//MARK: ThemeableTextViewPlaceholderDelegate
+// MARK: ThemeableTextViewPlaceholderDelegate
 
 extension TalkPageTopicNewViewController: UITextViewDelegate {
     func textViewDidChange(_ textView: UITextView) {
@@ -295,10 +294,14 @@ extension TalkPageTopicNewViewController: UITextViewDelegate {
     }
 }
 
-//MARK: BeKindInputAccessoryViewDelegate
+// MARK: BeKindInputAccessoryViewDelegate
 
 extension TalkPageTopicNewViewController: BeKindInputAccessoryViewDelegate {
     func didUpdateHeight(view: BeKindInputAccessoryView) {
         setBodyHeightIfNeeded()
     }
+}
+
+extension TalkPageTopicNewViewController: EditingFlowViewController {
+    
 }

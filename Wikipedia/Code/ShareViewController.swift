@@ -12,7 +12,8 @@ class ShareViewController: UIViewController, Themeable {
     var theme: Theme
     var image: UIImage?
     var imageLicense: MWKLicense?
-    let infoFetcher = MWKImageInfoFetcher()
+    // SINGLETONTODO
+    let infoFetcher = MWKImageInfoFetcher(dataStore: MWKDataStore.shared())
     
     @IBOutlet weak var imageView: UIImageView!
     @IBOutlet weak var busyView: UIView!
@@ -55,6 +56,18 @@ class ShareViewController: UIViewController, Themeable {
             self.showActivityViewController(with: image)
         }
     }
+
+    override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
+        super.viewWillTransition(to: size, with: coordinator)
+
+        coordinator.animate(alongsideTransition: { (context) in
+            self.imageViewTopConstraint.isActive = true
+            self.imageViewVerticallyCenteredConstraint.isActive = false
+            if let presentedActivityVC = self.presentedViewController as? UIActivityViewController {
+                presentedActivityVC.popoverPresentationController?.sourceRect = self.imageView.frame
+            }
+        }, completion: nil)
+    }
     
     func loadImage() {
         if let imageURL = self.articleImageURL, let imageName = WMFParseUnescapedNormalizedImageNameFromSourceURL(imageURL), let siteURL = articleURL.wmf_site {
@@ -74,7 +87,7 @@ class ShareViewController: UIViewController, Themeable {
                 self.imageLicense = imageInfo.license
             })
             loadGroup.enter()
-            let _ = ImageController.shared.fetchImage(withURL: imageURL, failure: { (fail) in
+            MWKDataStore.shared().cacheController.imageCache.fetchImage(withURL: imageURL, failure: { (fail) in
                 self.loadGroup.leave()
             }) { (download) in
                 self.image = download.image.staticImage
@@ -105,8 +118,9 @@ class ShareViewController: UIViewController, Themeable {
         }
         activityItems.append(itemProvider)
         let activityVC = UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+        activityVC.excludedActivityTypes = [.addToReadingList]
         activityVC.popoverPresentationController?.sourceView = view
-        activityVC.popoverPresentationController?.sourceRect = imageView.frame
+        activityVC.popoverPresentationController?.permittedArrowDirections = .up
         activityVC.completionWithItemsHandler = { (activityType, completed, returnedItems, error) in
             self.presentingViewController?.dismiss(animated: true, completion: nil)
         }
@@ -115,8 +129,9 @@ class ShareViewController: UIViewController, Themeable {
                 self.imageViewTopConstraint.isActive = true
                 self.imageViewVerticallyCenteredConstraint.isActive = false
                 self.view.layoutIfNeeded()
-            }, completion: nil)
-            self.present(activityVC, animated: true, completion: nil)
+            }, completion: { _ in
+                activityVC.popoverPresentationController?.sourceRect = self.imageView.frame
+                self.present(activityVC, animated: true, completion: nil)})
         })
     }
 

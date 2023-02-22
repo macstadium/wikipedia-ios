@@ -5,6 +5,7 @@
 // Author: Macofe
 // Author: Nemo bis
 // Author: Nicolas Eynaud
+// Author: Quentí
 // Author: Unuaiga
 
 "about-content-license" = "Licéncia del contengut";
@@ -23,10 +24,6 @@
 "about-translators-details" = "Aquesta aplicacion es estada traduita per de traductors benevòls sus $1";
 "about-wikimedia-foundation" = "Fondacion Wikimèdia";
 "about-wikipedia" = "Wikipèdia";
-// Fuzzy
-"abuse-filter-warning-caps" = "Tèxte en MAJUSCULAS";
-// Fuzzy
-"abuse-filter-warning-repeat" = "Caractèrs repeeeetits";
 "account-creation-captcha-cannot-see-image" = "Impossible de veire l’imatge ? $1";
 "account-creation-captcha-obtaining" = "Obtencion d’un novèl CAPTCHA…";
 "account-creation-captcha-request-account" = "Demandar un compte.";
@@ -39,17 +36,17 @@
 // Fuzzy
 "action-find-in-page" = "Trobar dins la pagina";
 "action-read" = "Legir";
+"action-retry" = "Tornar ensajar";
 "action-save" = "Enregistrar";
 "action-share" = "Partejar";
 "action-unsave" = "Pas enregistrat";
 "announcements-dismiss" = "Ignorar";
-"article-about-title" = "A prepaus d'aqueste article";
 "article-delete" = "Suprimir";
 "article-languages-filter-placeholder" = "Trobar la lenga";
 "article-languages-label" = "Causir una lenga";
 "article-languages-others" = "Autras lengas";
 "article-languages-yours" = "Vòstras lengas";
-"article-read-more-title" = "Ne saber mai";
+"article-reference-view-title" = "Referéncia $1";
 "article-share" = "Partejar";
 "back-button-accessibility-label" = "Retorn";
 "button-next" = "Seguent";
@@ -83,8 +80,6 @@
 "explore-potd-heading" = "Imatge del jorn";
 "explore-random-article-heading" = "Article a l'azard";
 "explore-randomizer" = "Article a l'azard";
-"feed-news-notification-button-text" = "Activar las notificacions";
-"feed-news-notification-text" = "Activar las notificacions mandadas per la Wikipèdia quand d'articles fòrman la tendéncia de l'actualitat.";
 "field-email-title" = "Corrièr electronic";
 "field-email-title-optional" = "Corrièr electronic (facultatiu)";
 "field-new-password-title" = "Senhal novèl";
@@ -108,19 +103,11 @@
 "home-nearby-location-footer" = "Mai pròche de $1";
 "home-title" = "Explorar";
 "home-title-accessibility-label" = "Wikipèdia, far desfilar cap amont per Explorar";
-"icon-shortcut-continue-reading-title" = "Contunhar de legir";
 "icon-shortcut-nearby-title" = "Articles vesins";
 "icon-shortcut-random-title" = "Article a l'azard";
 "icon-shortcut-search-title" = "Recercar dins Wikipèdia";
-"in-the-news-currently-trending" = "Actualament a la mòda";
-"in-the-news-notification-read-now-action-title" = "Legir ara";
-"in-the-news-notification-save-for-later-action-title" = "Enregistrar per mai tard";
-"in-the-news-notification-share-action-title" = "Partejar...";
 "in-the-news-title" = "Dins l'actualitat";
-"info-box-close-text" = "Tampar";
-"info-box-title" = "Faits en brèu";
 "languages-title" = "Cambiar de lenga";
-"license-footer-name" = "CC BY-SA 3.0";
 "login-forgot-password" = "Senhal doblidat ?";
 "main-menu-about" = "A prepaus de l’aplicacion";
 "main-menu-account-login" = "Connexion";
@@ -128,8 +115,6 @@
 "main-menu-account-logout-are-you-sure" = "Sètz segur que vos volètz desconnectar ?";
 "main-menu-account-logout-cancel" = "Anullar";
 "main-menu-account-title-logged-in" = "Connectat en tant que $1.";
-"main-menu-debug-tweaks" = "Paramètres de desvolopament";
-"main-menu-heading-debug" = "Desbogar";
 "main-menu-heading-legal" = "Confidencialitat e condicions";
 "main-menu-nearby" = "A proximitat";
 "main-menu-privacy-policy" = "Politica de confidencialitat";
@@ -145,20 +130,14 @@
 "nearby-distance-label-meters" = "$1 m";
 "nearby-distance-label-miles" = "$1 millas";
 "new-password-title" = "Definir vòstre senhal";
+// Fuzzy
+"notifications-center-feed-news-notification-button-text" = "Activar las notificacions";
 "number-billions" = "$1G";
 "number-millions" = "$1M";
 "number-thousands" = "$1K";
 "on-this-day-detail-header-title" = "{{PLURAL:$1|$1 eveniment istoric|$1 eveniments istorics}}";
 "on-this-day-title" = "Aqueste jorn";
-"page-edit-history" = "Istoric complet de las modificacions";
-"page-history-title" = "Istoric de l’article";
-"page-issues" = "Problèmas de pagina";
-// Fuzzy
-"page-last-edited" = "Modificat i a $1 jorns";
 "page-protected-can-not-edit-title" = "Aquesta pagina es protegida";
-// Fuzzy
-"page-read-in-other-languages" = "Disponible dins $1 autras lengas";
-"page-similar-titles" = "Paginas similaras";
 "places-search-recently-searched-header" = "Recercat recentament";
 "places-search-saved-articles" = "Totes los articles enregistrats";
 "places-search-suggested-searches-header" = "Recèrcas suggeridas";
@@ -168,8 +147,6 @@
 "places-title" = "Luòcs";
 "potd-description-prefix" = "Imatge del jorn per $1";
 "preference-title-eventlogging-opt-in" = "Mandar los rapòrts d’utilizacion";
-"rank-accessibility-label" = "Numèro $1";
-"readers-accessibility-label" = "$1 lectors";
 "reading-list-sync-enable-subtitle" = "Vòstres articles e listas de lectura salvagardats pòdon ara èstre salvats dins vòstre compte Wikipedia e sincronizats demest las aplicacions Wikipedia.";
 "reading-lists-article-queued-to-be-downloaded" = "Article ajustat a la tièra per èstre teledescargat";
 "reference-title" = "Referéncia $1";
@@ -191,6 +168,7 @@
 "settings-clear-cache-cancel" = "Anullar";
 "settings-help-and-feedback" = "Ajuda e comentaris";
 "settings-my-languages" = "Mas lengas";
+// Fuzzy
 "settings-notifications" = "Notificacions";
 "settings-notifications-push-notifications" = "Notificacions mandadas";
 "settings-notifications-system-turn-on" = "Activar las notificacions";
@@ -199,19 +177,14 @@
 "settings-storage-and-syncing-server-sync-title" = "Actualizar listas de lectura sincronizadas";
 "settings-support" = "Sosténer Wikipèdia";
 "settings-title" = "Paramètres";
+// Fuzzy
 "share-article-name-on-wikipedia" = "« $1 » sus @Wikipedia:";
-"share-custom-menu-item" = "Partejar…";
+// Fuzzy
 "share-on-twitter-sign-off" = "via @Wikipèdia";
-"status-saved-for-later" = "Enregistrat per mai tard";
-"status-saving-for-later" = "Enregistrament per mai tard…";
 "table-of-contents-button-label" = "Ensenhador";
 "table-of-contents-close-accessibility-hint" = "Tampar";
 "table-of-contents-close-accessibility-label" = "Tampar l'ensenhador";
 "table-of-contents-heading" = "Contenguts";
-"table-title-other" = "Mai d'informacions";
-"top-read-header-generic" = "Wikipèdia";
-"top-read-header-with-language" = "Wikipèdia en $1";
-"top-read-see-more" = "Veire mai de paginas las mai gaitadas";
 "two-factor-login-title" = "Se connectar a vòstre compte";
 "welcome-explore-continue-button" = "Començar";
 "welcome-explore-tell-me-more-done-button" = "L’obténer";

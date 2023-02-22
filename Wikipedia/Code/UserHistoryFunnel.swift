@@ -9,7 +9,7 @@ private typealias ContentGroupKindAndLoggingCode = (kind: WMFContentGroupKind, l
         "NZ", "AE", "FI", "IL", "TH", "AR", "VN", "TW", "RO", "PH", "MY", "ID", "CL", "CO", "ZA",
         "PT", "HU", "GR", "EG"
     )
-    @objc public static let shared = UserHistoryFunnel()
+    @objc public static let shared = UserHistoryFunnel(dataStore: MWKDataStore.shared())
     
     private var isTarget: Bool {
         guard let countryCode = Locale.current.regionCode?.uppercased() else {
@@ -18,24 +18,22 @@ private typealias ContentGroupKindAndLoggingCode = (kind: WMFContentGroupKind, l
         return targetCountries.contains(countryCode)
     }
     
-    private override init() {
-        super.init(schema: "MobileWikiAppiOSUserHistory", version: 19074748)
+    let dataStore: MWKDataStore
+    required init(dataStore: MWKDataStore) {
+        self.dataStore = dataStore
+        super.init(schema: "MobileWikiAppiOSUserHistory", version: 22479505)
     }
     
-    private func event() -> Dictionary<String, Any> {
-        let userDefaults = UserDefaults.wmf
+    private func event(authorizationStatus: UNAuthorizationStatus?) -> [String: Any] {
+        let userDefaults = UserDefaults.standard
         
-        let fontSize = userDefaults.wmf_articleFontSizeMultiplier().intValue
+        let fontSize = UserDefaults.standard.wmf_articleFontSizeMultiplier().intValue
         let theme = userDefaults.themeAnalyticsName
         let isFeedDisabled = userDefaults.defaultTabType != .explore
-        let isNewsNotificationEnabled = userDefaults.wmf_inTheNewsNotificationsEnabled()
-        let appOpensOnSearchTab = userDefaults.wmf_openAppOnSearchTab
+        let isNewsNotificationEnabled = false
+        let appOpensOnSearchTab = UserDefaults.standard.wmf_openAppOnSearchTab
 
         var event: [String: Any] = ["primary_language": primaryLanguage(), "is_anon": isAnon, "measure_font_size": fontSize, "theme": theme, "feed_disabled": isFeedDisabled, "trend_notify": isNewsNotificationEnabled, "search_tab": appOpensOnSearchTab]
-
-        guard let dataStore = SessionSingleton.sharedInstance().dataStore else {
-            return event
-        }
         
         let savedArticlesCount = dataStore.savedPageList.numberOfItems()
         event["measure_readinglist_itemcount"] = savedArticlesCount
@@ -51,6 +49,17 @@ private typealias ContentGroupKindAndLoggingCode = (kind: WMFContentGroupKind, l
 
         event["feed_enabled_list"] = feedEnabledListPayload()
         
+        if let articleAsLivingDocBucket = dataStore.abTestsController.bucketForExperiment(.articleAsLivingDoc) {
+            event["test_group"] = articleAsLivingDocBucket.rawValue
+        }
+        
+        if let status = authorizationStatus {
+            event["device_level_enabled"] = status.getAuthorizationStatusString()
+        }
+        
+        let inboxCount = try? dataStore.remoteNotificationsController.numberOfAllNotifications()
+        event["inbox_count"] = inboxCount ?? 0
+
         return wholeEvent(with: event)
     }
     
@@ -66,11 +75,11 @@ private typealias ContentGroupKindAndLoggingCode = (kind: WMFContentGroupKind, l
         
         var feedEnabledList = [String: Any]()
         
-        WMFExploreFeedContentController.globalContentGroupKindNumbers().compactMap(contentGroupKindAndLoggingCodeFromNumber).forEach() {
+        WMFExploreFeedContentController.globalContentGroupKindNumbers().compactMap(contentGroupKindAndLoggingCodeFromNumber).forEach {
             feedEnabledList[$0.loggingCode] = $0.kind.isInFeed
         }
         
-        WMFExploreFeedContentController.customizableContentGroupKindNumbers().compactMap(contentGroupKindAndLoggingCodeFromNumber).forEach() {
+        WMFExploreFeedContentController.customizableContentGroupKindNumbers().compactMap(contentGroupKindAndLoggingCodeFromNumber).forEach {
             feedEnabledList[$0.loggingCode] = $0.kind.userHistorySchemaLanguageInfo
         }
 
@@ -82,11 +91,11 @@ private typealias ContentGroupKindAndLoggingCode = (kind: WMFContentGroupKind, l
             return
         }
         EventLoggingService.shared?.lastLoggedSnapshot = eventData as NSCoding
-        UserDefaults.wmf.wmf_lastAppVersion = WikipediaAppUtils.appVersion()
+        UserDefaults.standard.wmf_lastAppVersion = WikipediaAppUtils.appVersion()
     }
     
-    private var latestSnapshot: Dictionary<String, Any>? {
-        return EventLoggingService.shared?.lastLoggedSnapshot as? Dictionary<String, Any>
+    private var latestSnapshot: [String: Any]? {
+        return EventLoggingService.shared?.lastLoggedSnapshot as? [String: Any]
     }
     
     @objc public func logSnapshot() {
@@ -98,23 +107,31 @@ private typealias ContentGroupKindAndLoggingCode = (kind: WMFContentGroupKind, l
             return
         }
         
-        guard let lastAppVersion = UserDefaults.wmf.wmf_lastAppVersion else {
-            log(event())
-            return
+        dataStore.notificationsController.notificationPermissionsStatus { [weak self] authorizationStatus in
+            
+            guard let self = self else {
+                return
+            }
+            
+            DispatchQueue.main.async {
+                guard let lastAppVersion = UserDefaults.standard.wmf_lastAppVersion else {
+                    self.log(self.event(authorizationStatus: authorizationStatus))
+                    return
+                }
+                guard let latestSnapshot = self.latestSnapshot else {
+                    return
+                }
+                
+                let newSnapshot = self.event(authorizationStatus: authorizationStatus)
+                
+                guard !newSnapshot.wmf_isEqualTo(latestSnapshot, excluding: self.standardEvent.keys) || lastAppVersion != WikipediaAppUtils.appVersion() else {
+                    // DDLogDebug("User History snapshots are identical; logging new User History snapshot aborted")
+                    return
+                }
+                // DDLogDebug("User History snapshots are different; logging new User History snapshot")
+                self.log(self.event(authorizationStatus: authorizationStatus))
+            }
         }
-        guard let latestSnapshot = latestSnapshot else {
-            return
-        }
-
-        let newSnapshot = event()
-        
-        guard !newSnapshot.wmf_isEqualTo(latestSnapshot, excluding: standardEvent.keys) || lastAppVersion != WikipediaAppUtils.appVersion() else {
-            // DDLogDebug("User History snapshots are identical; logging new User History snapshot aborted")
-            return
-        }
-        
-        // DDLogDebug("User History snapshots are different; logging new User History snapshot")
-        log(event())
     }
     
     @objc public func logStartingSnapshot() {
@@ -126,15 +143,25 @@ private typealias ContentGroupKindAndLoggingCode = (kind: WMFContentGroupKind, l
         guard isTarget else {
             return
         }
-        log(event())
-        // DDLogDebug("Attempted to log starting User History snapshot")
+        dataStore.notificationsController.notificationPermissionsStatus { [weak self] authorizationStatus in
+            
+            guard let self = self else {
+                return
+            }
+            
+            DispatchQueue.main.async {
+                self.log(self.event(authorizationStatus: authorizationStatus))
+                // DDLogDebug("Attempted to log starting User History snapshot")
+            }
+        }
+        
     }
 }
 
 private extension WMFContentGroupKind {
     var offLanguageCodes: Set<String> {
-        let preferredLangCodes = MWKLanguageLinkController.sharedInstance().preferredLanguages.map{$0.languageCode}
-        return Set(preferredLangCodes).subtracting(languageCodes)
+        let preferredContentLangCodes = MWKDataStore.shared().languageLinkController.preferredLanguages.map {$0.contentLanguageCode}
+        return Set(preferredContentLangCodes).subtracting(contentLanguageCodes)
     }
     
     // codes define by: https://meta.wikimedia.org/wiki/Schema:MobileWikiAppiOSUserHistory
@@ -166,8 +193,8 @@ private extension WMFContentGroupKind {
     // "on" / "off" define by: https://meta.wikimedia.org/wiki/Schema:MobileWikiAppiOSUserHistory
     var userHistorySchemaLanguageInfo: [String: [String]] {
         var info = [String: [String]]()
-        if !languageCodes.isEmpty {
-            info["on"] = Array(languageCodes)
+        if !contentLanguageCodes.isEmpty {
+            info["on"] = Array(contentLanguageCodes)
         }
         if !offLanguageCodes.isEmpty {
             info["off"] = Array(offLanguageCodes)

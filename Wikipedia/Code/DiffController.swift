@@ -1,4 +1,3 @@
-
 import Foundation
 
 
@@ -26,7 +25,6 @@ class DiffController {
     let diffFetcher: DiffFetcher
     let pageHistoryFetcher: PageHistoryFetcher?
     let globalUserInfoFetcher: GlobalUserInfoFetcher
-    let diffThanker: DiffThanker
     let siteURL: URL
     let type: DiffContainerViewModel.DiffType
     private weak var revisionRetrievingDelegate: DiffRevisionRetrieving?
@@ -37,7 +35,6 @@ class DiffController {
         self.diffFetcher = diffFetcher
         self.pageHistoryFetcher = pageHistoryFetcher
         self.globalUserInfoFetcher = GlobalUserInfoFetcher()
-        self.diffThanker = DiffThanker()
         self.siteURL = siteURL
         self.revisionRetrievingDelegate = revisionRetrievingDelegate
         self.type = type
@@ -53,13 +50,9 @@ class DiffController {
         pageHistoryFetcher?.fetchEditCounts(.edits, .editors, for: pageTitle, pageURL: pageURL, from: fromRevisionID, to: toRevisionID, completion: completion)
     }
     
-    func thankRevisionAuthor(toRevisionId: Int, completion: @escaping ((Result<DiffThankerResult, Error>) -> Void)) {
-        diffThanker.thank(siteURL: siteURL, rev: toRevisionId, completion: completion)
-    }
-    
     func fetchFirstRevisionModel(articleTitle: String, completion: @escaping ((Result<WMFPageHistoryRevision, Error>) -> Void)) {
 
-        guard let articleTitle = (articleTitle as NSString).wmf_normalizedPageTitle() else {
+        guard let articleTitle = articleTitle.normalizedPageTitle else {
             completion(.failure(DiffError.fetchRevisionConstructTitleFailure))
             return
         }
@@ -101,7 +94,7 @@ class DiffController {
     }
     
     private func populateModelsFromDeepLink(fromRevisionID: Int?, toRevisionID: Int?, articleTitle: String, completion: @escaping ((Result<DeepLinkModelsResponse, Error>) -> Void)) {
-        guard let articleTitle = (articleTitle as NSString).wmf_normalizedPageTitle() else {
+        guard let articleTitle = articleTitle.normalizedPageTitle else {
             completion(.failure(DiffError.fetchRevisionConstructTitleFailure))
             return
         }
@@ -168,7 +161,7 @@ class DiffController {
         
         if let revisionRetrievingDelegate = revisionRetrievingDelegate {
             
-            //optimization - first try to grab a revision we might already have in memory from the revisionRetrievingDelegate
+            // optimization - first try to grab a revision we might already have in memory from the revisionRetrievingDelegate
             switch direction {
             case .next:
                 if let nextRevision = revisionRetrievingDelegate.retrieveNextRevision(with: sourceRevision) {
@@ -206,7 +199,7 @@ class DiffController {
                     let viewModels = try self.transformer.firstRevisionViewModels(from: wikitext, theme: theme, traitCollection: traitCollection)
 
                     completion(.success(viewModels))
-                } catch (let error) {
+                } catch let error {
                     completion(.failure(error))
                 }
             case .failure(let error):
@@ -255,7 +248,7 @@ class DiffController {
                     let viewModels = try self.transformer.viewModels(from: diffResponse, theme: theme, traitCollection: traitCollection)
 
                     completion(.success(viewModels))
-                } catch (let error) {
+                } catch let error {
                     completion(.failure(error))
                 }
             case .failure(let error):

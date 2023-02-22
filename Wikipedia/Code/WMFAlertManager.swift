@@ -3,26 +3,17 @@ import MessageUI
 
 extension NSError {
     
-    public func alertMessage() -> String {
-        if(self.wmf_isNetworkConnectionError()){
-            return CommonStrings.noInternetConnection
-        }else{
-            return self.localizedDescription
-        }
-    }
-    
     public func alertType() -> RMessageType {
-        if(self.wmf_isNetworkConnectionError()){
+        if self.wmf_isNetworkConnectionError() {
             return .warning
-        }else{
+        } else {
             return .error
         }
     }
 
 }
 
-
-open class WMFAlertManager: NSObject, RMessageProtocol, MFMailComposeViewControllerDelegate, Themeable {
+open class WMFAlertManager: NSObject, RMessageProtocol, Themeable {
     
     @objc static let sharedInstance = WMFAlertManager()
 
@@ -34,18 +25,6 @@ open class WMFAlertManager: NSObject, RMessageProtocol, MFMailComposeViewControl
     override init() {
         super.init()
         RMessage.shared().delegate = self
-    }
-    
-    
-    @objc func showInTheNewsAlert(_ message: String?, sticky:Bool, dismissPreviousAlerts:Bool, tapCallBack: (() -> Void)?) {
-        
-        if (message ?? "").isEmpty {
-            return
-        }
-        showAlert(dismissPreviousAlerts, alertBlock: { () -> Void in
-            let title = CommonStrings.inTheNewsTitle
-            RMessage.showNotification(in: nil, title: title, subtitle: message, iconImage: UIImage(named:"trending-notification-icon"), type: .normal, customTypeName: nil, duration: sticky ? -1 : 2, callback: tapCallBack, buttonTitle: nil, buttonCallback: nil, at: .top, canBeDismissedByUser: true)
-        })
     }
 
     @objc func showAlertWithReadMore(_ title: String?, type: RMessageType, dismissPreviousAlerts: Bool, buttonCallback: (() -> Void)?, tapCallBack: (() -> Void)?) {
@@ -84,11 +63,14 @@ open class WMFAlertManager: NSObject, RMessageProtocol, MFMailComposeViewControl
         })
     }
 
-    @objc func showErrorAlert(_ error: NSError, sticky:Bool,dismissPreviousAlerts:Bool, tapCallBack: (() -> Void)? = nil) {
-        
+    func showErrorAlert(_ error: Error, sticky:Bool, dismissPreviousAlerts:Bool, viewController: UIViewController? = nil, tapCallBack: (() -> Void)? = nil) {
         showAlert(dismissPreviousAlerts, alertBlock: { () -> Void in
-            RMessage.showNotification(in: nil, title: error.alertMessage(), subtitle: nil, iconImage: nil, type: .error, customTypeName: nil, duration: sticky ? -1 : 2, callback: tapCallBack, buttonTitle: nil, buttonCallback: nil, at: .top, canBeDismissedByUser: true)
+            RMessage.showNotification(in: viewController, title: (error as NSError).alertMessage(), subtitle: nil, iconImage: nil, type: .error, customTypeName: nil, duration: sticky ? -1 : 2, callback: tapCallBack, buttonTitle: nil, buttonCallback: nil, at: .top, canBeDismissedByUser: true)
         })
+    }
+    
+    @objc func showErrorAlert(_ error: Error, sticky: Bool, dismissPreviousAlerts:Bool, tapCallBack: (() -> Void)? = nil) {
+        showErrorAlert(error, sticky: sticky, dismissPreviousAlerts: dismissPreviousAlerts, viewController:nil, tapCallBack: tapCallBack)
     }
     
     @objc func showErrorAlertWithMessage(_ message: String, sticky:Bool,dismissPreviousAlerts:Bool, tapCallBack: (() -> Void)? = nil) {
@@ -98,14 +80,34 @@ open class WMFAlertManager: NSObject, RMessageProtocol, MFMailComposeViewControl
         })
     }
 
-    @objc func showAlert(_ dismissPreviousAlerts:Bool, alertBlock: @escaping ()->()){
-        
-        if dismissPreviousAlerts {
-            dismissAllAlerts {
+    @objc func showErrorAlertWithMessage(_ message: String, subtitle: String?, buttonTitle: String?, image: UIImage?, dismissPreviousAlerts:Bool, tapCallBack: (() -> Void)? = nil) {
+        showAlert(dismissPreviousAlerts, alertBlock: { () -> Void in
+            RMessage.showNotification(in: nil, title: message, subtitle: subtitle, iconImage: image, type: .custom, customTypeName: "connection", duration: 15, callback: tapCallBack, buttonTitle: buttonTitle, buttonCallback: tapCallBack, at: .top, canBeDismissedByUser: true)
+        })
+    }
+    
+    @objc func showBottomAlertWithMessage(_ message: String, subtitle: String?, image: UIImage?, type: RMessageType, customTypeName: String?, dismissPreviousAlerts:Bool, tapCallBack: (() -> Void)? = nil) {
+        showAlert(dismissPreviousAlerts, alertBlock: { () -> Void in
+            RMessage.showNotification(withTitle: message, subtitle: subtitle, iconImage: image, type: type, customTypeName: customTypeName, duration: 5, callback: tapCallBack, buttonTitle: nil, buttonCallback: nil, at: .bottom, canBeDismissedByUser: true)
+        })
+    }
+    
+    private var queuedAlertBlocks: [() -> Void] = []
+
+    @objc func showAlert(_ dismissPreviousAlerts:Bool, alertBlock: @escaping () -> Void) {
+        DispatchQueue.main.async {
+            if dismissPreviousAlerts {
+                self.queuedAlertBlocks.append(alertBlock)
+                self.dismissAllAlerts {
+                    assert(Thread.isMainThread)
+                    if let alertBlock = self.queuedAlertBlocks.popLast() {
+                        alertBlock()
+                    }
+                    self.queuedAlertBlocks.removeAll()
+                }
+            } else {
                 alertBlock()
             }
-        } else {
-            alertBlock()
         }
     }
     
@@ -118,7 +120,7 @@ open class WMFAlertManager: NSObject, RMessageProtocol, MFMailComposeViewControl
     }
 
     @objc public func customize(_ messageView: RMessageView!) {
-        messageView.backgroundColor = theme.colors.popoverBackground
+        messageView.backgroundColor = theme.colors.chromeBackground
         messageView.closeIconColor = theme.colors.primaryText
         messageView.subtitleTextColor = theme.colors.secondaryText
         messageView.buttonTitleColor = theme.colors.link
@@ -129,34 +131,20 @@ open class WMFAlertManager: NSObject, RMessageProtocol, MFMailComposeViewControl
             messageView.titleTextColor = theme.colors.warning
         case .success:
             messageView.titleTextColor = theme.colors.accent
+        case .custom:
+            messageView.titleTextColor = theme.colors.primaryText
+            messageView.subtitleTextColor = theme.colors.primaryText
+            if messageView.customTypeName == "connection" {
+                messageView.imageViewTintColor = theme.colors.error
+                messageView.buttonFont = UIFont.systemFont(ofSize: 14, weight: .semibold)
+            } else if messageView.customTypeName == "subscription-error" {
+                messageView.imageViewTintColor = theme.colors.warning
+            }
         default:
             messageView.titleTextColor = theme.colors.link
         }
+        
+        messageView.layer.shadowColor = theme.colors.shadow.cgColor
     }
-    
-    @objc func showEmailFeedbackAlertViewWithError(_ error: NSError) {
-       let message = WMFLocalizedString("request-feedback-on-error", value:"The app has encountered a problem that our developers would like to know more about. Please tap here to send us an email with the error details.", comment:"Displayed to beta users when they encounter an error we'd like feedback on")
-        showErrorAlertWithMessage(message, sticky: true, dismissPreviousAlerts: true) {
-            self.dismissAllAlerts()
-            if MFMailComposeViewController.canSendMail() {
-                guard let rootVC = UIApplication.shared.keyWindow?.rootViewController else {
-                    return
-                }
-                let vc = MFMailComposeViewController()
-                vc.setSubject("Bug:\(WikipediaAppUtils.versionedUserAgent())")
-                vc.setToRecipients(["mobile-ios-wikipedia@wikimedia.org"])
-                vc.mailComposeDelegate = self
-                vc.setMessageBody("Domain:\t\(error.domain)\nCode:\t\(error.code)\nDescription:\t\(error.localizedDescription)\n\n\n\nVersion:\t\(WikipediaAppUtils.versionedUserAgent())", isHTML: false)
-                rootVC.present(vc, animated: true, completion: nil)
-            } else {
-                self.showErrorAlertWithMessage(WMFLocalizedString("no-email-account-alert", value:"Please setup an email account on your device and try again.", comment:"Displayed to the user when they try to send a feedback email, but they have never set up an account on their device"), sticky: false, dismissPreviousAlerts: false) {
-                    
-                }
-            }
-        }
-    }
-    
-    @objc public func mailComposeController(_ controller: MFMailComposeViewController, didFinishWith result: MFMailComposeResult, error: Error?) {
-        controller.dismiss(animated: true, completion: nil)
-    }
+
 }

@@ -13,7 +13,8 @@ final class InsertMediaSearchViewController: UIViewController {
     var progressController: FakeProgressController!
 
     private let searchFetcher = WMFSearchFetcher()
-    private let imageInfoFetcher = MWKImageInfoFetcher()
+    // SINGLETONTODO
+    private let imageInfoFetcher = MWKImageInfoFetcher(dataStore: MWKDataStore.shared())
 
     weak var delegate: InsertMediaSearchViewControllerDelegate?
     weak var searchBarDelegate: UISearchBarDelegate?
@@ -89,10 +90,11 @@ final class InsertMediaSearchViewController: UIViewController {
                 self.delegate?.insertMediaSearchViewController(self, didFind: searchResults)
             }
             for (index, searchResult) in searchResults.enumerated() {
-                guard searchResult.imageInfo == nil else {
+                guard searchResult.imageInfo == nil,
+                    let siteURL = self.siteURL else {
                     continue
                 }
-                self.imageInfoFetcher.fetchGalleryInfo(forImage: searchResult.fileTitle, fromSiteURL: self.siteURL, failure: { error in
+                self.imageInfoFetcher.fetchGalleryInfo(forImage: searchResult.fileTitle, fromSiteURL: siteURL, failure: { error in
                 }, success: { result in
                     guard let imageInfo = result as? MWKImageInfo else {
                         return

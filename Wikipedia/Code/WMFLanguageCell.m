@@ -1,5 +1,4 @@
 #import "WMFLanguageCell.h"
-#import "UILabel+WMFStyling.h"
 #import "Wikipedia-Swift.h"
 
 @interface WMFLanguageCell ()
@@ -32,7 +31,7 @@
         self.localizedLanguageLabel.text = nil;
     }
     _languageName = languageName;
-    self.languageNameLabel.text = [languageName wmf_stringByCapitalizingFirstCharacterUsingWikipediaLanguage:nil];
+    self.languageNameLabel.text = [languageName wmf_stringByCapitalizingFirstCharacterUsingWikipediaLanguageCode:nil];
 }
 
 - (BOOL)shouldShowLanguageName:(NSString *)languageName {

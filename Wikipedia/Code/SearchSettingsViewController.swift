@@ -17,16 +17,22 @@ final class SearchSettingsViewController: SubSettingsViewController {
     public override func viewDidLoad() {
         super.viewDidLoad()
         tableView.register(WMFSettingsTableViewCell.wmf_classNib(), forCellReuseIdentifier: WMFSettingsTableViewCell.identifier)
+        tableView.register(WMFTableHeaderFooterLabelView.wmf_classNib(), forHeaderFooterViewReuseIdentifier: WMFTableHeaderFooterLabelView.identifier)
+        tableView.sectionFooterHeight = UITableView.automaticDimension
+        tableView.estimatedSectionFooterHeight = 44
         title = CommonStrings.searchTitle
+        reloadSectionData()
     }
 
-    private lazy var sections: [Section] = {
-        let showLanguagesOnSearch = Item(title: WMFLocalizedString("settings-language-bar", value: "Show languages on search", comment: "Title in Settings for toggling the display the language bar in the search view"), isOn: UserDefaults.wmf.wmf_showSearchLanguageBar(), controlTag: 1)
-        let openAppOnSearchTab = Item(title: WMFLocalizedString("settings-search-open-app-on-search", value: "Open app on Search tab", comment: "Title for setting that allows users to open app on Search tab"), isOn: UserDefaults.wmf.wmf_openAppOnSearchTab, controlTag: 2)
+    private lazy var sections: [Section] = []
+
+    private func reloadSectionData() {
+        let showLanguagesOnSearch = Item(title: WMFLocalizedString("settings-language-bar", value: "Show languages on search", comment: "Title in Settings for toggling the display the language bar in the search view"), isOn: UserDefaults.standard.wmf_showSearchLanguageBar(), controlTag: 1)
+        let openAppOnSearchTab = Item(title: WMFLocalizedString("settings-search-open-app-on-search", value: "Open app on Search tab", comment: "Title for setting that allows users to open app on Search tab"), isOn: UserDefaults.standard.wmf_openAppOnSearchTab, controlTag: 2)
         let items = [showLanguagesOnSearch, openAppOnSearchTab]
         let sections = [Section(items: items, footerTitle: WMFLocalizedString("settings-search-footer-text", value: "Set the app to open to the Search tab instead of the Explore tab", comment: "Footer text for section that allows users to customize certain Search settings"))]
-        return sections
-    }()
+        self.sections = sections
+    }
 
     private func getSection(at index: Int) -> Section {
         assert(sections.indices.contains(index), "Section at index \(index) doesn't exist")
@@ -48,6 +54,7 @@ final class SearchSettingsViewController: SubSettingsViewController {
         }
         view.backgroundColor = theme.colors.baseBackground
         tableView.backgroundColor = theme.colors.baseBackground
+        tableView.reloadData()
     }
 }
 
@@ -78,8 +85,20 @@ extension SearchSettingsViewController {
 }
 
 extension SearchSettingsViewController {
-    @objc public func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
-        return getSection(at: section).footerTitle
+    @objc func tableView(_ tableView: UITableView, heightForFooterInSection section: Int) -> CGFloat {
+        
+        let text = getSection(at: section).footerTitle
+        guard !text.isEmpty else {
+            return 0
+        }
+        
+        return UITableView.automaticDimension
+    }
+    
+    @objc func tableView(_ tableView: UITableView, viewForFooterInSection section: Int) -> UIView? {
+        
+        let text = getSection(at: section).footerTitle
+        return WMFTableHeaderFooterLabelView.headerFooterViewForTableView(tableView, text: text, type: .footer, theme: theme)
     }
 }
 
@@ -88,11 +107,12 @@ extension SearchSettingsViewController: WMFSettingsTableViewCellDelegate {
         let controlTag = settingsTableViewCell.tag
         switch controlTag {
         case 1:
-            UserDefaults.wmf.wmf_setShowSearchLanguageBar(sender.isOn)
+            UserDefaults.standard.wmf_setShowSearchLanguageBar(sender.isOn)
         case 2:
-            UserDefaults.wmf.wmf_openAppOnSearchTab = sender.isOn
+            UserDefaults.standard.wmf_openAppOnSearchTab = sender.isOn
         default:
             break
         }
+        reloadSectionData()
     }
 }

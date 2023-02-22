@@ -7,32 +7,99 @@ public class Router: NSObject {
         case articleHistory(_: URL, articleTitle: String)
         case articleDiffCompare(_: URL, fromRevID: Int?, toRevID: Int?)
         case articleDiffSingle(_: URL, fromRevID: Int?, toRevID: Int?)
+        case talk(_: URL)
         case userTalk(_: URL)
         case search(_: URL, term: String?)
+        case audio(_: URL)
+        case onThisDay(_: Int?)
+        case readingListsImport(encodedPayload: String)
     }
     
     unowned let configuration: Configuration
+    
     required init(configuration: Configuration) {
         self.configuration = configuration
     }
+    
+    // MARK: Public
+    
+    /// Gets the appropriate in-app destination for a given URL
+    public func destination(for url: URL) -> Destination {
+        
+        guard let siteURL = url.wmf_site,
+        let project = WikimediaProject(siteURL: siteURL) else {
+            
+            guard url.isWikimediaHostedAudioFileLink else {
+                return webViewDestinationForHostURL(url)
+            }
+            
+            return .audio(url.byMakingAudioFileCompatibilityAdjustments)
+        }
+        
+        return destinationForHostURL(url, project: project)
+    }
+
+    public func doesOpenInBrowser(for url: URL) -> Bool {
+        return [.externalLink(url), .inAppLink(url)].contains(destination(for: url))
+    }
+    
+    
+    // MARK: Internal and Private
     
     private let mobilediffRegexCompare = try! NSRegularExpression(pattern: "^mobilediff/([0-9]+)\\.\\.\\.([0-9]+)", options: .caseInsensitive)
     private let mobilediffRegexSingle = try! NSRegularExpression(pattern: "^mobilediff/([0-9]+)", options: .caseInsensitive)
     private let historyRegex = try! NSRegularExpression(pattern: "^history/(.*)", options: .caseInsensitive)
     
-    internal func destinationForWikiResourceURL(_ url: URL) -> Destination? {
+    internal func destinationForWikiResourceURL(_ url: URL, project: WikimediaProject) -> Destination? {
         guard let path = url.wikiResourcePath else {
             return nil
         }
-        let language = url.wmf_language ?? "en"
+        
+        let language = project.languageCode ?? "en"
         let namespaceAndTitle = path.namespaceAndTitleOfWikiResourcePath(with: language)
         let namespace = namespaceAndTitle.0
         let title = namespaceAndTitle.1
-        let inAppLinkDestination = Destination.inAppLink(url)
+        
         switch namespace {
+        case .talk:
+            if FeatureFlags.needsNewTalkPage && project.supportsNativeUserTalkPages {
+                return .talk(url)
+            } else {
+                return nil
+            }
         case .userTalk:
-            return .userTalk(url)
+            return project.supportsNativeUserTalkPages ? .userTalk(url) : nil
         case .special:
+            
+            // TODO: Fix to work across languages, not just EN. Fetch special page aliases per site and add to a set of local json files.
+            // https://en.wikipedia.org/w/api.php?action=query&format=json&meta=siteinfo&formatversion=2&siprop=specialpagealiases
+            if language.uppercased() == "EN" || language.uppercased() == "TEST",
+                title == "MyTalk",
+               let username = MWKDataStore.shared().authenticationManager.loggedInUsername,
+               let newURL = url.wmf_URL(withTitle: "User_talk:\(username)") {
+                return .userTalk(newURL)
+            }
+            
+            if language.uppercased() == "EN" || language.uppercased() == "TEST",
+                title == "MyContributions",
+               let username = MWKDataStore.shared().authenticationManager.loggedInUsername,
+               let newURL = url.wmf_URL(withPath: "/wiki/Special:Contributions/\(username)", isMobile: true) {
+                return .inAppLink(newURL)
+            }
+            
+            if title == "ReadingLists",
+               let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+               let firstQueryItem = components.queryItems?.first,
+               firstQueryItem.name == "limport",
+               let encodedPayload = firstQueryItem.value {
+
+                return .readingListsImport(encodedPayload: encodedPayload)
+            }
+            
+            guard project.supportsNativeDiffPages else {
+                return nil
+            }
+            
             if let compareDiffMatch = mobilediffRegexCompare.firstMatch(in: title),
                 let fromRevID = Int(mobilediffRegexCompare.replacementString(for: compareDiffMatch, in: title, offset: 0, template: "$1")),
                 let toRevID = Int(mobilediffRegexCompare.replacementString(for: compareDiffMatch, in: title, offset: 0, template: "$2")) {
@@ -44,34 +111,56 @@ public class Router: NSObject {
                 return .articleDiffSingle(url, fromRevID: nil, toRevID: toRevID)
             }
             
-            if let articleTitle = historyRegex.firstReplacementString(in: title) {
-                return .articleHistory(url, articleTitle: articleTitle.wmf_normalizedPageTitle())
+            if let articleTitle = historyRegex.firstReplacementString(in: title)?.normalizedPageTitle {
+                return .articleHistory(url, articleTitle: articleTitle)
             }
             
-            return inAppLinkDestination
+            return nil
         case .main:
-            return WikipediaURLTranslations.isMainpageTitle(title, in: language) ? inAppLinkDestination : Destination.article(url)
+            
+            guard project.mainNamespaceGoesToNativeArticleView else {
+                return nil
+            }
+            
+            return WikipediaURLTranslations.isMainpageTitle(title, in: language) ? nil : Destination.article(url)
+        case .wikipedia:
+            
+            guard project.considersWResourcePathsForRouting else {
+                return nil
+            }
+            
+            let onThisDayURLSnippet = "On_this_day"
+            if title.uppercased().contains(onThisDayURLSnippet.uppercased()) {
+                // URL in form of https://en.wikipedia.org/wiki/Wikipedia:On_this_day/Today?3. Take bit past question mark.
+                if let selected = url.query {
+                    return .onThisDay(Int(selected))
+                } else {
+                    return .onThisDay(nil)
+                }
+            } else {
+                fallthrough
+            }
         default:
-            return inAppLinkDestination
+            return nil
         }
     }
     
-    internal func destinationForWResourceURL(_ url: URL) -> Destination? {
-        guard let path = url.wResourcePath else {
+    internal func destinationForWResourceURL(_ url: URL, project: WikimediaProject) -> Destination? {
+        
+        guard project.considersWResourcePathsForRouting,
+              let path = url.wResourcePath else {
             return nil
         }
         
-        let defaultActivity = Destination.inAppLink(url)
-        
         guard var components = URLComponents(string: path) else {
-            return defaultActivity
+            return nil
         }
         components.query = url.query
         guard components.path.lowercased() == "index.php" else {
-            return defaultActivity
+            return nil
         }
         guard let queryItems = components.queryItems else {
-            return defaultActivity
+            return nil
         }
         
         var params: [String: String] = [:]
@@ -93,14 +182,14 @@ public class Router: NSObject {
         let maybeLimit = params["limit"]
         
         guard let title = maybeTitle else {
-            return defaultActivity
+            return nil
         }
         
-        if let _ = maybeLimit,
-            let _ = maybeDir,
+        if maybeLimit != nil,
+            maybeDir != nil,
             let action = maybeAction,
             action == "history" {
-            //TODO: push history 'slice'
+            // TODO: push history 'slice'
             return .articleHistory(url, articleTitle: title)
         } else if let action = maybeAction,
             action == "history" {
@@ -127,35 +216,30 @@ public class Router: NSObject {
             return .articleDiffSingle(url, fromRevID: nil, toRevID: toRevID)
         }
         
-        return defaultActivity
+        return nil
     }
     
-    internal func destinationForWikipediaHostURL(_ url: URL) -> Destination {
+    internal func destinationForHostURL(_ url: URL, project: WikimediaProject) -> Destination {
         let canonicalURL = url.canonical
         
-        if let wikiResourcePathInfo = destinationForWikiResourceURL(canonicalURL) {
+        if let wikiResourcePathInfo = destinationForWikiResourceURL(canonicalURL, project: project) {
             return wikiResourcePathInfo
         }
         
-        if let wResourcePathInfo = destinationForWResourceURL(canonicalURL) {
+        if let wResourcePathInfo = destinationForWResourceURL(canonicalURL, project: project) {
             return wResourcePathInfo
         }
         
-        return .inAppLink(canonicalURL)
+        return webViewDestinationForHostURL(url)
     }
     
-    public func destination(for url: URL?) throws -> Destination {
-        guard let url = url else {
-            throw RequestError.invalidParameters
-        }
+    internal func webViewDestinationForHostURL(_ url: URL) -> Destination {
+        let canonicalURL = url.canonical
         
-        guard configuration.isWikipediaHost(url.host) else {
-            guard configuration.isInAppLinkHost(url.host) else {
-                return .externalLink(url)
-            }
-            return .inAppLink(url)
+        if configuration.hostCanRouteToInAppWebView(url.host) {
+            return .inAppLink(canonicalURL)
+        } else {
+            return .externalLink(url)
         }
-        
-        return destinationForWikipediaHostURL(url)
     }
 }

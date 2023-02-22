@@ -17,7 +17,7 @@ public class SystemBarButton: UIBarButtonItem {
     }
 }
 
-public protocol CollectionViewEditControllerNavigationDelegate: class {
+public protocol CollectionViewEditControllerNavigationDelegate: AnyObject {
     func didChangeEditingState(from oldEditingState: EditingState, to newEditingState: EditingState, rightBarButton: UIBarButtonItem?, leftBarButton: UIBarButtonItem?) // same implementation for 2/3
     func didSetBatchEditToolbarHidden(_ batchEditToolbarViewController: BatchEditToolbarViewController, isHidden: Bool, with items: [UIButton]) // has default implementation
     func newEditingState(for currentEditingState: EditingState, fromEditBarButtonWithSystemItem systemItem: UIBarButtonItem.SystemItem) -> EditingState
@@ -103,7 +103,8 @@ public class CollectionViewEditController: NSObject, UIGestureRecognizerDelegate
     public func configureSwipeableCell(_ cell: UICollectionViewCell, forItemAt indexPath: IndexPath, layoutOnly: Bool) {
         guard
             !layoutOnly,
-            let cell = cell as? SwipeableCell else {
+            let cell = cell as? SwipeableCell,
+            cell.isSwipeEnabled else {
             return
         }
         cell.actions = availableActions(at: indexPath)
@@ -125,7 +126,7 @@ public class CollectionViewEditController: NSObject, UIGestureRecognizerDelegate
             return panGestureRecognizerShouldBegin(panGestureRecognizer)
         }
         
-        if gestureRecognizer === longPressGestureRecognizer  {
+        if gestureRecognizer === longPressGestureRecognizer {
             return longPressGestureRecognizerShouldBegin(longPressGestureRecognizer)
         }
         
@@ -149,7 +150,7 @@ public class CollectionViewEditController: NSObject, UIGestureRecognizerDelegate
         }
         let activatedAction = action.type == .delete ? action : nil
         closeActionPane(with: activatedAction) { (finished) in
-            let _ = self.delegate?.didPerformAction(action)
+            _ = self.delegate?.didPerformAction(action)
         }
         return true
     }
@@ -169,7 +170,7 @@ public class CollectionViewEditController: NSObject, UIGestureRecognizerDelegate
                 closeActionPane()
             }
         }
-        guard let delegate = delegate else {
+        guard delegate != nil else {
             return shouldBegin
         }
         
@@ -211,7 +212,7 @@ public class CollectionViewEditController: NSObject, UIGestureRecognizerDelegate
 
         activeIndexPath = indexPath
         
-        guard let cell = activeCell, !cell.actions.isEmpty else {
+        guard let cell = activeCell, !cell.actions.isEmpty && cell.isSwipeEnabled else {
             activeIndexPath = nil
             return shouldBegin
         }
@@ -243,7 +244,7 @@ public class CollectionViewEditController: NSObject, UIGestureRecognizerDelegate
             return true
         }
         
-        if gestureRecognizer is UIPanGestureRecognizer{
+        if gestureRecognizer is UIPanGestureRecognizer {
             return otherGestureRecognizer is UILongPressGestureRecognizer
         }
         
@@ -256,8 +257,12 @@ public class CollectionViewEditController: NSObject, UIGestureRecognizerDelegate
         return batchEditToolbarViewController
     }()
     
+    public var batchEditToolbarView: UIView {
+        return self.batchEditToolbarViewController.view
+    }
+    
     @objc func handlePanGesture(_ sender: UIPanGestureRecognizer) {
-        guard let indexPath = activeIndexPath, let cell = activeCell else {
+        guard let indexPath = activeIndexPath, let cell = activeCell, cell.isSwipeEnabled else {
             return
         }
         cell.actionsView.delegate = self
@@ -266,7 +271,7 @@ public class CollectionViewEditController: NSObject, UIGestureRecognizerDelegate
         var swipeTranslation = deltaX + initialSwipeTranslation
         let normalizedSwipeTranslation = isRTL ? swipeTranslation : -swipeTranslation
         let normalizedMaxSwipeTranslation = abs(cell.swipeTranslationWhenOpen)
-        switch (sender.state) {
+        switch sender.state {
         case .began:
             cell.swipeState = .swiping
             fallthrough
@@ -310,7 +315,7 @@ public class CollectionViewEditController: NSObject, UIGestureRecognizerDelegate
             return
         }
         
-        switch (sender.state) {
+        switch sender.state {
         case .ended:
             closeActionPane()
         default:
@@ -352,7 +357,7 @@ public class CollectionViewEditController: NSObject, UIGestureRecognizerDelegate
         if let expandedAction = expandedAction {
             let translation = isRTL ? cell.bounds.width : 0 - cell.bounds.width
             animateActionPane(of: cell, to: translation, with: velocity, expandedAction: expandedAction, completion: { (finished) in
-                //don't set isSwiping to false so that the expanded action stays visible through the fade
+                // don't set isSwiping to false so that the expanded action stays visible through the fade
                 completion(finished)
             })
         } else {

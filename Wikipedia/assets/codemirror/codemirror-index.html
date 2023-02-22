@@ -355,9 +355,9 @@
       if (shouldDisableClearFormattingButton(doc)) {
         buttonsToDisable.push(buttonPayload('clearFormatting'))
       }
-      const selectionRange = RangeHelper.getItemRangeFromSelection(editor)
-      const allMarkupItems = RangeHelper.markupItemsForItemRangeLines(editor, selectionRange)
-      const markupItems = RangeHelper.getMarkupItemsIntersectingSelection(editor, allMarkupItems, selectionRange)
+      const selectionRange = getItemRangeFromSelection(editor)
+      const allMarkupItems = markupItemsForItemRangeLines(editor, selectionRange)
+      const markupItems = getMarkupItemsIntersectingSelection(editor, allMarkupItems, selectionRange)
       if (markupItems.length !== 0) {
         buttonsToDisable.push(buttonPayload('media'))
       }
@@ -370,7 +370,7 @@
     }
 
     const shouldDisableClearFormattingButton = (doc) => {
-      return !RangeHelper.rangeClearFormatting.canClearFormatting(editor)
+      return !canClearFormatting(editor)
     }
 
     const sendNativeMessages = (doc) => {
@@ -429,12 +429,13 @@
       }
     }
 
-    const setupCodemirror = (language, direction, themeName, textSizeAdjustment, isSyntaxHighlighted, callback) => {
+    const setupCodemirror = (language, direction, themeName, textSizeAdjustment, isSyntaxHighlighted, readOnly, callback) => {
       applyTheme(themeName)
       if (!isSyntaxHighlighted) {
           toggleSyntaxColors()
       }
       scaleBodyText(textSizeAdjustment)
+
       let xhr = new XMLHttpRequest()
       let url = `config/codemirror-config-${language}.json`
       xhr.open('GET', url, true)
@@ -452,6 +453,7 @@
           }, 
           inputStyle: 'contenteditable',
           direction: direction,
+          readOnly: setupReadOnly(readOnly),
           autocorrect: true,
           autocapitalize: true,
           spellcheck: false,
@@ -462,6 +464,12 @@
       };
       xhr.send()
     }
+
+	  const setupReadOnly = (readOnly) => {
+		  if (readOnly) {
+			   return "nocursor"
+		  }
+	  }
       
     const wrapSelectionWith = (openingMarkup, closingMarkup) => {
       if (closingMarkup === undefined) {
@@ -796,7 +804,7 @@
 
     const getLink = (markupItems, keepInStateStore = true) => {
       const selection = editor.getSelection()
-      const buttonNames = RangeHelper.rangeUtilities.getButtonNamesFromMarkupItems(markupItems)
+      const buttonNames = getButtonNamesFromMarkupItems(markupItems)
       let link
       if (selection.length === 0) {
         if (buttonNames.includes("link")) {
@@ -883,7 +891,7 @@
         completion()
       })
     }
-    wmf.setup = (language, direction, themeName, textSizeAdjustment, isSyntaxHighlighted, callback) => setupCodemirror(language, direction, themeName, textSizeAdjustment, isSyntaxHighlighted, callback)
+    wmf.setup = (language, direction, themeName, textSizeAdjustment, isSyntaxHighlighted, readOnly, callback) => setupCodemirror(language, direction, themeName, textSizeAdjustment, isSyntaxHighlighted, readOnly, callback)
     wmf.applyTheme = (themeName) => applyTheme(themeName)
     wmf.highlightAndScrollToWikitextForSelectedAndAdjacentText = highlightAndScrollToWikitextForSelectedAndAdjacentText
 
@@ -1263,7 +1271,7 @@
           editor.execCommand('replaceSingleWithoutDialogs')
       },
       clearFormatting: () => {
-        RangeHelper.rangeClearFormatting.clearFormatting(editor)
+        clearFormatting(editor)
       },
       replaceSelection: (text) => {
         editor.replaceSelection(text)

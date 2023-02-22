@@ -49,7 +49,7 @@ class FontSizeSliderViewController: UIViewController {
         }
     }
     
-    func setValues(_ minimum: Int, maximum: Int, current: Int){
+    func setValues(_ minimum: Int, maximum: Int, current: Int) {
         slider.minimumValue = minimum
         slider.maximumValue = maximum
         slider.value = current
@@ -69,7 +69,7 @@ class FontSizeSliderViewController: UIViewController {
     }
     
     func indexOfCurrentFontSize() -> Int {
-        if let fontSize = UserDefaults.wmf.wmf_articleFontSizeMultiplier() as? Int, let multiplier = WMFFontSizeMultiplier(rawValue: fontSize) {
+        if let fontSize = UserDefaults.standard.wmf_articleFontSizeMultiplier() as? Int, let multiplier = WMFFontSizeMultiplier(rawValue: fontSize) {
             return fontSizeMultipliers.firstIndex(of: multiplier)!
         }
         return fontSizeMultipliers.count / 2

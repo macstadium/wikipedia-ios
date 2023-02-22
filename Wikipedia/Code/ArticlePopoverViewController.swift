@@ -54,7 +54,7 @@ class ArticlePopoverViewController: UIViewController {
         let shareButtonSize = shareButton.sizeThatFits(sizeToFit)
         let saveButtonSize = saveButton.sizeThatFits(sizeToFit)
         let readButtonSize = readButton.sizeThatFits(sizeToFit)
-        // If any of the the titles don't fit, fill proportionally and remove the titles for share and save
+        // If any of the titles don't fit, fill proportionally and remove the titles for share and save
         showSaveAndShareTitles = shareButtonSize.width < widthToCheck && saveButtonSize.width < widthToCheck && readButtonSize.width < widthToCheck
         if !showSaveAndShareTitles {
             shareButton.setTitle(nil, for: .normal)
@@ -89,12 +89,12 @@ class ArticlePopoverViewController: UIViewController {
     
     public func update() {
         saveButton.showTitle = showSaveAndShareTitles
-        saveButton.saveButtonState = article.savedDate == nil ? .shortSave : .shortSaved
+        saveButton.saveButtonState = article.isAnyVariantSaved ? .shortSaved : .shortSave
         if !saveButton.showTitle {
             saveButton.imageEdgeInsets = .zero
         }
 
-        let saveTitle = article.savedDate == nil ? CommonStrings.shortSaveTitle : CommonStrings.shortUnsaveTitle
+        let saveTitle = article.isAnyVariantSaved ? CommonStrings.shortUnsaveTitle : CommonStrings.shortSaveTitle
         let saveAction = UIAccessibilityCustomAction(name: saveTitle, target: self, selector: #selector(save))
         let shareAction = UIAccessibilityCustomAction(name: ArticlePopoverViewController.shareActionString, target: self, selector: #selector(share))
         

@@ -31,6 +31,9 @@ class HistoryViewController: ArticleFetchedResultsViewController {
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         collectionViewUpdater.isGranularUpdatingEnabled = true
+
+        // Terrible hack to make back button text appropriate for iOS 14 - need to set the title on `WMFAppViewController`. For all app tabs, this is set in `viewWillAppear`.
+        (parent as? WMFAppViewController)?.navigationItem.backButtonTitle = title
     }
     
     override func viewDidAppear(_ animated: Bool) {
@@ -44,7 +47,11 @@ class HistoryViewController: ArticleFetchedResultsViewController {
     }
     
     override func deleteAll() {
-        dataStore.historyList.removeAllEntries()
+        do {
+            try dataStore.viewContext.clearReadHistory()
+        } catch let error {
+            showError(error)
+        }
     }
     
     override var headerStyle: ColumnarCollectionViewController.HeaderStyle {

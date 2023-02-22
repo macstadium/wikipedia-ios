@@ -149,7 +149,7 @@
     static dispatch_once_t onceToken;
     static NSRegularExpression *iOSTokenRegex;
     dispatch_once(&onceToken, ^{
-        iOSTokenRegex = [NSRegularExpression regularExpressionWithPattern:@"(?:[%])(:?[0-9]+)(:?[$][@dDuUxXoOfeEgGcCsSpaAF])" options:0 error:nil];
+        iOSTokenRegex = [NSRegularExpression regularExpressionWithPattern:@"%([0-9]*)\\$?([@dDuUxXoOfeEgGcCsSpaAF])" options:0 error:nil];
     });
     return iOSTokenRegex;
 }
@@ -165,6 +165,22 @@
             NSString *localizedString = stringsDict[key];
             NSTextCheckingResult *result = [regex firstMatchInString:localizedString options:0 range:NSMakeRange(0, localizedString.length)];
             XCTAssertNil(result, @"Invalid character in string: %@ for key: %@ in locale: %@", localizedString, key, lprojFileName);
+        }
+    }
+}
+
+- (void)assertLprojFiles:(NSArray *)lprojFiles withTranslationStringsInDirectory:(NSString *)directory doesNotContain:(NSString *)banned {
+    XCTAssertNotNil(banned);
+    NSString * bannedUpper = [banned uppercaseString];
+    for (NSString *lprojFileName in lprojFiles) {
+        if (![TWNStringsTests localeForLprojFilenameIsAvailableOniOS:lprojFileName]) {
+            continue;
+        }
+        NSDictionary *stringsDict = [self getTranslationStringsDictFromLprogAtPath:[directory stringByAppendingPathComponent:lprojFileName]];
+        for (NSString *key in stringsDict) {
+            NSString *localizedString = stringsDict[key];
+            BOOL doesContainBannedString = [[localizedString uppercaseString] containsString:bannedUpper];
+            XCTAssertFalse(doesContainBannedString, @"Invalid substring %@ found in: %@ for key: %@ in locale: %@", banned, localizedString, key, lprojFileName);
         }
     }
 }
@@ -196,6 +212,10 @@
 
 - (void)testIncomingTranslationStringForHTML {
     [self assertLprojFiles:TWNStringsTests.twnLprojFiles withTranslationStringsInDirectory:TWNStringsTests.bundleRoot haveNoMatchesWithRegex:TWNStringsTests.htmlTagRegex];
+}
+
+- (void)testIncomingTranslationStringForNBSP {
+    [self assertLprojFiles:TWNStringsTests.twnLprojFiles withTranslationStringsInDirectory:TWNStringsTests.bundleRoot doesNotContain:@"&nbsp;"];
 }
 
 - (void)testIncomingTranslationStringForBracketSubstitutions {
@@ -243,9 +263,13 @@
                                              options:0
                                                range:NSMakeRange(0, localizedString.length)
                                           usingBlock:^(NSTextCheckingResult *_Nullable result, NSMatchingFlags flags, BOOL *_Nonnull stop) {
-                                              NSString *key = [tokenRegex replacementStringForResult:result inString:localizedString offset:0 template:@"$1"];
+                                              NSString *tokenKey = [tokenRegex replacementStringForResult:result inString:localizedString offset:0 template:@"$1"];
+                                              if ([tokenKey isEqualToString:@""]) {
+                                                  tokenKey = @"1";
+                                                  XCTAssertNil(localizedTokens[tokenKey], @"There can only be one unordered token in a localization string. Switch to ordered tokens:\n%@\n%@", key, localizedString);
+                                              }
                                               NSString *value = [tokenRegex replacementStringForResult:result inString:localizedString offset:0 template:@"$2"];
-                                              localizedTokens[key] = value;
+                                              localizedTokens[tokenKey] = value;
                                           }];
 
                 NSString *enString = enStrings[key];
@@ -257,9 +281,13 @@
                                                      options:0
                                                        range:NSMakeRange(0, enString.length)
                                                   usingBlock:^(NSTextCheckingResult *_Nullable result, NSMatchingFlags flags, BOOL *_Nonnull stop) {
-                                                      NSString *key = [tokenRegex replacementStringForResult:result inString:enString offset:0 template:@"$1"];
+                                                      NSString *tokenKey = [tokenRegex replacementStringForResult:result inString:enString offset:0 template:@"$1"];
+                                                      if ([tokenKey isEqualToString:@""]) {
+                                                          tokenKey = @"1";
+                                                          XCTAssertNil(enTokens[tokenKey], @"There can only be one unordered token in a localization string. Switch to ordered tokens:\n%@\n%@", key, enString);
+                                                      }
                                                       NSString *value = [tokenRegex replacementStringForResult:result inString:enString offset:0 template:@"$2"];
-                                                      enTokens[key] = value;
+                                                      enTokens[tokenKey] = value;
                                                   }];
                         enTokensByKey[key] = enTokens;
                     }
@@ -334,7 +362,7 @@
         XCTAssertTrue([qqqStrings valueForKey:enKey], @"Expected en key in qqq");
 
         NSString *enString = enStrings[enKey];
-        NSString *qqqString = qqqStrings[enKey]; 
+        NSString *qqqString = qqqStrings[enKey];
         NSArray<NSTextCheckingResult *> *enSubstitutionMatches = [TWNStringsTests.twnTokenRegex matchesInString:enString options:0 range:NSMakeRange(0, enString.length)];
         NSArray<NSTextCheckingResult *> *qqqSubstitutionMatches = [TWNStringsTests.twnTokenRegex matchesInString:qqqString options:0 range:NSMakeRange(0, qqqString.length)];
 

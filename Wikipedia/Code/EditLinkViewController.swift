@@ -10,7 +10,6 @@ protocol EditLinkViewControllerDelegate: AnyObject {
 class EditLinkViewController: ViewController {
     weak var delegate: EditLinkViewControllerDelegate?
 
-    typealias Link = SectionEditorWebViewMessagingController.Link
     private let link: Link
     private let siteURL: URL
     private var articleURL: URL
@@ -42,7 +41,7 @@ class EditLinkViewController: ViewController {
 
     init?(link: Link, siteURL: URL?, dataStore: MWKDataStore) {
         guard
-            let siteURL = siteURL ?? MWKLanguageLinkController.sharedInstance().appLanguage?.siteURL() ?? NSURL.wmf_URLWithDefaultSiteAndCurrentLocale(),
+            let siteURL = siteURL ?? MWKDataStore.shared().primarySiteURL ?? NSURL.wmf_URLWithDefaultSiteAndCurrentLocale(),
             let articleURL = link.articleURL(for: siteURL)
         else {
             return nil
@@ -97,7 +96,7 @@ class EditLinkViewController: ViewController {
 
     private func fetchArticle() {
         guard let article = dataStore.fetchArticle(with: articleURL) else {
-            guard let key = articleURL.wmf_databaseKey else {
+            guard let key = articleURL.wmf_inMemoryKey else {
                 return
             }
             dataStore.articleSummaryController.updateOrCreateArticleSummaryForArticle(withKey: key) { (article, _) in
@@ -167,12 +166,13 @@ class EditLinkViewController: ViewController {
     @IBAction private func searchArticles(_ sender: UITapGestureRecognizer) {
         let searchViewController = SearchViewController()
         searchViewController.shouldSetTitleViewWhenRecentSearchesAreDisabled = false
+        searchViewController.shouldAdjustNavigationBarInsetHidingOnAppearance = false
         searchViewController.siteURL = siteURL
         searchViewController.shouldSetSearchVisible = false
         searchViewController.shouldBecomeFirstResponder = true
         searchViewController.displayType = .backVisible
-        searchViewController.areRecentSearchesEnabled = false
-        searchViewController.dataStore = SessionSingleton.sharedInstance()?.dataStore
+        searchViewController.areRecentSearchesEnabled = true
+        searchViewController.dataStore = MWKDataStore.shared()
         searchViewController.shouldShowCancelButton = false
         searchViewController.delegate = self
         searchViewController.delegatesSelection = true
@@ -200,7 +200,7 @@ class EditLinkViewController: ViewController {
         closeButton.tintColor = theme.colors.primaryText
         doneButton.tintColor = theme.colors.link
         displayTextView.textColor = theme.colors.primaryText
-        activityIndicatorView.style = theme.isDark ? .white : .gray
+        activityIndicatorView.color = theme.isDark ? .white : .gray
     }
 }
 

@@ -1,23 +1,31 @@
 import UIKit
 import WMF
+import CocoaLumberjackSwift
 
 class ExploreViewController: ColumnarCollectionViewController, ExploreCardViewControllerDelegate, UISearchBarDelegate, CollectionViewUpdaterDelegate, ImageScaleTransitionProviding, DetailTransitionSourceProviding, EventLoggingEventValuesProviding {
 
     public var presentedContentGroupKey: String?
     public var shouldRestoreScrollPosition = false
 
-    // MARK - UIViewController
+    @objc public weak var notificationsCenterPresentationDelegate: NotificationsCenterPresentationDelegate?
+    @objc public weak var settingsPresentationDelegate: SettingsPresentationDelegate?
+
+    // MARK: - UIViewController
     
     override func viewDidLoad() {
         super.viewDidLoad()
         layoutManager.register(ExploreCardCollectionViewCell.self, forCellWithReuseIdentifier: ExploreCardCollectionViewCell.identifier, addPlaceholder: true)
-        
+
         navigationItem.titleView = titleView
         navigationBar.addUnderNavigationBarView(searchBarContainerView)
         navigationBar.isUnderBarViewHidingEnabled = true
-        navigationBar.displayType = .largeTitle
+        navigationBar.displayType = dataStore.authenticationManager.isLoggedIn ? .centeredLargeTitle : .largeTitle
         navigationBar.shouldTransformUnderBarViewWithBar = true
         navigationBar.isShadowHidingEnabled = true
+
+        updateNotificationsCenterButton()
+        updateSettingsButton()
+        updateNavigationBarVisibility()
 
         isRefreshControlEnabled = true
         collectionView.refreshControl?.layer.zPosition = 0
@@ -27,11 +35,20 @@ class ExploreViewController: ColumnarCollectionViewController, ExploreCardViewCo
         NotificationCenter.default.addObserver(self, selector: #selector(exploreFeedPreferencesDidSave(_:)), name: NSNotification.Name.WMFExploreFeedPreferencesDidSave, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(articleDidChange(_:)), name: NSNotification.Name.WMFArticleUpdated, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(articleDeleted(_:)), name: NSNotification.Name.WMFArticleDeleted, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(pushNotificationBannerDidDisplayInForeground(_:)), name: .pushNotificationBannerDidDisplayInForeground, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(viewContextDidReset(_:)), name: NSNotification.Name.WMFViewContextDidReset, object: nil)
+
 #if UI_TEST
         if UserDefaults.standard.wmf_isFastlaneSnapshotInProgress() {
             collectionView.decelerationRate = .fast
         }
 #endif
+    }
+    
+    @objc var isGranularUpdatingEnabled: Bool = true {
+        didSet {
+            collectionViewUpdater?.isGranularUpdatingEnabled = isGranularUpdatingEnabled
+        }
     }
 
     deinit {
@@ -46,17 +63,21 @@ class ExploreViewController: ColumnarCollectionViewController, ExploreCardViewCo
         imageScaleTransitionView = nil
         detailTransitionSourceRect = nil
         logFeedImpressionAfterDelay()
+        dataStore.remoteNotificationsController.loadNotifications(force: false)
     }
     
     override func viewWillHaveFirstAppearance(_ animated: Bool) {
-         super.viewWillHaveFirstAppearance(animated)
+        super.viewWillHaveFirstAppearance(animated)
         setupFetchedResultsController()
     }
     
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        collectionViewUpdater?.isGranularUpdatingEnabled = true
+        isGranularUpdatingEnabled = true
         restoreScrollPositionIfNeeded()
+
+        // Terrible hack to make back button text appropriate for iOS 14 - need to set the title on `WMFAppViewController`. For all app tabs, this is set in `viewWillAppear`.
+        (parent as? WMFAppViewController)?.navigationItem.backButtonTitle = title
     }
 
     private func restoreScrollPositionIfNeeded() {
@@ -77,10 +98,37 @@ class ExploreViewController: ColumnarCollectionViewController, ExploreCardViewCo
         super.viewDidDisappear(animated)
         dataStore.feedContentController.dismissCollapsedContentGroups()
         stopMonitoringReachability()
-        collectionViewUpdater?.isGranularUpdatingEnabled = false
+        isGranularUpdatingEnabled = false
+    }
+
+    @objc func updateNotificationsCenterButton() {
+        if self.dataStore.authenticationManager.isLoggedIn {
+            let numberOfUnreadNotifications = try? dataStore.remoteNotificationsController.numberOfUnreadNotifications()
+            let hasUnreadNotifications = numberOfUnreadNotifications?.intValue ?? 0 != 0
+            let bellImage = BarButtonImageStyle.notificationsButtonImage(theme: theme, indicated: hasUnreadNotifications)
+            let notificationsBarButton = UIBarButtonItem(image: bellImage, style: .plain, target: self, action: #selector(userDidTapNotificationsCenter))
+            notificationsBarButton.accessibilityLabel = hasUnreadNotifications ? CommonStrings.notificationsCenterBadgeTitle : CommonStrings.notificationsCenterTitle
+            navigationItem.leftBarButtonItem = notificationsBarButton
+            navigationBar.displayType = .centeredLargeTitle
+        } else {
+            navigationItem.leftBarButtonItem = nil
+            navigationBar.displayType = .largeTitle
+        }
+        navigationBar.updateNavigationItems()
+    }
+
+    @objc public func updateNavigationBarVisibility() {
+        navigationBar.isBarHidingEnabled = UIAccessibility.isVoiceOverRunning ? false : true
     }
     
-    // MARK - NavBar
+    func updateSettingsButton() {
+        let settingsBarButtonItem = UIBarButtonItem(image: BarButtonImageStyle.settingsButtonImage(theme: theme), style: .plain, target: self, action: #selector(userDidTapSettings))
+        settingsBarButtonItem.accessibilityLabel = CommonStrings.settingsTitle
+        navigationItem.rightBarButtonItem = settingsBarButtonItem
+        navigationBar.updateNavigationItems()
+    }
+    
+    // MARK: - NavBar
     
     @objc func titleBarButtonPressed(_ sender: UIButton?) {
         scrollToTop()
@@ -107,7 +155,15 @@ class ExploreViewController: ColumnarCollectionViewController, ExploreCardViewCo
         return titleView
     }()
 
-    // MARK - Refresh
+    @objc func userDidTapSettings() {
+        settingsPresentationDelegate?.userDidTapSettings(from: self)
+    }
+
+    // MARK: - Refresh
+    
+    override func refreshControlActivated() {
+        super.refreshControlActivated()
+    }
     
     open override func refresh() {
         FeedFunnel.shared.logFeedRefreshed()
@@ -116,7 +172,7 @@ class ExploreViewController: ColumnarCollectionViewController, ExploreCardViewCo
         }
     }
     
-    // MARK - Scroll
+    // MARK: - Scroll
     
     var isLoadingOlderContent: Bool = false
     override func scrollViewDidScroll(_ scrollView: UIScrollView) {
@@ -194,7 +250,7 @@ class ExploreViewController: ColumnarCollectionViewController, ExploreCardViewCo
         }
     }
     
-    // MARK - Search
+    // MARK: - Search
 
     public var wantsCustomSearchTransition: Bool {
         return true
@@ -211,13 +267,32 @@ class ExploreViewController: ColumnarCollectionViewController, ExploreCardViewCo
         searchContainerView.addConstraints([leading, trailing, top, bottom])
         return searchContainerView
     }()
+
+    private var _scribbleIgnoringDelegate: Any? = nil
     
+    private var scribbleIgnoringDelegate: ScribbleIgnoringInteractionDelegate? {
+        if _scribbleIgnoringDelegate == nil {
+            _scribbleIgnoringDelegate = ScribbleIgnoringInteractionDelegate()
+        }
+        return _scribbleIgnoringDelegate as? ScribbleIgnoringInteractionDelegate
+    }
+
     lazy var searchBar: UISearchBar = {
         let searchBar = UISearchBar()
         searchBar.delegate = self
         searchBar.returnKeyType = .search
         searchBar.searchBarStyle = .minimal
         searchBar.placeholder =  WMFLocalizedString("search-field-placeholder-text", value: "Search Wikipedia", comment: "Search field placeholder text")
+
+        // Disable Scribble on this placeholder text field
+        if UIDevice.current.userInterfaceIdiom == .pad,
+        let scribbleIgnoringDelegate = scribbleIgnoringDelegate {
+            let existingInteractions = searchBar.searchTextField.interactions
+            existingInteractions.forEach { searchBar.searchTextField.removeInteraction($0) }
+            let scribbleIgnoringInteraction = UIScribbleInteraction(delegate: scribbleIgnoringDelegate)
+            searchBar.searchTextField.addInteraction(scribbleIgnoringInteraction)
+        }
+
         return searchBar
     }()
     
@@ -227,7 +302,7 @@ class ExploreViewController: ColumnarCollectionViewController, ExploreCardViewCo
         }
     }
 
-    // MARK - UISearchBarDelegate
+    // MARK: - UISearchBarDelegate
     
     func searchBarShouldBeginEditing(_ searchBar: UISearchBar) -> Bool {
         let searchActivity = NSUserActivity.wmf_searchView()
@@ -235,7 +310,7 @@ class ExploreViewController: ColumnarCollectionViewController, ExploreCardViewCo
         return false
     }
     
-    // MARK - State
+    // MARK: - State
     
     @objc var dataStore: MWKDataStore!
     private var fetchedResultsController: NSFetchedResultsController<WMFContentGroup>?
@@ -263,8 +338,8 @@ class ExploreViewController: ColumnarCollectionViewController, ExploreCardViewCo
         return frc.object(at: indexPath)
     }
     
-    private func groupKey(at indexPath: IndexPath) -> String? {
-        return group(at: indexPath)?.key
+    private func groupKey(at indexPath: IndexPath) -> WMFInMemoryURLKey? {
+        return group(at: indexPath)?.inMemoryKey
     }
     
     lazy var saveButtonsController: SaveButtonsController = {
@@ -308,6 +383,7 @@ class ExploreViewController: ColumnarCollectionViewController, ExploreCardViewCo
             } else {
                 DispatchQueue.main.async {
                     self?.showOfflineEmptyViewIfNeeded()
+
                 }
             }
         }
@@ -385,15 +461,15 @@ class ExploreViewController: ColumnarCollectionViewController, ExploreCardViewCo
         super.contentSizeCategoryDidChange(notification)
     }
     
-    // MARK - ImageScaleTransitionProviding
+    // MARK: - ImageScaleTransitionProviding
     
     var imageScaleTransitionView: UIImageView?
     
-    // MARK - DetailTransitionSourceProviding
+    // MARK: - DetailTransitionSourceProviding
     
     var detailTransitionSourceRect: CGRect?
     
-    // MARK - UICollectionViewDataSource
+    // MARK: - UICollectionViewDataSource
     
     override func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
        return numberOfItemsInSection(section)
@@ -420,7 +496,7 @@ class ExploreViewController: ColumnarCollectionViewController, ExploreCardViewCo
         return header
     }
     
-    // MARK - UICollectionViewDelegate
+    // MARK: - UICollectionViewDelegate
     
     func collectionView(_ collectionView: UICollectionView, shouldSelectItemAt indexPath: IndexPath) -> Bool {
         guard let group = group(at: indexPath) else {
@@ -430,6 +506,7 @@ class ExploreViewController: ColumnarCollectionViewController, ExploreCardViewCo
     }
     
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
+        var titleAreaTapped = false
         if let cell = collectionView.cellForItem(at: indexPath) as? ExploreCardCollectionViewCell {
             detailTransitionSourceRect = view.convert(cell.frame, from: collectionView)
             if
@@ -441,15 +518,19 @@ class ExploreViewController: ColumnarCollectionViewController, ExploreCardViewCo
             } else {
                 imageScaleTransitionView = nil
             }
+            titleAreaTapped = cell.titleAreaTapped
         }
         guard let group = group(at: indexPath) else {
             return
         }
 
         presentedContentGroupKey = group.key
+        
+        // When a random article title is tapped, show the previewed article, not another random article
+        let useRandomArticlePreviewItem = titleAreaTapped && group.moreType == .pageWithRandomButton
 
-        if let vc = group.detailViewControllerWithDataStore(dataStore, theme: theme) {
-            wmf_push(vc, context: FeedFunnelContext(group), index: indexPath.item, animated: true)
+        if !useRandomArticlePreviewItem, let vc = group.detailViewControllerWithDataStore(dataStore, theme: theme) {
+            push(vc, context: FeedFunnelContext(group), index: indexPath.item, animated: true)
             return
         }
         
@@ -458,7 +539,7 @@ class ExploreViewController: ColumnarCollectionViewController, ExploreCardViewCo
                 present(vc, animated: true)
                 FeedFunnel.shared.logFeedCardOpened(for: FeedFunnelContext(group))
             } else {
-                wmf_push(vc, context: FeedFunnelContext(group), index: indexPath.item, animated: true)
+                push(vc, context: FeedFunnelContext(group), index: indexPath.item, animated: true)
             }
             return
         }
@@ -509,6 +590,11 @@ class ExploreViewController: ColumnarCollectionViewController, ExploreCardViewCo
         guard viewIfLoaded != nil else {
             return
         }
+
+        self.theme = theme
+        updateNotificationsCenterButton()
+        updateSettingsButton()
+
         searchBar.apply(theme: theme)
         searchBarContainerView.backgroundColor = theme.colors.paperBackground
         collectionView.backgroundColor = .clear
@@ -534,7 +620,7 @@ class ExploreViewController: ColumnarCollectionViewController, ExploreCardViewCo
             return ColumnarCollectionViewLayoutHeightEstimate(precalculated: true, height: 0)
         }
         let identifier = ExploreCardCollectionViewCell.identifier
-        let userInfo = "evc-cell-\(group.key ?? "")"
+        let userInfo = "evc-cell-\(group.inMemoryKey?.userInfoString ?? "")"
         if let cachedHeight = layoutCache.cachedHeightForCellWithIdentifier(identifier, columnWidth: columnWidth, userInfo: userInfo) {
             return ColumnarCollectionViewLayoutHeightEstimate(precalculated: true, height: cachedHeight)
         }
@@ -545,7 +631,7 @@ class ExploreViewController: ColumnarCollectionViewController, ExploreCardViewCo
         configure(cell: placeholderCell, forItemAt: indexPath, layoutOnly: true)
         estimate.height = placeholderCell.sizeThatFits(CGSize(width: columnWidth, height: UIView.noIntrinsicMetric), apply: false).height
         estimate.precalculated = true
-        layoutCache.setHeight(estimate.height, forCellWithIdentifier: identifier, columnWidth: columnWidth, groupKey: group.key, userInfo: userInfo)
+        layoutCache.setHeight(estimate.height, forCellWithIdentifier: identifier, columnWidth: columnWidth, groupKey: group.inMemoryKey, userInfo: userInfo)
         return estimate
     }
     
@@ -571,7 +657,7 @@ class ExploreViewController: ColumnarCollectionViewController, ExploreCardViewCo
         return false
     }
     
-    // MARK - ExploreCardViewControllerDelegate
+    // MARK: - ExploreCardViewControllerDelegate
     
     func exploreCardViewController(_ exploreCardViewController: ExploreCardViewController, didSelectItemAtIndexPath indexPath: IndexPath) {
         guard
@@ -600,11 +686,11 @@ class ExploreViewController: ColumnarCollectionViewController, ExploreCardViewCo
             present(vc, animated: true)
             FeedFunnel.shared.logFeedCardOpened(for: context)
         default:
-            wmf_push(vc, context: context, index: indexPath.item, animated: true)
+            push(vc, context: context, index: indexPath.item, animated: true)
         }
     }
     
-    // MARK - Prefetching
+    // MARK: - Prefetching
     
     override func imageURLsForItemAt(_ indexPath: IndexPath) -> Set<URL>? {
         guard let contentGroup = group(at: indexPath) else {
@@ -622,7 +708,7 @@ class ExploreViewController: ColumnarCollectionViewController, ExploreCardViewCo
     }
     #endif
     
-    // MARK - CollectionViewUpdaterDelegate
+    // MARK: - CollectionViewUpdaterDelegate
     
     var needsReloadVisibleCells = false
     var indexPathsForCollapsedCellsThatCanReappear = Set<IndexPath>()
@@ -637,6 +723,7 @@ class ExploreViewController: ColumnarCollectionViewController, ExploreCardViewCo
     }
     
     func collectionViewUpdater<T: NSFetchRequestResult>(_ updater: CollectionViewUpdater<T>, didUpdate collectionView: UICollectionView) {
+		
         guard needsReloadVisibleCells else {
             return
         }
@@ -669,34 +756,44 @@ class ExploreViewController: ColumnarCollectionViewController, ExploreCardViewCo
         return previewed.context?.label
     }
 
-    // MARK: Peek & Pop
+    // MARK: - For NestedCollectionViewContextMenuDelegate
+    private var previewed: (context: FeedFunnelContext?, indexPathItem: Int?)
 
-    private var previewed: (context: FeedFunnelContext?, indexPath: IndexPath?)
-
-    override func previewingContext(_ previewingContext: UIViewControllerPreviewing, viewControllerForLocation location: CGPoint) -> UIViewController? {
-        guard
-            let indexPath = collectionViewIndexPathForPreviewingContext(previewingContext, location: location),
-            let cell = collectionView.cellForItem(at: indexPath) as? ExploreCardCollectionViewCell,
-            let vc = cell.cardContent as? ExploreCardViewController,
-            let contentGroup = vc.contentGroup
-        else {
+    func contextMenu(with contentGroup: WMFContentGroup? = nil, for articleURL: URL? = nil, at itemIndex: Int) -> UIContextMenuConfiguration? {
+        guard let contentGroup = contentGroup, let vc = viewController(for: contentGroup, at: itemIndex) else {
             return nil
         }
 
+        let previewProvider: () -> UIViewController? = {
+            return vc
+        }
+        return UIContextMenuConfiguration(identifier: nil, previewProvider: previewProvider) { (suggestedActions) -> UIMenu? in
+            if let articleVC = vc as? ArticleViewController {
+                return UIMenu(title: "", image: nil, identifier: nil, options: [], children: articleVC.contextMenuItems)
+            } else {
+                return nil
+            }
+        }
+    }
+
+    func viewController(for contentGroup: WMFContentGroup, at itemIndex: Int) -> UIViewController? {
         previewed.context = FeedFunnelContext(contentGroup)
-        
-        let convertedLocation = view.convert(location, to: vc.collectionView)
-        if let indexPath = vc.collectionView.indexPathForItem(at: convertedLocation), let cell = vc.collectionView.cellForItem(at: indexPath), let viewControllerToCommit = contentGroup.detailViewControllerForPreviewItemAtIndex(indexPath.row, dataStore: dataStore, theme: theme) {
-            previewingContext.sourceRect = view.convert(cell.bounds, from: cell)
+
+        if let viewControllerToCommit = contentGroup.detailViewControllerForPreviewItemAtIndex(itemIndex, dataStore: dataStore, theme: theme) {
             if let potd = viewControllerToCommit as? WMFImageGalleryViewController {
                 potd.setOverlayViewTopBarHidden(true)
-            } else if let avc = viewControllerToCommit as? WMFArticleViewController {
-                avc.articlePreviewingActionsDelegate = self
+            } else if let avc = viewControllerToCommit as? ArticleViewController {
+                avc.articlePreviewingDelegate = self
                 avc.wmf_addPeekableChildViewController(for: avc.articleURL, dataStore: dataStore, theme: theme)
+            } else if let otdVC = viewControllerToCommit as? OnThisDayViewController {
+                otdVC.initialEvent = (contentGroup.contentPreview as? [Any])?[itemIndex] as? WMFFeedOnThisDayEvent
+                otdVC.navigationMode = .bar
+            } else if let newsVC = viewControllerToCommit as? NewsViewController {
+                newsVC.navigationMode = .bar
             }
 
-            previewed.indexPath = indexPath
-            FeedFunnel.shared.logFeedCardPreviewed(for: previewed.context, index: indexPath.item)
+            previewed.indexPathItem = itemIndex
+            FeedFunnel.shared.logFeedCardPreviewed(for: previewed.context, index: itemIndex)
 
             return viewControllerToCommit
         } else if contentGroup.contentGroupKind != .random {
@@ -705,26 +802,59 @@ class ExploreViewController: ColumnarCollectionViewController, ExploreCardViewCo
             return nil
         }
     }
-    
-    open override func previewingContext(_ previewingContext: UIViewControllerPreviewing, commit viewControllerToCommit: UIViewController) {
-        if let potd = viewControllerToCommit as? WMFImageGalleryViewController {
-            potd.setOverlayViewTopBarHidden(false)
-            present(potd, animated: false)
-            FeedFunnel.shared.logFeedCardOpened(for: previewed.context)
-        } else if let avc = viewControllerToCommit as? WMFArticleViewController {
-            avc.wmf_removePeekableChildViewControllers()
-            wmf_push(avc, context: previewed.context, index: previewed.indexPath?.item, animated: false)
-        } else {
-            wmf_push(viewControllerToCommit, context: previewed.context, index: previewed.indexPath?.item, animated: true)
+
+    func willCommitPreview(with animator: UIContextMenuInteractionCommitAnimating) {
+        guard let viewControllerToCommit = animator.previewViewController else {
+            assertionFailure("Should be able to find previewed VC")
+            return
+        }
+        animator.addCompletion { [weak self] in
+            guard let self = self else {
+                return
+            }
+            if let potd = viewControllerToCommit as? WMFImageGalleryViewController {
+                potd.setOverlayViewTopBarHidden(false)
+                self.present(potd, animated: false)
+                FeedFunnel.shared.logFeedCardOpened(for: self.previewed.context)
+            } else if let avc = viewControllerToCommit as? ArticleViewController {
+                avc.wmf_removePeekableChildViewControllers()
+                self.push(avc, context: self.previewed.context, index: self.previewed.indexPathItem, animated: false)
+            } else if let otdVC = viewControllerToCommit as? OnThisDayViewController {
+                otdVC.navigationMode = .detail
+                self.push(viewControllerToCommit, context: self.previewed.context, index: self.previewed.indexPathItem, animated: true)
+            } else if let newsVC = viewControllerToCommit as? NewsViewController {
+                newsVC.navigationMode = .detail
+                self.push(viewControllerToCommit, context: self.previewed.context, index: self.previewed.indexPathItem, animated: true)
+            } else {
+                self.push(viewControllerToCommit, context: self.previewed.context, index: self.previewed.indexPathItem, animated: true)
+            }
         }
     }
 
-    // MARK:
+    // MARK: ArticlePreviewingDelegate
+    
+    override func shareArticlePreviewActionSelected(with articleController: ArticleViewController, shareActivityController: UIActivityViewController) {
+        super.shareArticlePreviewActionSelected(with: articleController, shareActivityController: shareActivityController)
+        FeedFunnel.shared.logFeedShareTapped(for: previewed.context, index: previewed.indexPathItem)
+    }
+
+    override func readMoreArticlePreviewActionSelected(with articleController: ArticleViewController) {
+        articleController.wmf_removePeekableChildViewControllers()
+        push(articleController, context: previewed.context, index: previewed.indexPathItem, animated: true)
+    }
+
+    override func saveArticlePreviewActionSelected(with articleController: ArticleViewController, didSave: Bool, articleURL: URL) {
+        if didSave {
+            ReadingListsFunnel.shared.logSaveInFeed(context: previewed.context, articleURL: articleURL, index: previewed.indexPathItem)
+        } else {
+            ReadingListsFunnel.shared.logUnsaveInFeed(context: previewed.context, articleURL: articleURL, index: previewed.indexPathItem)
+        }
+    }
 
     var addArticlesToReadingListVCDidDisappear: (() -> Void)? = nil
 }
 
-// MARK - Analytics
+// MARK: - Analytics
 extension ExploreViewController {
     private func logArticleSavedStateChange(_ wasArticleSaved: Bool, saveButton: SaveButton?, article: WMFArticle, userInfo: Any?) {
         guard let articleURL = article.url else {
@@ -842,7 +972,7 @@ extension ExploreViewController: ExploreCardCollectionViewCellDelegate {
     @objc func articleDidChange(_ note: Notification) {
         guard
             let article = note.object as? WMFArticle,
-            let articleKey = article.key
+            let articleKey = article.inMemoryKey
         else {
             return
         }
@@ -879,10 +1009,14 @@ extension ExploreViewController: ExploreCardCollectionViewCellDelegate {
     }
     
     @objc func articleDeleted(_ note: Notification) {
-        guard let articleKey = note.userInfo?[WMFArticleDeletedNotificationUserInfoArticleKeyKey] as? String else {
+        guard let articleKey = note.userInfo?[WMFArticleDeletedNotificationUserInfoArticleKeyKey] as? WMFInMemoryURLKey else {
             return
         }
         layoutCache.invalidateArticleKey(articleKey)
+    }
+    
+    @objc func viewContextDidReset(_ note: Notification) {
+        collectionView.reloadData()
     }
 
     private func menuActionSheetForGroup(_ group: WMFContentGroup) -> UIAlertController? {
@@ -896,6 +1030,7 @@ extension ExploreViewController: ExploreCardCollectionViewCellDelegate {
             exploreFeedSettingsViewController.dataStore = self.dataStore
             exploreFeedSettingsViewController.apply(theme: self.theme)
             let themeableNavigationController = WMFThemeableNavigationController(rootViewController: exploreFeedSettingsViewController, theme: self.theme)
+            themeableNavigationController.modalPresentationStyle = .formSheet
             self.present(themeableNavigationController, animated: true)
         }
         let hideThisCard = UIAlertAction(title: WMFLocalizedString("explore-feed-preferences-hide-card-action-title", value: "Hide this card", comment: "Title for action that allows users to hide a feed card"), style: .default) { (_) in
@@ -920,7 +1055,9 @@ extension ExploreViewController: ExploreCardCollectionViewCellDelegate {
         }
         let cancel = UIAlertAction(title: CommonStrings.cancelActionTitle, style: .cancel)
         sheet.addAction(hideThisCard)
-        sheet.addAction(hideAllCards)
+        if !(group.contentGroupKind == WMFContentGroupKind.notification) {
+            sheet.addAction(hideAllCards)
+        }
         sheet.addAction(customizeExploreFeed)
         sheet.addAction(cancel)
 
@@ -946,30 +1083,22 @@ extension ExploreViewController: ExploreCardCollectionViewCellDelegate {
     
 }
 
-// MARK: - WMFArticlePreviewingActionsDelegate
-extension ExploreViewController {
-    override func shareArticlePreviewActionSelected(withArticleController articleController: WMFArticleViewController, shareActivityController: UIActivityViewController) {
-        super.shareArticlePreviewActionSelected(withArticleController: articleController, shareActivityController: shareActivityController)
-        FeedFunnel.shared.logFeedShareTapped(for: previewed.context, index: previewed.indexPath?.item)
-    }
-
-    override func readMoreArticlePreviewActionSelected(withArticleController articleController: WMFArticleViewController) {
-        articleController.wmf_removePeekableChildViewControllers()
-        wmf_push(articleController, context: previewed.context, index: previewed.indexPath?.item, animated: true)
-    }
-
-    override func saveArticlePreviewActionSelected(withArticleController articleController: WMFArticleViewController, didSave: Bool, articleURL: URL) {
-        if didSave {
-            ReadingListsFunnel.shared.logSaveInFeed(context: previewed.context, articleURL: articleURL, index: previewed.indexPath?.item)
-        } else {
-            ReadingListsFunnel.shared.logUnsaveInFeed(context: previewed.context, articleURL: articleURL, index: previewed.indexPath?.item)
-        }
-    }
-}
-
 // MARK: - EventLoggingSearchSourceProviding
 extension ExploreViewController: EventLoggingSearchSourceProviding {
     var searchSource: String {
         return "top_of_feed"
     }
+}
+
+// MARK: - Notifications Center
+extension ExploreViewController {
+
+    @objc func userDidTapNotificationsCenter() {
+        notificationsCenterPresentationDelegate?.userDidTapNotificationsCenter(from: self)
+    }
+
+    @objc func pushNotificationBannerDidDisplayInForeground(_ notification: Notification) {
+        dataStore.remoteNotificationsController.loadNotifications(force: true)
+    }
+
 }

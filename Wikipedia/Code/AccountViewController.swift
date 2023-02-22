@@ -1,8 +1,9 @@
-
 import UIKit
+import SwiftUI
+import WMF
 
 @objc(WMFAccountViewControllerDelegate)
-protocol AccountViewControllerDelegate: class {
+protocol AccountViewControllerDelegate: AnyObject {
     func accountViewControllerDidTapLogout(_ accountViewController: AccountViewController)
 }
 
@@ -10,6 +11,7 @@ private enum ItemType {
     case logout
     case talkPage
     case talkPageAutoSignDiscussions
+    case vanishAccount
 }
 
 private struct Section {
@@ -35,14 +37,15 @@ class AccountViewController: SubSettingsViewController {
     
     private lazy var sections: [Section] = {
         
-        guard let username = WMFAuthenticationManager.sharedInstance.loggedInUsername else {
+        guard let username = dataStore.authenticationManager.loggedInUsername else {
             assertionFailure("Should not reach this screen if user isn't logged in.")
             return []
         }
         
         let logout = Item(title: username, subtitle: CommonStrings.logoutTitle, iconName: "settings-user", iconColor: .white, iconBackgroundColor: UIColor.wmf_colorWithHex(0xFF8E2B), type: .logout)
         let talkPage = Item(title: WMFLocalizedString("account-talk-page-title", value: "Your talk page", comment: "Title for button and page letting user view their account page."), subtitle: nil, iconName: "settings-talk-page", iconColor: .white, iconBackgroundColor: UIColor(red: 51/255, green: 102/255, blue: 204/255, alpha: 1) , type: .talkPage)
-        let account = Section(items: [logout, talkPage], headerTitle: WMFLocalizedString("account-group-title", value: "Your Account", comment: "Title for account group on account settings screen."), footerTitle: nil)
+        let vanishAccount = Item(title: CommonStrings.vanishAccount, subtitle: nil, iconName: "vanish-account", iconColor: .white, iconBackgroundColor: .red, type: .vanishAccount)
+        let account = Section(items: [logout, talkPage, vanishAccount], headerTitle: WMFLocalizedString("account-group-title", value: "Your Account", comment: "Title for account group on account settings screen."), footerTitle: nil)
 
         let autoSignDiscussions = Item(title: WMFLocalizedString("account-talk-preferences-auto-sign-discussions", value: "Auto-sign discussions", comment: "Title for talk page preference that configures adding signature to new posts"), subtitle: nil, iconName: nil, iconColor: nil, iconBackgroundColor: nil, type: .talkPageAutoSignDiscussions)
         let talkPagePreferences = Section(items: [autoSignDiscussions], headerTitle: WMFLocalizedString("account-talk-preferences-title", value: "Talk page preferences", comment: "Title for talk page preference sections in account settings"), footerTitle: WMFLocalizedString("account-talk-preferences-auto-sign-discussions-setting-explanation", value: "Auto-signing of discussions will use the signature defined in Signature settings", comment: "Text explaining how setting the auto-signing of talk page discussions preference works"))
@@ -54,6 +57,11 @@ class AccountViewController: SubSettingsViewController {
         super.viewDidLoad()
         title = CommonStrings.account
         tableView.register(WMFSettingsTableViewCell.wmf_classNib(), forCellReuseIdentifier: WMFSettingsTableViewCell.identifier)
+        tableView.register(WMFTableHeaderFooterLabelView.wmf_classNib(), forHeaderFooterViewReuseIdentifier: WMFTableHeaderFooterLabelView.identifier)
+        tableView.sectionHeaderHeight = UITableView.automaticDimension
+        tableView.estimatedSectionHeaderHeight = 44
+        tableView.sectionFooterHeight = UITableView.automaticDimension
+        tableView.estimatedSectionFooterHeight = 44
     }
     
     override func numberOfSections(in tableView: UITableView) -> Int {
@@ -88,8 +96,11 @@ class AccountViewController: SubSettingsViewController {
         case .talkPageAutoSignDiscussions:
             cell.disclosureType = .switch
             cell.selectionStyle = .none
-            cell.disclosureSwitch.isOn = UserDefaults.wmf.autoSignTalkPageDiscussions
+            cell.disclosureSwitch.isOn = UserDefaults.standard.autoSignTalkPageDiscussions
             cell.disclosureSwitch.addTarget(self, action: #selector(autoSignTalkPageDiscussions(_:)), for: .valueChanged)
+        case .vanishAccount:
+            cell.disclosureType = .viewController
+            cell.accessibilityTraits = .button
         }
         
         cell.apply(theme)
@@ -98,7 +109,7 @@ class AccountViewController: SubSettingsViewController {
     }
 
     @objc private func autoSignTalkPageDiscussions(_ sender: UISwitch) {
-        UserDefaults.wmf.autoSignTalkPageDiscussions = sender.isOn
+        UserDefaults.standard.autoSignTalkPageDiscussions = sender.isOn
     }
     
     @objc func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
@@ -112,38 +123,61 @@ class AccountViewController: SubSettingsViewController {
         case .logout:
             showLogoutAlert()
         case .talkPage:
-            if let username = WMFAuthenticationManager.sharedInstance.loggedInUsername,
-                let language = MWKLanguageLinkController.sharedInstance().appLanguage {
-                let siteURL = language.siteURL()
-                let title = TalkPageType.user.titleWithCanonicalNamespacePrefix(title: username, siteURL: siteURL)
-                
+            guard let username = dataStore.authenticationManager.loggedInUsername,
+                  let siteURL = dataStore.primarySiteURL else {
+                return
+            }
+            
+            let title = OldTalkPageType.user.titleWithCanonicalNamespacePrefix(title: username, siteURL: siteURL)
+            
+            if FeatureFlags.needsNewTalkPage {
+                if let viewModel = TalkPageViewModel(pageType: .user, pageTitle: title, siteURL: siteURL, source: .account, articleSummaryController: dataStore.articleSummaryController, authenticationManager: dataStore.authenticationManager, languageLinkController: dataStore.languageLinkController) {
+                    let newTalkPage = TalkPageViewController(theme: theme, viewModel: viewModel)
+                    self.navigationController?.pushViewController(newTalkPage, animated: true)
+                }
+            } else {
+                let title = OldTalkPageType.user.titleWithCanonicalNamespacePrefix(title: username, siteURL: siteURL)
                 let loadingFlowController = TalkPageContainerViewController.talkPageContainer(title: title, siteURL: siteURL,  type: .user, dataStore: dataStore, theme: theme)
-                
                 self.navigationController?.pushViewController(loadingFlowController, animated: true)
             }
+            
+        case .vanishAccount:
+            let warningViewController = VanishAccountWarningViewHostingViewController(theme: theme)
+            warningViewController.delegate = self
+            present(warningViewController, animated: true)
         default:
             break
         }
     }
     
-    @objc func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        guard let section = sections[safeIndex: section] else {
-            return nil
-        }
-        
-        return section.headerTitle
+    @objc func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
+        return UITableView.automaticDimension
+    }
+
+    @objc func tableView(_ tableView: UITableView, viewForHeaderInSection section: Int) -> UIView? {
+
+        let text = sections[safeIndex: section]?.headerTitle
+        return WMFTableHeaderFooterLabelView.headerFooterViewForTableView(tableView, text: text, type: .header, theme: theme)
     }
     
-    @objc func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
-        guard let section = sections[safeIndex: section] else {
-            return nil
-        }
+    @objc func tableView(_ tableView: UITableView, heightForFooterInSection section: Int) -> CGFloat {
         
-        return section.footerTitle
-    }
+        guard let text = sections[safeIndex: section]?.footerTitle,
+              !text.isEmpty else {
+          return 0
+        }
+
+        return UITableView.automaticDimension
+   }
+
+   @objc func tableView(_ tableView: UITableView, viewForFooterInSection section: Int) -> UIView? {
+
+       let text = sections[safeIndex: section]?.footerTitle
+       return WMFTableHeaderFooterLabelView.headerFooterViewForTableView(tableView, text: text, type: .footer, theme: theme)
+   }
     
     private func showLogoutAlert() {
-        let alertController = UIAlertController(title: WMFLocalizedString("main-menu-account-logout-are-you-sure", value: "Are you sure you want to log out?", comment: "Header asking if user is sure they wish to log out."), message: nil, preferredStyle: .alert)
+        let alertController = UIAlertController(title: WMFLocalizedString("main-menu-account-logout-are-you-sure", value: "Are you sure you want to log out?", comment: "Header asking if user is sure they wish to log out."), message: WMFLocalizedString("main-menu-account-logout-are-you-sure-message", value: "Logging out will delete your locally stored account data (notifications and messages), but your account data will still be available on the web and will be re-downloaded if you log back in.", comment: "Message explaining what happens to local data when logging out."), preferredStyle: .alert)
         let logoutAction = UIAlertAction(title: CommonStrings.logoutTitle, style: .destructive) { [weak self] (action) in
             guard let self = self else {
                 return
@@ -167,4 +201,17 @@ class AccountViewController: SubSettingsViewController {
         view.backgroundColor = theme.colors.paperBackground
         tableView.backgroundColor = theme.colors.baseBackground
     }
+}
+
+extension AccountViewController: VanishAccountWarningViewDelegate {
+
+    func userDidDismissVanishAccountWarningView(presentVanishView: Bool) {
+        guard presentVanishView, let username = dataStore.authenticationManager.loggedInUsername else {
+            return
+        }
+
+        let viewController = VanishAccountContainerViewController(title: CommonStrings.vanishAccount.localizedCapitalized, theme: theme, username: username)
+        navigationController?.pushViewController(viewController, animated: true)
+    }
+
 }

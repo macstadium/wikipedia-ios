@@ -6,7 +6,9 @@
 #import "Wikipedia-Swift.h"
 #import "WMFArticleLanguagesSectionHeader.h"
 #import "WMFArticleLanguagesSectionFooter.h"
+#import "WMFLanguagesViewControllerDelegate.h"
 
+static const NSTimeInterval WMFActivityCompletionAnimationDuration = 0.15;
 static CGFloat const WMFOtherLanguageRowHeight = 138.f;
 static CGFloat const WMFLanguageHeaderHeight = 57.f;
 
@@ -23,6 +25,9 @@ static CGFloat const WMFLanguageHeaderHeight = 57.f;
 @property (nonatomic) BOOL editing;
 @property (nonatomic) BOOL disableSelection;
 
+// The showAllLangugages and showPreferredLanguages settings are mutually exclusive.
+// Only one of the two should be set to YES.
+@property (nonatomic, assign) BOOL showAllLanguages;
 @property (nonatomic, assign) BOOL showPreferredLanguages;
 @property (nonatomic, assign) BOOL showNonPreferredLanguages;
 
@@ -53,6 +58,19 @@ static CGFloat const WMFLanguageHeaderHeight = 57.f;
     languagesVC.title = [WMFCommonStrings wikipediaLanguages];
     languagesVC.editing = NO;
     languagesVC.showPreferredLanguages = NO;
+
+    return languagesVC;
+}
+
++ (instancetype)allLanguagesViewController {
+    WMFLanguagesViewController *languagesVC = [[WMFLanguagesViewController alloc] initWithNibName:@"WMFLanguagesViewController" bundle:nil];
+    NSParameterAssert(languagesVC);
+
+    languagesVC.title = [WMFCommonStrings wikipediaLanguages];
+    languagesVC.editing = NO;
+    languagesVC.showAllLanguages = YES;
+    languagesVC.showPreferredLanguages = NO;
+    languagesVC.showNonPreferredLanguages = NO;
 
     return languagesVC;
 }
@@ -125,7 +143,7 @@ static CGFloat const WMFLanguageHeaderHeight = 57.f;
 }
 
 - (void)closeButtonPressed {
-    [self dismissViewControllerAnimated:YES completion:nil];
+    [self dismissViewControllerAnimated:YES completion:self.userDismissalCompletionBlock];
 }
 
 - (void)setHideLanguageFilter:(BOOL)hideLanguageFilter {
@@ -167,8 +185,9 @@ static CGFloat const WMFLanguageHeaderHeight = 57.f;
     [self.tableView reloadData];
 }
 
-- (BOOL)isPreferredSection:(NSInteger)section {
-    if (self.showPreferredLanguages) {
+- (BOOL)isAllLanguagesSection:(NSInteger)section {
+    if (self.showAllLanguages) {
+        NSAssert(self.showAllLanguages == NO || self.showPreferredLanguages == NO, @"The values showAllLanguages and showPreferredLanguages are mutually exclusive.");
         if (section == 0) {
             return YES;
         }
@@ -176,8 +195,30 @@ static CGFloat const WMFLanguageHeaderHeight = 57.f;
     return NO;
 }
 
+- (BOOL)isPreferredSection:(NSInteger)section {
+    if (self.showPreferredLanguages) {
+        NSAssert(self.showAllLanguages == NO || self.showPreferredLanguages == NO, @"The values showAllLanguages and showPreferredLanguages are mutually exclusive.");
+        if (section == 0) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
+- (BOOL)isFilteredPreferredLanguage:(MWKLanguageLink *)language {
+    return [self.languageFilter.filteredPreferredLanguages containsObject:language];
+}
+
 - (BOOL)isExploreFeedCustomizationSettingsSection:(NSInteger)section {
     return section == 1;
+}
+
+- (void)setShowAllLanguages:(BOOL)showAllLanguages {
+    if (_showAllLanguages == showAllLanguages) {
+        return;
+    }
+    _showAllLanguages = showAllLanguages;
+    [self reloadDataSections];
 }
 
 - (void)setShowPreferredLanguages:(BOOL)showPreferredLanguages {
@@ -198,7 +239,7 @@ static CGFloat const WMFLanguageHeaderHeight = 57.f;
 
 - (MWKLanguageFilter *)languageFilter {
     if (!_languageFilter) {
-        _languageFilter = [[MWKLanguageFilter alloc] initWithLanguageDataSource:[MWKLanguageLinkController sharedInstance]];
+        _languageFilter = [[MWKLanguageFilter alloc] initWithLanguageDataSource:MWKDataStore.shared.languageLinkController];
     }
     return _languageFilter;
 }
@@ -208,6 +249,13 @@ static CGFloat const WMFLanguageHeaderHeight = 57.f;
 - (void)configurePreferredLanguageCell:(WMFLanguageCell *)cell atRow:(NSUInteger)row {
     cell.isPreferred = YES;
     [self configureCell:cell forLangLink:self.languageFilter.filteredPreferredLanguages[row]];
+}
+
+- (void)configureAllLanguagesLanguageCell:(WMFLanguageCell *)cell atRow:(NSUInteger)row {
+    cell.isPreferred = NO;
+    BOOL isPreferredLanguage = [self isFilteredPreferredLanguage:self.languageFilter.filteredLanguages[row]];
+    cell.accessoryType = isPreferredLanguage ? UITableViewCellAccessoryCheckmark : UITableViewCellAccessoryNone;
+    [self configureCell:cell forLangLink:self.languageFilter.filteredLanguages[row]];
 }
 
 - (void)configureOtherLanguageCell:(WMFLanguageCell *)cell atRow:(NSUInteger)row {
@@ -234,6 +282,9 @@ static CGFloat const WMFLanguageHeaderHeight = 57.f;
 
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
     NSInteger count = 0;
+    if (self.showAllLanguages) {
+        count++;
+    }
     if (self.showPreferredLanguages) {
         count++;
     }
@@ -249,6 +300,8 @@ static CGFloat const WMFLanguageHeaderHeight = 57.f;
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
     if ([self isPreferredSection:section]) {
         return self.languageFilter.filteredPreferredLanguages.count;
+    } else if ([self isAllLanguagesSection:section]) {
+        return self.languageFilter.filteredLanguages.count;
     } else if (self.showExploreFeedCustomizationSettings && [self isExploreFeedCustomizationSettingsSection:section]) {
         return 1;
     } else {
@@ -262,6 +315,8 @@ static CGFloat const WMFLanguageHeaderHeight = 57.f;
                                             forIndexPath:indexPath];
     if ([self isPreferredSection:indexPath.section]) {
         [self configurePreferredLanguageCell:cell atRow:indexPath.row];
+    } else if ([self isAllLanguagesSection:indexPath.section]) {
+        [self configureAllLanguagesLanguageCell:cell atRow:indexPath.row];
     } else if (self.showExploreFeedCustomizationSettings && [self isExploreFeedCustomizationSettingsSection:indexPath.section]) {
         WMFSettingsTableViewCell *cell = (WMFSettingsTableViewCell *)[tableView dequeueReusableCellWithIdentifier:WMFSettingsTableViewCell.identifier forIndexPath:indexPath];
         [self configureExploreFeedCustomizationCell:cell];
@@ -273,12 +328,14 @@ static CGFloat const WMFLanguageHeaderHeight = 57.f;
 }
 
 - (CGFloat)alphaForDeleteButton {
-    return !self.tableView.editing || ([MWKLanguageLinkController sharedInstance].preferredLanguages.count == 1) ? 0.f : 1.f;
+    return !self.tableView.editing || (MWKDataStore.shared.languageLinkController.preferredLanguages.count == 1) ? 0.f : 1.f;
 }
 
 - (MWKLanguageLink *)languageAtIndexPath:(NSIndexPath *)indexPath {
     if ([self isPreferredSection:indexPath.section]) {
         return self.languageFilter.filteredPreferredLanguages[indexPath.row];
+    } else if ([self isAllLanguagesSection:indexPath.section]) {
+        return self.languageFilter.filteredLanguages[indexPath.row];
     } else {
         return self.languageFilter.filteredOtherLanguages[indexPath.row];
     }
@@ -287,6 +344,9 @@ static CGFloat const WMFLanguageHeaderHeight = 57.f;
 #pragma mark - UITableViewDelegate
 
 - (BOOL)shouldShowHeaderForSection:(NSInteger)section {
+    if ([self isAllLanguagesSection:section]) {
+        return NO;
+    }
     return ([self tableView:self.tableView numberOfRowsInSection:section] > 0);
 }
 
@@ -321,15 +381,23 @@ static CGFloat const WMFLanguageHeaderHeight = 57.f;
     return [self shouldShowHeaderForSection:section] ? WMFLanguageHeaderHeight : 0;
 }
 
+- (NSIndexPath *)tableView:(UITableView *)tableView willSelectRowAtIndexPath:(NSIndexPath *)indexPath {
+    if (self.showAllLanguages && [self isFilteredPreferredLanguage:self.languageFilter.filteredLanguages[indexPath.row]]) {
+        return nil;
+    } else {
+        return indexPath;
+    }
+}
+
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
     MWKLanguageLink *selectedLanguage = [self languageAtIndexPath:indexPath];
-    if ([self.delegate respondsToSelector:@selector(languagesController:didSelectLanguage:)]) {
+    if ([self.delegate respondsToSelector:@selector(languagesController:didSelectLanguage:)] && selectedLanguage) {
         [self.delegate languagesController:self didSelectLanguage:selectedLanguage];
     } else if (self.showExploreFeedCustomizationSettings && [self isExploreFeedCustomizationSettingsSection:indexPath.section]) {
         self.title = nil;
         WMFExploreFeedSettingsViewController *feedSettingsVC = [[WMFExploreFeedSettingsViewController alloc] init];
-        feedSettingsVC.dataStore = SessionSingleton.sharedInstance.dataStore;
+        feedSettingsVC.dataStore = MWKDataStore.shared;
         [feedSettingsVC applyTheme:self.theme];
         [self.navigationController pushViewController:feedSettingsVC animated:YES];
     }
@@ -357,11 +425,11 @@ static CGFloat const WMFLanguageHeaderHeight = 57.f;
     switch (editingStyle) {
         case UITableViewCellEditingStyleInsert: {
             MWKLanguageLink *langLink = self.languageFilter.filteredOtherLanguages[indexPath.row];
-            [[MWKLanguageLinkController sharedInstance] appendPreferredLanguage:langLink];
+            [MWKDataStore.shared.languageLinkController appendPreferredLanguage:langLink];
         } break;
         case UITableViewCellEditingStyleDelete: {
             MWKLanguageLink *langLink = self.languageFilter.filteredPreferredLanguages[indexPath.row];
-            [[MWKLanguageLinkController sharedInstance] removePreferredLanguage:langLink];
+            [MWKDataStore.shared.languageLinkController removePreferredLanguage:langLink];
         } break;
         case UITableViewCellEditingStyleNone:
             break;
@@ -386,7 +454,7 @@ static CGFloat const WMFLanguageHeaderHeight = 57.f;
 #pragma mark - UIAccessibilityAction
 
 - (BOOL)accessibilityPerformEscape {
-    [self dismissViewControllerAnimated:YES completion:nil];
+    [self dismissViewControllerAnimated:YES completion:self.userDismissalCompletionBlock];
     return true;
 }
 
@@ -397,9 +465,7 @@ static CGFloat const WMFLanguageHeaderHeight = 57.f;
     if (self.viewIfLoaded == nil) {
         return;
     }
-    if (@available(iOS 13.0, *)) {
-        self.overrideUserInterfaceStyle = theme.isDark ? UIUserInterfaceStyleDark : UIUserInterfaceStyleLight;
-    }
+    self.overrideUserInterfaceStyle = theme.isDark ? UIUserInterfaceStyleDark : UIUserInterfaceStyleLight;
     self.view.backgroundColor = theme.colors.baseBackground;
     UIColor *backgroundColor = theme.colors.baseBackground;
     self.tableView.backgroundColor = backgroundColor;
@@ -411,6 +477,10 @@ static CGFloat const WMFLanguageHeaderHeight = 57.f;
 @end
 
 @interface WMFPreferredLanguagesViewController () <WMFLanguagesViewControllerDelegate>
+
+@end
+
+@interface WMFPreferredLanguagesViewController () <WMFAddLanguageDelegate>
 
 @end
 
@@ -433,7 +503,7 @@ static CGFloat const WMFLanguageHeaderHeight = 57.f;
 
 - (void)reloadDataSections {
     [super reloadDataSections];
-    self.navigationItem.rightBarButtonItem = [MWKLanguageLinkController sharedInstance].preferredLanguages.count > 1 ? self.editButtonItem : nil;
+    self.navigationItem.rightBarButtonItem = MWKDataStore.shared.languageLinkController.preferredLanguages.count > 1 ? self.editButtonItem : nil;
 }
 
 - (void)viewDidLoad {
@@ -465,15 +535,15 @@ static CGFloat const WMFLanguageHeaderHeight = 57.f;
     }
 }
 
-- (IBAction)addLanguages:(id)sender {
-    WMFLanguagesViewController *languagesVC = [WMFLanguagesViewController nonPreferredLanguagesViewController];
+- (void)addLanguageButtonTapped {
+    WMFLanguagesViewController *languagesVC = [WMFLanguagesViewController allLanguagesViewController];
     languagesVC.delegate = self;
     [languagesVC applyTheme:self.theme];
     [self presentViewController:[[WMFThemeableNavigationController alloc] initWithRootViewController:languagesVC theme:self.theme style:WMFThemeableNavigationControllerStyleSheet] animated:YES completion:NULL];
 }
 
 - (void)languagesController:(WMFLanguagesViewController *)controller didSelectLanguage:(MWKLanguageLink *)language {
-    [[MWKLanguageLinkController sharedInstance] appendPreferredLanguage:language];
+    [MWKDataStore.shared.languageLinkController appendPreferredLanguage:language];
     [self reloadDataSections];
     [controller dismissViewControllerAnimated:YES completion:NULL];
     [self notifyDelegateThatPreferredLanguagesDidUpdate];
@@ -481,7 +551,7 @@ static CGFloat const WMFLanguageHeaderHeight = 57.f;
 
 - (void)notifyDelegateThatPreferredLanguagesDidUpdate {
     if ([self.delegate respondsToSelector:@selector(languagesController:didUpdatePreferredLanguages:)]) {
-        [self.delegate languagesController:self didUpdatePreferredLanguages:[MWKLanguageLinkController sharedInstance].preferredLanguages];
+        [self.delegate languagesController:self didUpdatePreferredLanguages:MWKDataStore.shared.languageLinkController.preferredLanguages];
     }
 }
 
@@ -501,6 +571,7 @@ static CGFloat const WMFLanguageHeaderHeight = 57.f;
             [footer setButtonHidden:NO];
         }
         footer.title = title;
+        footer.delegate = self;
         [footer applyTheme:self.theme];
         return footer;
     } else {
@@ -518,12 +589,12 @@ static CGFloat const WMFLanguageHeaderHeight = 57.f;
 }
 
 - (BOOL)tableView:(UITableView *)tableView canEditRowAtIndexPath:(NSIndexPath *)indexPath {
-    return [MWKLanguageLinkController sharedInstance].preferredLanguages.count > 1;
+    return MWKDataStore.shared.languageLinkController.preferredLanguages.count > 1;
 }
 
 - (void)tableView:(UITableView *)tableView moveRowAtIndexPath:(NSIndexPath *)sourceIndexPath toIndexPath:(NSIndexPath *)destinationIndexPath {
-    MWKLanguageLink *langLink = [MWKLanguageLinkController sharedInstance].preferredLanguages[sourceIndexPath.row];
-    [[MWKLanguageLinkController sharedInstance] reorderPreferredLanguage:langLink toIndex:destinationIndexPath.row];
+    MWKLanguageLink *langLink = MWKDataStore.shared.languageLinkController.preferredLanguages[sourceIndexPath.row];
+    [MWKDataStore.shared.languageLinkController reorderPreferredLanguage:langLink toIndex:destinationIndexPath.row];
 
     // TODO: reloadData is a bit brute force, but had issues with the "PRIMARY" indicator
     // showing on more than one cell after re-ordering first cell.
@@ -535,7 +606,7 @@ static CGFloat const WMFLanguageHeaderHeight = 57.f;
 - (void)tableView:(UITableView *)tableView commitEditingStyle:(UITableViewCellEditingStyle)editingStyle forRowAtIndexPath:(NSIndexPath *)indexPath {
     [super tableView:tableView commitEditingStyle:editingStyle forRowAtIndexPath:indexPath];
     [self notifyDelegateThatPreferredLanguagesDidUpdate];
-    if ([MWKLanguageLinkController sharedInstance].preferredLanguages.count == 1) {
+    if (MWKDataStore.shared.languageLinkController.preferredLanguages.count == 1) {
         [self setEditing:NO animated:YES];
         self.navigationItem.rightBarButtonItem = nil;
     }
@@ -552,7 +623,9 @@ static CGFloat const WMFLanguageHeaderHeight = 57.f;
 
 @interface WMFArticleLanguagesViewController ()
 
-@property (strong, nonatomic) MWKTitleLanguageController *titleLanguageController;
+@property (nonatomic, strong) MWKTitleLanguageController *titleLanguageController;
+@property (nonatomic, strong, readonly) NSURL *articleURL;
+@property (nonatomic, strong) UIActivityIndicatorView *activityIndicator;
 
 @end
 
@@ -572,6 +645,28 @@ static CGFloat const WMFLanguageHeaderHeight = 57.f;
     return languagesVC;
 }
 
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    [self setActivityIndicatorVisible:YES];
+
+    self.hideLanguageFilter = YES;
+}
+
+- (void)setActivityIndicatorVisible:(BOOL)visible {
+    if (visible) {
+        if (_activityIndicator == nil) {
+            _activityIndicator = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleLarge];
+            _activityIndicator.color = self.theme.colors.primaryText;
+            [self.view wmf_addSubviewWithConstraintsToEdges:_activityIndicator];
+            [_activityIndicator startAnimating];
+        } else {
+            [_activityIndicator startAnimating];
+        }
+    } else {
+        [_activityIndicator stopAnimating];
+    }
+}
+
 #pragma mark - Getters & Setters
 
 - (void)setArticleURL:(NSURL *)articleURL {
@@ -582,7 +677,7 @@ static CGFloat const WMFLanguageHeaderHeight = 57.f;
 - (MWKTitleLanguageController *)titleLanguageController {
     NSAssert(self.articleURL != nil, @"Article Title must be set before accessing titleLanguageController");
     if (!_titleLanguageController) {
-        _titleLanguageController = [[MWKTitleLanguageController alloc] initWithArticleURL:self.articleURL languageController:[MWKLanguageLinkController sharedInstance]];
+        _titleLanguageController = [[MWKTitleLanguageController alloc] initWithArticleURL:self.articleURL languageController:MWKDataStore.shared.languageLinkController];
     }
     return _titleLanguageController;
 }
@@ -603,9 +698,22 @@ static CGFloat const WMFLanguageHeaderHeight = 57.f;
     [self.titleLanguageController
         fetchLanguagesWithSuccess:^{
             @strongify(self)
-                [self reloadDataSections];
+                [self setActivityIndicatorVisible:NO];
+            if (self.titleLanguageController.allLanguages.count == 0) {
+                [self wmf_showEmptyViewOfType:WMFEmptyViewTypeNoOtherArticleLanguages theme:self.theme frame:self.view.bounds];
+                [self.wmf_emptyView setAlpha:0];
+                [UIView animateWithDuration:WMFActivityCompletionAnimationDuration
+                                 animations:^{
+                                     [self.wmf_emptyView setAlpha:1];
+                                 }];
+            } else {
+                [self wmf_hideEmptyView];
+                self.hideLanguageFilter = NO;
+            }
+            [self reloadDataSections];
         }
         failure:^(NSError *__nonnull error) {
+            [self setActivityIndicatorVisible:NO];
             [[WMFAlertManager sharedInstance] showErrorAlert:error sticky:YES dismissPreviousAlerts:YES tapCallBack:NULL];
         }];
 }

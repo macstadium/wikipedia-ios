@@ -3,12 +3,15 @@
 #import <WMF/WMFComparison.h>
 #import <WMF/NSCalendar+WMFCommonCalendars.h>
 #import <WMF/WMFLocalization.h>
-#import <WMF/NSString+WMFPageUtilities.h>
 #import <WMF/NSURL+WMFLinkParsing.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
 @implementation WMFFeedOnThisDayEvent
+
++ (NSUInteger)modelVersion {
+    return 3;
+}
 
 + (NSDictionary *)JSONKeyPathsByPropertyKey {
     return @{
@@ -22,16 +25,16 @@ NS_ASSUME_NONNULL_BEGIN
     return [MTLJSONAdapter arrayTransformerWithModelClass:[WMFFeedArticlePreview class]];
 }
 
-+ (NSUInteger)modelVersion {
-    return 3;
-}
-
 - (nullable NSURL *)siteURL {
     return self.articlePreviews.firstObject.articleURL.wmf_siteURL;
 }
 
-- (nullable NSString *)language {
-    return self.siteURL.wmf_language;
+- (nullable NSString *)languageCode {
+    return self.siteURL.wmf_languageCode;
+}
+
+- (nullable NSString *)contentLanguageCode {
+    return self.siteURL.wmf_contentLanguageCode;
 }
 
 - (NSInteger)previewsImageCount {
@@ -46,7 +49,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Presently EN only.
 - (NSUInteger)textDeathRegexMatchCount {
-    if (self.text == nil || self.siteURL == nil || [self.siteURL wmf_language] == nil || ![[self.siteURL wmf_language] isEqualToString:@"en"]) {
+    if (self.text == nil || self.siteURL == nil || [self.siteURL wmf_languageCode] == nil || ![[self.siteURL wmf_languageCode] isEqualToString:@"en"]) {
         return 0;
     }
     return [[WMFFeedOnThisDayEvent enDeathRegex] numberOfMatchesInString:self.text options:0 range:NSMakeRange(0, [self.text length])];
@@ -71,7 +74,7 @@ NS_ASSUME_NONNULL_BEGIN
     NSInteger imageCount = [self previewsImageCount];
 
     // Use image count if not EN.
-    if ([self.siteURL wmf_language] == nil || ![[self.siteURL wmf_language] isEqualToString:@"en"]) {
+    if ([self.siteURL wmf_languageCode] == nil || ![[self.siteURL wmf_languageCode] isEqualToString:@"en"]) {
         return @(imageCount);
     }
 
@@ -81,6 +84,12 @@ NS_ASSUME_NONNULL_BEGIN
     NSNumber *score = @(imageScore.floatValue - deathScore);
     return score;
 }
+
++ (NSArray<NSString *> *)languageVariantCodePropagationSubelementKeys {
+    return @[@"articlePreviews"];
+}
+
+// No languageVariantCodePropagationURLKeys. The siteURL property is a derived value.
 
 @end
 

@@ -1,10 +1,6 @@
 #import <XCTest/XCTest.h>
 #import "NSString+WMFHTMLParsing.h"
-#import <hpple/TFHpple.h>
 #import "WMFTestFixtureUtilities.h"
-
-#define HC_SHORTHAND 1
-#import <OCHamcrest/OCHamcrest.h>
 
 @interface NSString_WMFHTMLParsingTests : XCTestCase
 
@@ -13,8 +9,7 @@
 @implementation NSString_WMFHTMLParsingTests
 
 - (void)testSnippetFromTextWithCitaiton {
-    assertThat([@"March 2011.[9][10] It was the first spacecraft to orbit Mercury.[7]" wmf_shareSnippetFromText],
-               is(@"March 2011. It was the first spacecraft to orbit Mercury."));
+    XCTAssertEqualObjects([@"March 2011.[9][10] It was the first spacecraft to orbit Mercury.[7]" wmf_shareSnippetFromText], @"March 2011. It was the first spacecraft to orbit Mercury.");
 }
 
 - (void)testConsecutiveNewlinesCollapsing {
@@ -89,6 +84,24 @@
     newsHTML = @"<!-- May 19 -->Nothing happened";
     newsPlainText = [newsHTML wmf_stringByRemovingHTML];
     XCTAssertEqualObjects(newsPlainText, plaintext);
+}
+
+- (void)testRemovingHTMLRetainsMinusEntity {
+    //https://phabricator.wikimedia.org/T252047
+    NSString *displayTitle = @"<i>B</i> &#8722; <i>L</i>";
+    NSString *displayTitlePlainText = [displayTitle wmf_stringByRemovingHTML];
+    XCTAssertEqualObjects(@"B − L", displayTitlePlainText);
+    
+    UIFont *standard = [UIFont systemFontOfSize:12];
+    UIFont *italic = [UIFont italicSystemFontOfSize:12];
+    NSMutableAttributedString *displayTitleAttributedString = [displayTitle wmf_attributedStringFromHTMLWithFont:standard boldFont:nil italicFont:italic boldItalicFont:nil color:nil linkColor:nil handlingLinks:NO handlingLists:NO handlingSuperSubscripts:NO tagMapping:nil additionalTagAttributes:nil];
+    NSMutableAttributedString *attributedStringToCompare = [[NSMutableAttributedString alloc] initWithString:@"B − L"];
+    [attributedStringToCompare addAttributes:@{NSFontAttributeName: italic} range:NSMakeRange(0, 1)];
+    [attributedStringToCompare addAttributes:@{NSFontAttributeName: standard} range:NSMakeRange(1, 3)];
+    [attributedStringToCompare addAttributes:@{NSFontAttributeName: italic} range:NSMakeRange(4, 1)];
+    
+    XCTAssertEqualObjects(displayTitleAttributedString, attributedStringToCompare);
+    
 }
 
 @end

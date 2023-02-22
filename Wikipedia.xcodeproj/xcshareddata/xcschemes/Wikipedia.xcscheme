@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Scheme
-   LastUpgradeVersion = "1100"
+   LastUpgradeVersion = "1420"
    version = "1.7">
    <BuildAction
       parallelizeBuildables = "YES"
@@ -41,15 +41,6 @@
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       shouldUseLaunchSchemeArgsEnv = "YES">
-      <MacroExpansion>
-         <BuildableReference
-            BuildableIdentifier = "primary"
-            BlueprintIdentifier = "D4991434181D51DE00E6073C"
-            BuildableName = "Wikipedia.app"
-            BlueprintName = "Wikipedia"
-            ReferencedContainer = "container:Wikipedia.xcodeproj">
-         </BuildableReference>
-      </MacroExpansion>
       <Testables>
          <TestableReference
             skipped = "NO">
@@ -62,6 +53,15 @@
             </BuildableReference>
             <SkippedTests>
                <Test
+                  Identifier = "ArticleCacheReadingManualTests">
+               </Test>
+               <Test
+                  Identifier = "ArticleManualPerformanceTests">
+               </Test>
+               <Test
+                  Identifier = "ArticleViewControllerTests">
+               </Test>
+               <Test
                   Identifier = "LegacyCoreDataMigratorTests">
                </Test>
                <Test
@@ -72,6 +72,12 @@
                </Test>
                <Test
                   Identifier = "NSString_FormattedAttributedStringTests/testPerformanceExample">
+               </Test>
+               <Test
+                  Identifier = "ReadingListManualPerformanceTests">
+               </Test>
+               <Test
+                  Identifier = "TalkPageManualPerformanceTests">
                </Test>
                <Test
                   Identifier = "WMFSearchFetcherTests">
@@ -101,21 +107,6 @@
          </BuildableReference>
       </BuildableProductRunnable>
       <EnvironmentVariables>
-         <EnvironmentVariable
-            key = "WMF_FIXTURE_DIRECTORY"
-            value = "$(SOURCE_ROOT)/WikipediaUnitTests/Fixtures"
-            isEnabled = "YES">
-         </EnvironmentVariable>
-         <EnvironmentVariable
-            key = "FB_REFERENCE_IMAGE_DIR"
-            value = "$(SOURCE_ROOT)/WikipediaUnitTests/ReferenceImages"
-            isEnabled = "YES">
-         </EnvironmentVariable>
-         <EnvironmentVariable
-            key = "IMAGE_DIFF_DIR"
-            value = "$(SOURCE_ROOT)/WikipediaUnitTests/FailureDiffs"
-            isEnabled = "NO">
-         </EnvironmentVariable>
          <EnvironmentVariable
             key = "DYLD_PRINT_STATISTICS"
             value = "1"

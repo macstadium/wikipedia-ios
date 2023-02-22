@@ -1,8 +1,29 @@
+import CocoaLumberjackSwift
+
+@objc protocol WMFAuthenticationManagerDelegate: NSObjectProtocol {
+    var loginSiteURL: URL? { get }
+    func authenticationManagerWillLogOut(completionHandler: @escaping () -> Void) // allows interested objects to perform authenticated clean up actions before log out
+    func authenticationManagerDidLogin()
+    func authenticationManagerDidReset()
+}
 
 /**
  *  This class provides a simple interface for performing authentication tasks.
  */
-public class WMFAuthenticationManager: Fetcher {
+@objc public class WMFAuthenticationManager: Fetcher {
+    @objc weak var delegate: WMFAuthenticationManagerDelegate?
+    
+    fileprivate let loginInfoFetcher: WMFAuthLoginInfoFetcher
+    fileprivate let accountLogin: WMFAccountLogin
+    fileprivate let currentlyLoggedInUserFetcher: WMFCurrentlyLoggedInUserFetcher
+
+    public required init(session: Session, configuration: Configuration) {
+        loginInfoFetcher = WMFAuthLoginInfoFetcher(session: session, configuration: configuration)
+        accountLogin = WMFAccountLogin(session: session, configuration: configuration)
+        currentlyLoggedInUserFetcher = WMFCurrentlyLoggedInUserFetcher(session: session, configuration: configuration)
+        super.init(session: session, configuration: configuration)
+    }
+    
     public enum AuthenticationResult {
         case success(_: WMFAccountLoginResult)
         case alreadyLoggedIn(_: WMFCurrentlyLoggedInUser)
@@ -17,7 +38,7 @@ public class WMFAuthenticationManager: Fetcher {
         public var errorDescription: String? {
             switch self {
             default:
-                return WMFLocalizedString("error-generic-description", value: "An unexpected error occurred", comment: "Generic error message for when the error isn't recoverable by the user.")
+                return CommonStrings.genericErrorDescription
             }
         }
         
@@ -32,7 +53,47 @@ public class WMFAuthenticationManager: Fetcher {
     /**
      *  The current logged in user. If nil, no user is logged in
      */
-    @objc dynamic public private(set) var loggedInUsername: String? = nil
+    @objc dynamic public private(set) var loggedInUsername: String? = nil {
+        didSet {
+            loggedInUserCache = [:]
+            isAnonCache = [:]
+        }
+    }
+    
+    private var isAnonCache: [String: Bool] = [:]
+    private var loggedInUserCache: [String: WMFCurrentlyLoggedInUser] = [:]
+    
+    /// Returns the currently logged in user for a given site. Useful to determine the user's groups for a given wiki
+    public func getLoggedInUser(for siteURL: URL, completion: @escaping (Result<WMFCurrentlyLoggedInUser?, Error>) -> Void ) {
+        assert(Thread.isMainThread)
+        guard let host = siteURL.host else {
+            completion(.failure(RequestError.invalidParameters))
+            return
+        }
+        if isAnonCache[host] ?? false {
+            completion(.success(nil))
+            return
+        }
+        if let user = loggedInUserCache[host] {
+            completion(.success(user))
+            return
+        }
+        currentlyLoggedInUserFetcher.fetch(siteURL: siteURL, success: { (user) in
+            DispatchQueue.main.async {
+                self.loggedInUserCache[host] = user
+                completion(.success(user))
+            }
+        }) { (error) in
+            DispatchQueue.main.async {
+                if error as? WMFCurrentlyLoggedInUserFetcherError == WMFCurrentlyLoggedInUserFetcherError.userIsAnonymous {
+                    self.isAnonCache[host] = true
+                    completion(.success(nil))
+                } else {
+                    completion(.failure(error))
+                }
+            }
+        }
+    }
     
     /**
      *  Returns YES if a user is logged in, NO otherwise
@@ -53,32 +114,22 @@ public class WMFAuthenticationManager: Fetcher {
         return true
     }
     
-    fileprivate let loginInfoFetcher = WMFAuthLoginInfoFetcher()
-    fileprivate let accountLogin = WMFAccountLogin()
-    fileprivate let currentlyLoggedInUserFetcher = WMFCurrentlyLoggedInUserFetcher()
-    
-    /**
-     *  Get the shared instance of this class
-     *
-     *  @return The shared Authentication Manager
-     */
-    @objc public static let sharedInstance = WMFAuthenticationManager()
-    
+
     var loginSiteURL: URL? {
-        return MWKLanguageLinkController.sharedInstance().appLanguage?.siteURL() ?? NSURL.wmf_URLWithDefaultSiteAndCurrentLocale()
+        return delegate?.loginSiteURL ?? NSURL.wmf_URLWithDefaultSiteAndCurrentLocale()
     }
     
     public func attemptLogin(reattemptOn401Response: Bool = false, completion: @escaping AuthenticationResultHandler) {
         self.loginWithSavedCredentials(reattemptOn401Response: reattemptOn401Response) { (loginResult) in
             switch loginResult {
             case .success(let result):
-                DDLogDebug("\n\nSuccessfully logged in with saved credentials for user \(result.username).\n\n")
+                DDLogDebug("Successfully logged in with saved credentials for user \(result.username).")
                 self.session.cloneCentralAuthCookies()
             case .alreadyLoggedIn(let result):
-                DDLogDebug("\n\nUser \(result.name) is already logged in.\n\n")
+                DDLogDebug("User \(result.name) is already logged in.")
                 self.session.cloneCentralAuthCookies()
             case .failure(let error):
-                DDLogDebug("\n\nloginWithSavedCredentials failed with error \(error).\n\n")
+                DDLogDebug("loginWithSavedCredentials failed with error \(error).")
             }
             DispatchQueue.main.async {
                 completion(loginResult)
@@ -110,7 +161,8 @@ public class WMFAuthenticationManager: Fetcher {
                 KeychainCredentialsManager.shared.username = normalizedUserName
                 KeychainCredentialsManager.shared.password = password
                 self.session.cloneCentralAuthCookies()
-                SessionSingleton.sharedInstance()?.dataStore.clearMemoryCache()
+                self.delegate?.authenticationManagerDidLogin()
+                NotificationCenter.default.post(name: WMFAuthenticationManager.didLogInNotification, object: nil)
                 completion(.success(result))
             }
         }, failure: { (error) in
@@ -144,13 +196,18 @@ public class WMFAuthenticationManager: Fetcher {
         
         currentlyLoggedInUserFetcher.fetch(siteURL: siteURL, success: { result in
             DispatchQueue.main.async {
+                if let host = siteURL.host {
+                    self.loggedInUserCache[host] = result
+                }
                 self.loggedInUsername = result.name
+                NotificationCenter.default.post(name: WMFAuthenticationManager.didLogInNotification, object: nil)
                 completion(.alreadyLoggedIn(result))
             }
-        }, failure:{ error in
+        }, failure: { error in
             DispatchQueue.main.async {
                 guard !(error is URLError) else {
                     self.loggedInUsername = userName
+                    NotificationCenter.default.post(name: WMFAuthenticationManager.didLogInNotification, object: nil)
                     let loginResult = WMFAccountLoginResult(status: WMFAccountLoginResult.Status.offline, username: userName, message: nil)
                     completion(.success(loginResult))
                     return
@@ -163,6 +220,7 @@ public class WMFAuthenticationManager: Fetcher {
                         case .failure(let error):
                             guard !(error is URLError) else {
                                 self.loggedInUsername = userName
+                                NotificationCenter.default.post(name: WMFAuthenticationManager.didLogInNotification, object: nil)
                                 let loginResult = WMFAccountLoginResult(status: WMFAccountLoginResult.Status.offline, username: userName, message: nil)
                                 completion(.success(loginResult))
                                 return
@@ -186,41 +244,41 @@ public class WMFAuthenticationManager: Fetcher {
 
         session.removeAllCookies()
         
-        SessionSingleton.sharedInstance()?.dataStore.clearMemoryCache()
-        
-        SessionSingleton.sharedInstance().dataStore.readingListsController.setSyncEnabled(false, shouldDeleteLocalLists: false, shouldDeleteRemoteLists: false)
+        delegate?.authenticationManagerDidReset()
         
         // Reset so can show for next logged in user.
-        UserDefaults.wmf.wmf_setDidShowEnableReadingListSyncPanel(false)
-        UserDefaults.wmf.wmf_setDidShowSyncEnabledPanel(false)
+        UserDefaults.standard.wmf_setDidShowEnableReadingListSyncPanel(false)
+        UserDefaults.standard.wmf_setDidShowSyncEnabledPanel(false)
     }
     
     /**
      *  Logs out any authenticated user and clears out any associated cookies
      */
     @objc(logoutInitiatedBy:completion:)
-    public func logout(initiatedBy logoutInitiator: LogoutInitiator, completion: @escaping () -> Void = {}){
-        if logoutInitiator == .app || logoutInitiator == .server {
-            isUserUnawareOfLogout = true
-        }
-        let postDidLogOutNotification = {
-            NotificationCenter.default.post(name: WMFAuthenticationManager.didLogOutNotification, object: nil)
-        }
-        performTokenizedMediaWikiAPIPOST(to: loginSiteURL, with: ["action": "logout", "format": "json"], reattemptLoginOn401Response: false) { (result, response, error) in
-            DispatchQueue.main.async {
-                if let error = error {
-                    // ...but if "action=logout" fails we *still* want to clear local login settings, which still effectively logs the user out.
-                    DDLogDebug("Failed to log out, delete login tokens and other browser cookies: \(error)")
+    public func logout(initiatedBy logoutInitiator: LogoutInitiator, completion: @escaping () -> Void = {}) {
+        delegate?.authenticationManagerWillLogOut {
+            if logoutInitiator == .app || logoutInitiator == .server {
+                self.isUserUnawareOfLogout = true
+            }
+            let postDidLogOutNotification = {
+                NotificationCenter.default.post(name: WMFAuthenticationManager.didLogOutNotification, object: nil)
+            }
+            self.performTokenizedMediaWikiAPIPOST(to: self.loginSiteURL, with: ["action": "logout", "format": "json"], reattemptLoginOn401Response: false) { (result, response, error) in
+                DispatchQueue.main.async {
+                    if let error = error {
+                        // ...but if "action=logout" fails we *still* want to clear local login settings, which still effectively logs the user out.
+                        DDLogDebug("Failed to log out, delete login tokens and other browser cookies: \(error)")
+                        self.resetLocalUserLoginSettings()
+                        completion()
+                        postDidLogOutNotification()
+                        return
+                    }
+                    DDLogDebug("Successfully logged out, deleted login tokens and other browser cookies")
+                    // It's best to call "action=logout" API *before* clearing local login settings...
                     self.resetLocalUserLoginSettings()
                     completion()
                     postDidLogOutNotification()
-                    return
                 }
-                DDLogDebug("Successfully logged out, deleted login tokens and other browser cookies")
-                // It's best to call "action=logout" API *before* clearing local login settings...
-                self.resetLocalUserLoginSettings()
-                completion()
-                postDidLogOutNotification()
             }
         }
     }
@@ -232,6 +290,20 @@ extension WMFAuthenticationManager {
     @objc public func attemptLogin(completion: @escaping () -> Void = {}) {
         let completion: AuthenticationResultHandler = { result in
             completion()
+        }
+        attemptLogin(completion: completion)
+    }
+    
+    @objc(attemptLoginWithLogoutOnFailureInitiatedBy:completion:)
+    public func attemptLoginWithLogoutOnFailure(initiatedBy: LogoutInitiator, completion: @escaping () -> Void = {}) {
+        let completion: AuthenticationResultHandler = { loginResult in
+            switch loginResult {
+            case .failure(let error):
+                DDLogDebug("\n\nloginWithSavedCredentials failed with error \(error).\n\n")
+                self.logout(initiatedBy: initiatedBy)
+            default:
+                break
+            }
         }
         attemptLogin(completion: completion)
     }
@@ -247,6 +319,7 @@ extension WMFAuthenticationManager {
     }
 
     @objc public static let didLogOutNotification = Notification.Name("WMFAuthenticationManagerDidLogOut")
+    @objc public static let didLogInNotification = Notification.Name("WMFAuthenticationManagerDidLogIn")
 
     @objc public func userDidAcknowledgeUnintentionalLogout() {
         isUserUnawareOfLogout = false
@@ -254,10 +327,10 @@ extension WMFAuthenticationManager {
 
     @objc public var isUserUnawareOfLogout: Bool {
         get {
-            return UserDefaults.wmf.isUserUnawareOfLogout
+            return UserDefaults.standard.isUserUnawareOfLogout
         }
         set {
-            UserDefaults.wmf.isUserUnawareOfLogout = newValue
+            UserDefaults.standard.isUserUnawareOfLogout = newValue
         }
     }
 }

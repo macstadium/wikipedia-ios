@@ -1,4 +1,3 @@
-
 import UIKit
 
 class WMFAccountCreationViewController: WMFScrollViewController, WMFCaptchaViewControllerDelegate, UITextFieldDelegate, UIScrollViewDelegate, Themeable {
@@ -21,6 +20,9 @@ class WMFAccountCreationViewController: WMFScrollViewController, WMFCaptchaViewC
     @IBOutlet fileprivate var createAccountButton: WMFAuthButton!
 
     @IBOutlet fileprivate weak var scrollContainer: UIView!
+    
+    // SINGLETONTODO
+    let dataStore = MWKDataStore.shared()
     
     let accountCreationInfoFetcher = WMFAuthAccountCreationInfoFetcher()
     let accountCreator = WMFAccountCreator()
@@ -111,7 +113,7 @@ class WMFAccountCreationViewController: WMFScrollViewController, WMFCaptchaViewC
     
     fileprivate func getCaptcha() {
         let failure: WMFErrorHandler = {error in }
-        let siteURL = MWKLanguageLinkController.sharedInstance().appLanguage?.siteURL()
+        let siteURL = dataStore.primarySiteURL
         accountCreationInfoFetcher.fetchAccountCreationInfoForSiteURL(siteURL!, success: { info in
             DispatchQueue.main.async {
                 self.captchaViewController?.captcha = info.captcha
@@ -152,7 +154,7 @@ class WMFAccountCreationViewController: WMFScrollViewController, WMFCaptchaViewC
         case emailField:
             if captchaIsVisible() {
                 captchaViewController?.captchaTextFieldBecomeFirstResponder()
-            }else{
+            } else {
                 save()
             }
         default:
@@ -204,7 +206,7 @@ class WMFAccountCreationViewController: WMFScrollViewController, WMFCaptchaViewC
     }
     
     public func captchaSiteURL() -> URL {
-        return (MWKLanguageLinkController.sharedInstance().appLanguage?.siteURL())!
+        return (dataStore.primarySiteURL)!
     }
     
     public func captchaHideSubtitle() -> Bool {
@@ -215,9 +217,9 @@ class WMFAccountCreationViewController: WMFScrollViewController, WMFCaptchaViewC
         WMFAlertManager.sharedInstance.showAlert(WMFLocalizedString("account-creation-logging-in", value:"Logging in...", comment:"Alert shown after account successfully created and the user is being logged in automatically. {{Identical|Logging in}}"), sticky: true, canBeDismissedByUser: false, dismissPreviousAlerts: true, tapCallBack: nil)
         let username = usernameField.text ?? ""
         let password = passwordField.text ?? ""
-        WMFAuthenticationManager.sharedInstance.login(username: username, password: password, retypePassword: nil, oathToken: nil, captchaID: nil, captchaWord: nil) { (loginResult) in
+        dataStore.authenticationManager.login(username: username, password: password, retypePassword: nil, oathToken: nil, captchaID: nil, captchaWord: nil) { (loginResult) in
             switch loginResult {
-            case .success(_):
+            case .success:
                 let loggedInMessage = String.localizedStringWithFormat(WMFLocalizedString("main-menu-account-title-logged-in", value:"Logged in as %1$@", comment:"Header text used when account is logged in. %1$@ will be replaced with current username."), self.usernameField.text ?? "")
                 WMFAlertManager.sharedInstance.showSuccessAlert(loggedInMessage, sticky: false, dismissPreviousAlerts: true, tapCallBack: nil)
                 if let start = self.startDate {
@@ -292,6 +294,8 @@ class WMFAccountCreationViewController: WMFScrollViewController, WMFCaptchaViewC
     fileprivate func createAccount() {
         WMFAlertManager.sharedInstance.showAlert(WMFLocalizedString("account-creation-saving", value:"Saving...", comment:"Alert shown when user saves account creation form. {{Identical|Saving}}"), sticky: true, canBeDismissedByUser: false, dismissPreviousAlerts: true, tapCallBack: nil)
         
+        let siteURL = dataStore.primarySiteURL
+        
         let creationFailure: WMFErrorHandler = {error in
             DispatchQueue.main.async {
                 self.setViewControllerUserInteraction(enabled: true)
@@ -311,6 +315,21 @@ class WMFAccountCreationViewController: WMFScrollViewController, WMFCaptchaViewC
                         return
                     case .wrongCaptcha:
                         self.captchaViewController?.captchaTextFieldBecomeFirstResponder()
+                    case .blockedError(let parsedMessage):
+                        
+                        guard let linkBaseURL = siteURL else {
+                            break
+                        }
+                        
+                        WMFAlertManager.sharedInstance.dismissAlert()
+                        
+                        self.wmf_showBlockedPanel(messageHtml: parsedMessage, linkBaseURL: linkBaseURL, currentTitle: "Special:CreateAccount", theme: self.theme)
+
+                        self.funnel?.logError(error.localizedDescription)
+                        self.enableProgressiveButtonIfNecessary()
+                        return
+                        
+                        
                     default: break
                     }
                 }
@@ -322,7 +341,6 @@ class WMFAccountCreationViewController: WMFScrollViewController, WMFCaptchaViewC
         }
         
         self.setViewControllerUserInteraction(enabled: false)
-        let siteURL = MWKLanguageLinkController.sharedInstance().appLanguage?.siteURL()
         accountCreator.createAccount(username: usernameField.text!, password: passwordField.text!, retypePassword: passwordRepeatField.text!, email: emailField.text!, captchaID: captchaViewController?.captcha?.captchaID, captchaWord: captchaViewController?.solution, siteURL: siteURL!, success: {_ in
             DispatchQueue.main.async {
                 self.login()

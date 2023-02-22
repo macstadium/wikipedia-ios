@@ -28,7 +28,7 @@ open class WMFWelcomeExplorationAnimationView : WMFWelcomeAnimationView {
         return imgView
     }()
     
-    override open func addAnimationElementsScaledToCurrentFrameSize(){
+    override open func addAnimationElementsScaledToCurrentFrameSize() {
         super.addAnimationElementsScaledToCurrentFrameSize()
         removeExistingSubviewsAndSublayers()
         addSubview(baseImgView)
@@ -41,7 +41,7 @@ open class WMFWelcomeExplorationAnimationView : WMFWelcomeAnimationView {
 
     /*
     @objc func handleTapGestureRecognizer(_ gestureRecognizer: UITapGestureRecognizer) {
-        print("tubeImgView anchorPoint \(gestureRecognizer.location(in: self).wmf_normalizeUsingSize(frame.size))")
+        DDLogDebug("tubeImgView anchorPoint \(gestureRecognizer.location(in: self).wmf_normalizeUsingSize(frame.size))")
     }
     */
     

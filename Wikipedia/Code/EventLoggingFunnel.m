@@ -1,5 +1,4 @@
 #import <WMF/EventLoggingFunnel.h>
-#import <WMF/SessionSingleton.h>
 #import <WMF/WMF-Swift.h>
 
 EventLoggingCategory const EventLoggingCategoryFeed = @"feed";
@@ -10,6 +9,7 @@ EventLoggingCategory const EventLoggingCategoryArticle = @"article";
 EventLoggingCategory const EventLoggingCategorySearch = @"search";
 EventLoggingCategory const EventLoggingCategoryAddToList = @"add_to_list";
 EventLoggingCategory const EventLoggingCategorySaved = @"saved";
+EventLoggingCategory const EventLoggingCategoryShared = @"shared";
 EventLoggingCategory const EventLoggingCategoryLogin = @"login";
 EventLoggingCategory const EventLoggingCategorySetting = @"setting";
 EventLoggingCategory const EventLoggingCategoryLoginToSyncPopover = @"login_to_sync_popover";
@@ -70,7 +70,7 @@ EventLoggingLabel const EventLoggingLabelPictureOfTheDay = @"picture_of_the_day"
 
 - (void)log:(NSDictionary *)eventData wiki:(NSString *)wiki {
     WMFEventLoggingService *service = [WMFEventLoggingService sharedInstance];
-    if (service.isEnabled) {
+    if (NSUserDefaults.standardUserDefaults.wmf_sendUsageReports) {
         BOOL chosen = NO;
         if (self.rate == 1) {
             chosen = YES;
@@ -87,7 +87,7 @@ EventLoggingLabel const EventLoggingLabelPictureOfTheDay = @"picture_of_the_day"
 
 - (NSString *)primaryLanguage {
     NSString *primaryLanguage = @"en";
-    MWKLanguageLink *appLanguage = [MWKLanguageLinkController sharedInstance].appLanguage;
+    MWKLanguageLink *appLanguage = [MWKDataStore shared].languageLinkController.appLanguage;
     if (appLanguage) {
         primaryLanguage = appLanguage.languageCode;
     }
@@ -103,7 +103,7 @@ EventLoggingLabel const EventLoggingLabelPictureOfTheDay = @"picture_of_the_day"
 }
 
 - (NSString *)appInstallID {
-    return [[WMFEventLoggingService sharedInstance] appInstallID];
+    return NSUserDefaults.standardUserDefaults.wmf_appInstallId;
 }
 
 - (NSString *)sessionID {
@@ -115,7 +115,8 @@ EventLoggingLabel const EventLoggingLabelPictureOfTheDay = @"picture_of_the_day"
 }
 
 - (NSNumber *)isAnon {
-    BOOL isAnon = ![WMFAuthenticationManager sharedInstance].isLoggedIn;
+    // SINGLETONTODO
+    BOOL isAnon = !MWKDataStore.shared.authenticationManager.isLoggedIn;
     return [NSNumber numberWithBool:isAnon];
 }
 
@@ -125,10 +126,10 @@ EventLoggingLabel const EventLoggingLabelPictureOfTheDay = @"picture_of_the_day"
  *  @return integer sampling id
  */
 - (NSInteger)getEventLogSamplingID {
-    NSNumber *samplingId = [[NSUserDefaults wmf] objectForKey:@"EventLogSamplingID"];
+    NSNumber *samplingId = [[NSUserDefaults standardUserDefaults] objectForKey:@"EventLogSamplingID"];
     if (!samplingId) {
         NSInteger intId = arc4random_uniform(UINT32_MAX);
-        [[NSUserDefaults wmf] setInteger:intId forKey:@"EventLogSamplingID"];
+        [[NSUserDefaults standardUserDefaults] setInteger:intId forKey:@"EventLogSamplingID"];
         return intId;
     } else {
         return samplingId.integerValue;

@@ -1,5 +1,5 @@
-
 import UIKit
+import WMF
 
 fileprivate enum TalkPageContainerViewState {
     case initial
@@ -58,9 +58,9 @@ class TalkPageContainerViewController: ViewController, HintPresenting {
     
     let talkPageTitle: String
     private(set) var siteURL: URL
-    let type: TalkPageType
+    let type: OldTalkPageType
     private let dataStore: MWKDataStore
-    private(set) var controller: TalkPageController
+    private(set) var controller: OldTalkPageController
     private(set) var talkPageSemanticContentAttribute: UISemanticContentAttribute
     private let emptyViewController = EmptyViewController(nibName: "EmptyViewController", bundle: nil)
     private var talkPage: TalkPage? {
@@ -78,10 +78,9 @@ class TalkPageContainerViewController: ViewController, HintPresenting {
     private var topicListViewController: TalkPageTopicListViewController?
     private var replyListViewController: TalkPageReplyListViewController?
     private var emptyView: WMFEmptyView?
-    private var headerView: TalkPageHeaderView?
+    private var headerView: OldTalkPageHeaderView?
     private var addButton: UIBarButtonItem?
     
-    private let toolbar = UIToolbar()
     private var shareIcon: IconBarButtonItem?
     private var languageIcon: IconBarButtonItem?
     private var completedActivityType: UIActivity.ActivityType?
@@ -93,9 +92,22 @@ class TalkPageContainerViewController: ViewController, HintPresenting {
     var fromNavigationStateRestoration: Bool = false
     private var cancellationKey: String?
     
-    private var currentLoadingViewController: ViewController?
-    private var currentSourceView: UIView?
-    private var currentSourceRect: CGRect?
+    // If populated, talk page will automatically route to matching reply thread after topic list loads
+    private var sectionTitleFragment: String?
+    
+    // Overlay and activity indicator that displays while routing to reply thread
+    private lazy var replyRoutingOverlay: UIView = {
+        let view = UIView()
+        view.translatesAutoresizingMaskIntoConstraints = false
+        view.backgroundColor = theme.colors.paperBackground
+        return view
+    }()
+    private lazy var replyRoutingActivityIndicator: UIActivityIndicatorView = {
+        let view = UIActivityIndicatorView(style: .medium)
+        view.color = theme.colors.primaryText
+        view.translatesAutoresizingMaskIntoConstraints = false
+        return view
+    }()
     
     lazy private(set) var fakeProgressController: FakeProgressController = {
         let progressController = FakeProgressController(progress: navigationBar, delegate: navigationBar)
@@ -126,7 +138,7 @@ class TalkPageContainerViewController: ViewController, HintPresenting {
                 fakeProgressController.stop()
                 navigationItem.rightBarButtonItem?.isEnabled = true
                 showEmptyView(of: .emptyTalkPage)
-            case .fetchFailure (let error):
+            case .fetchFailure(let error):
                 fakeProgressController.stop()
                 if oldValue != TalkPageContainerViewState.fetchInitialResultData {
                     showEmptyView(of: .unableToLoadTalkPage)
@@ -147,26 +159,30 @@ class TalkPageContainerViewController: ViewController, HintPresenting {
         }
     }
     
-    required init(title: String, siteURL: URL, type: TalkPageType, dataStore: MWKDataStore, controller: TalkPageController? = nil, theme: Theme) {
+    required init(title: String, sectionTitleFragment: String? = nil, siteURL: URL, type: OldTalkPageType, dataStore: MWKDataStore, controller: OldTalkPageController? = nil, theme: Theme) {
         self.talkPageTitle = title
         self.siteURL = siteURL
         self.type = type
         self.dataStore = dataStore
+        self.sectionTitleFragment = sectionTitleFragment
         
         if let controller = controller {
             self.controller = controller
         } else {
-            self.controller = TalkPageController(moc: dataStore.viewContext, title: talkPageTitle, siteURL: siteURL, type: type)
+            self.controller = OldTalkPageController(moc: dataStore.viewContext, title: talkPageTitle, siteURL: siteURL, type: type)
         }
         
         assert(title.contains(":"), "Title must already be prefixed with namespace.")
         
-        let language = siteURL.wmf_language
-        talkPageSemanticContentAttribute = MWLanguageInfo.semanticContentAttribute(forWMFLanguage: language)
+        let contentLanguageCode = siteURL.wmf_contentLanguageCode
+        talkPageSemanticContentAttribute = MWKLanguageLinkController.semanticContentAttribute(forContentLanguageCode: contentLanguageCode)
 
         super.init()
         
         self.theme = theme
+
+        navigationItem.backButtonDisplayMode = .generic
+        navigationItem.backButtonTitle = title
     }
     
     @objc(userTalkPageContainerWithURL:dataStore:theme:)
@@ -177,13 +193,15 @@ class TalkPageContainerViewController: ViewController, HintPresenting {
             else {
                 return nil
         }
-        return TalkPageContainerViewController.talkPageContainer(title: title, siteURL: siteURL, type: .user, dataStore: dataStore, theme: theme)
+        
+        let sectionTitleFragment = url.fragment
+        return TalkPageContainerViewController.talkPageContainer(title: title, sectionTitleFragment: sectionTitleFragment, siteURL: siteURL, type: .user, dataStore: dataStore, theme: theme)
     }
 
-    public static func talkPageContainer(title: String, siteURL: URL, type: TalkPageType, dataStore: MWKDataStore, theme: Theme) -> TalkPageContainerViewController {
-        let strippedTitle = TalkPageType.user.titleWithoutNamespacePrefix(title: title)
-        let titleWithPrefix = TalkPageType.user.titleWithCanonicalNamespacePrefix(title: strippedTitle, siteURL: siteURL)
-        return TalkPageContainerViewController(title: titleWithPrefix, siteURL: siteURL, type: type, dataStore: dataStore, theme: theme)
+    public static func talkPageContainer(title: String, sectionTitleFragment: String? = nil, siteURL: URL, type: OldTalkPageType, dataStore: MWKDataStore, theme: Theme) -> TalkPageContainerViewController {
+        let strippedTitle = OldTalkPageType.user.titleWithoutNamespacePrefix(title: title)
+        let titleWithPrefix = OldTalkPageType.user.titleWithCanonicalNamespacePrefix(title: strippedTitle, siteURL: siteURL)
+        return TalkPageContainerViewController(title: titleWithPrefix, sectionTitleFragment: sectionTitleFragment, siteURL: siteURL, type: type, dataStore: dataStore, theme: theme)
     }
 
     required init?(coder aDecoder: NSCoder) {
@@ -204,7 +222,8 @@ class TalkPageContainerViewController: ViewController, HintPresenting {
         guard let talkPageURL = talkPageURL else {
             return
         }
-        dataStore.historyList.addPageToHistory(with: talkPageURL)
+        let article = dataStore.fetchOrCreateArticle(with: talkPageURL)
+        try? article?.addToReadHistory()
     }
     
     @objc private func didBecomeActive() {
@@ -249,23 +268,12 @@ class TalkPageContainerViewController: ViewController, HintPresenting {
     }
 }
 
-//MARK: Private
+// MARK: Private
 
 private extension TalkPageContainerViewController {
     
     func setupToolbar() {
-        toolbar.barTintColor = theme.colors.chromeBackground
-        
-        let toolbarHeight = CGFloat(44)
-        toolbar.translatesAutoresizingMaskIntoConstraints = false
-        view.insertSubview(toolbar, belowSubview: navigationBar)
-        let guide = view.safeAreaLayoutGuide
-        let heightConstraint = toolbar.heightAnchor.constraint(equalToConstant: toolbarHeight)
-        let leadingConstraint = view.leadingAnchor.constraint(equalTo: toolbar.leadingAnchor)
-        let trailingConstraint = view.trailingAnchor.constraint(equalTo: toolbar.trailingAnchor)
-        let bottomConstraint = guide.bottomAnchor.constraint(equalTo: toolbar.bottomAnchor)
-        
-        NSLayoutConstraint.activate([heightConstraint, leadingConstraint, trailingConstraint, bottomConstraint])
+        enableToolbar()
         
         let shareIcon = IconBarButtonItem(iconName: "share", target: self, action: #selector(tappedShare(_:)), for: .touchUpInside)
         shareIcon.apply(theme: theme)
@@ -280,16 +288,18 @@ private extension TalkPageContainerViewController {
         
         self.shareIcon = shareIcon
         self.languageIcon = languageIcon
+        
+        setToolbarHidden(false, animated: false)
     }
     
     @objc func tappedLanguage(_ sender: UIButton) {
         
         let languagesVC = WMFPreferredLanguagesViewController.preferredLanguagesViewController()
-        languagesVC?.delegate = self
+        languagesVC.delegate = self
         if let themeable = languagesVC as Themeable? {
             themeable.apply(theme: self.theme)
         }
-        present(WMFThemeableNavigationController(rootViewController: languagesVC!, theme: self.theme), animated: true, completion: nil)
+        present(WMFThemeableNavigationController(rootViewController: languagesVC, theme: self.theme), animated: true, completion: nil)
     }
     
     var talkPageURL: URL? {
@@ -309,6 +319,7 @@ private extension TalkPageContainerViewController {
                 self.completedActivityType = activityType
             }
         }
+        activityViewController.excludedActivityTypes = [.addToReadingList]
         
         if let popover = activityViewController.popoverPresentationController {
             popover.sourceView = sender
@@ -367,7 +378,7 @@ private extension TalkPageContainerViewController {
         emptyViewController.theme = theme
         emptyViewController.delegate = self
         emptyViewController.apply(theme: theme)
-        let _ = addChildViewController(childViewController: emptyViewController, belowSubview: toolbar, topAnchorPadding: 0)
+        _ = addChildViewController(childViewController: emptyViewController, belowSubview: toolbar, topAnchorPadding: 0)
         emptyViewController.view.isHidden = true
     }
     
@@ -377,9 +388,85 @@ private extension TalkPageContainerViewController {
             topicListViewController.apply(theme: theme)
             topicListViewController.fromNavigationStateRestoration = fromNavigationStateRestoration
             fromNavigationStateRestoration = false
-            let _ = addChildViewController(childViewController: topicListViewController, belowSubview: emptyViewController.view, topAnchorPadding: 0)
+            
+            let fragmentTopic = matchingTopicFromFragment(in: talkPage)
+            if fragmentTopic != nil {
+                toggleReplyRoutingOverlay(show: true)
+            }
+            
+            _ = addChildViewController(childViewController: topicListViewController, belowSubview: emptyViewController.view, topAnchorPadding: 0)
             topicListViewController.delegate = self
             self.topicListViewController = topicListViewController
+            
+            self.sectionTitleFragment = nil
+            if let fragmentTopic = fragmentTopic {
+                pushToReplyThread(topic: fragmentTopic, animated: false)
+                toggleReplyRoutingOverlay(show: false, delay: true)
+            }
+        }
+    }
+    
+    func matchingTopicFromFragment(in talkPage: TalkPage) -> TalkPageTopic? {
+
+        guard let normalizedSectionTitleFragment = sectionTitleFragment?.removingPercentEncoding?.normalizedPageTitle,
+              let topics = talkPage.topics as? Set<TalkPageTopic> else {
+            return nil
+        }
+
+        guard let matchingTopic = topics.first(where: { topic in
+            guard let topicTitle = topic.title else {
+                return false
+            }
+
+            return topicTitle == normalizedSectionTitleFragment
+        }) else {
+            return nil
+        }
+
+        return matchingTopic
+    }
+    
+    func toggleReplyRoutingOverlay(show: Bool, delay: Bool = false) {
+
+        let showBlock: () -> Void = { [weak self] in
+
+            guard let self = self else { return }
+
+            self.view.addSubview(self.replyRoutingOverlay)
+            self.view.wmf_addSubviewWithConstraintsToEdges(self.replyRoutingOverlay)
+            self.replyRoutingOverlay.addSubview(self.replyRoutingActivityIndicator)
+
+            NSLayoutConstraint.activate([
+                self.replyRoutingOverlay.centerYAnchor.constraint(equalTo: self.replyRoutingActivityIndicator.centerYAnchor),
+                self.replyRoutingOverlay.centerXAnchor.constraint(equalTo: self.replyRoutingActivityIndicator.centerXAnchor)
+            ])
+
+            self.replyRoutingActivityIndicator.startAnimating()
+        }
+
+        let hideBlock: () -> Void = { [weak self] in
+
+            guard let self = self else { return }
+
+            self.replyRoutingOverlay.removeFromSuperview()
+            self.replyRoutingActivityIndicator.removeFromSuperview()
+        }
+
+        if delay {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                if show {
+                    showBlock()
+                } else {
+                    hideBlock()
+                }
+            }
+            return
+        }
+
+        if show {
+            showBlock()
+        } else {
+            hideBlock()
         }
     }
     
@@ -426,7 +513,7 @@ private extension TalkPageContainerViewController {
         
         setupAddBarButton()
         
-        if let headerView = TalkPageHeaderView.wmf_viewFromClassNib() {
+        if let headerView = OldTalkPageHeaderView.wmf_viewFromClassNib() {
             self.headerView = headerView
             configure(header: headerView, introTopic: nil)
             headerView.delegate = self
@@ -442,14 +529,14 @@ private extension TalkPageContainerViewController {
         }
     }
     
-    func configure(header: TalkPageHeaderView, introTopic: TalkPageTopic?) {
+    func configure(header: OldTalkPageHeaderView, introTopic: TalkPageTopic?) {
         
         var headerText: String
         switch type {
         case .user:
-            headerText = WMFLocalizedString("talk-page-title-user-talk", value: "User Talk", comment: "This title label is displayed at the top of a talk page topic list, if the talk page type is a user talk page.").localizedUppercase
+            headerText = CommonStrings.talkPageTitleUserTalk(languageCode: nil).localizedUppercase
         case .article:
-            headerText = WMFLocalizedString("talk-page-title-article-talk", value: "article Talk", comment: "This title label is displayed at the top of a talk page topic list, if the talk page type is an article talk page.").localizedUppercase
+            headerText = CommonStrings.talkPageTitleArticleTalk(languageCode: nil).localizedUppercase
         }
         
         let languageTextFormat = WMFLocalizedString("talk-page-info-active-conversations", value: "Active conversations on %1$@ Wikipedia", comment: "This information label is displayed at the top of a talk page discussion list. %1$@ is replaced by the language wiki they are using - for example, 'Active conversations on English Wikipedia'.")
@@ -465,7 +552,7 @@ private extension TalkPageContainerViewController {
             introText = replyTexts.joined(separator: "<br />")
         }
         
-        let viewModel = TalkPageHeaderView.ViewModel(header: headerText, title: controller.displayTitle, info: infoText, intro: introText)
+        let viewModel = OldTalkPageHeaderView.ViewModel(header: headerText, title: controller.displayTitle, info: infoText, intro: introText)
         
         header.configure(viewModel: viewModel)
         header.delegate = self
@@ -475,8 +562,8 @@ private extension TalkPageContainerViewController {
     
     func stringWithLocalizedCurrentSiteLanguageReplacingPlaceholderInString(string: String, fallbackGenericString: String) -> String {
         
-        if let code = siteURL.wmf_language,
-            let language = (Locale.current as NSLocale).wmf_localizedLanguageNameForCode(code) {
+        if let code = siteURL.wmf_languageCode,
+            let language = Locale.current.localizedString(forLanguageCode: code) {
             return NSString.localizedStringWithFormat(string as NSString, language) as String
         } else {
             return fallbackGenericString
@@ -554,16 +641,16 @@ private extension TalkPageContainerViewController {
     }
     
     func changeLanguage(siteURL: URL) {
-        controller = TalkPageController(moc: dataStore.viewContext, title: talkPageTitle, siteURL: siteURL, type: type)
-        let language = siteURL.wmf_language
-        talkPageSemanticContentAttribute = MWLanguageInfo.semanticContentAttribute(forWMFLanguage: language)
+        controller = OldTalkPageController(moc: dataStore.viewContext, title: talkPageTitle, siteURL: siteURL, type: type)
+        let contentLanguageCode = siteURL.wmf_contentLanguageCode
+        talkPageSemanticContentAttribute = MWKLanguageLinkController.semanticContentAttribute(forContentLanguageCode: contentLanguageCode)
         resetTopicList()
         fetch { [weak self] in
             guard let self = self else {
                 return
             }
             
-            UIAccessibility.post(notification: UIAccessibility.Notification.screenChanged, argument: self.headerView?.infoLabel);
+            UIAccessibility.post(notification: UIAccessibility.Notification.screenChanged, argument: self.headerView?.infoLabel)
         }
     }
 }
@@ -603,7 +690,7 @@ extension TalkPageContainerViewController {
                 WMFAlertManager.sharedInstance.showWarningAlert(talkPageError.localizedDescription, sticky: true, dismissPreviousAlerts: true)
             }
             
-        }  else {
+        } else {
             
             if UIAccessibility.isVoiceOverRunning {
                 UIAccessibility.post(notification: UIAccessibility.Notification.announcement, argument: error.localizedDescription)
@@ -615,7 +702,7 @@ extension TalkPageContainerViewController {
     }
     
     private func syncViewState() {
-        //catches cases where view state may get out of sync with the topic data
+        // catches cases where view state may get out of sync with the topic data
         if let talkPage = talkPage {
             switch (viewState, talkPage.topics?.count ?? 0) {
             case (.fetchFinishedResultData, 0):
@@ -629,7 +716,7 @@ extension TalkPageContainerViewController {
     }
 }
 
-//MARK: TalkPageTopicNewViewControllerDelegate
+// MARK: TalkPageTopicNewViewControllerDelegate
 
 extension TalkPageContainerViewController: TalkPageTopicNewViewControllerDelegate {
     func tappedPublish(subject: String, body: String, viewController: TalkPageTopicNewViewController) {
@@ -672,7 +759,7 @@ extension TalkPageContainerViewController: TalkPageTopicNewViewControllerDelegat
     }
 }
 
-//MARK: TalkPageTopicListDelegate
+// MARK: TalkPageTopicListDelegate
 
 extension TalkPageContainerViewController: TalkPageTopicListDelegate {    
     func scrollViewDidScroll(_ scrollView: UIScrollView, viewController: TalkPageTopicListViewController) {
@@ -688,7 +775,7 @@ extension TalkPageContainerViewController: TalkPageTopicListDelegate {
     }
 }
 
-//MARK: TalkPageReplyListViewControllerDelegate
+// MARK: TalkPageReplyListViewControllerDelegate
 
 extension TalkPageContainerViewController: TalkPageReplyListViewControllerDelegate {
     func tappedPublish(topic: TalkPageTopic, composeText: String, viewController: TalkPageReplyListViewController) {
@@ -730,21 +817,21 @@ extension TalkPageContainerViewController: TalkPageReplyListViewControllerDelega
     }
 }
 
-//MARK: TalkPageHeaderViewDelegate
+// MARK: TalkPageHeaderViewDelegate
 
-extension TalkPageContainerViewController: TalkPageHeaderViewDelegate {
-    func tappedLink(_ url: URL, headerView: TalkPageHeaderView, sourceView: UIView, sourceRect: CGRect?) {
+extension TalkPageContainerViewController: OldTalkPageHeaderViewDelegate {
+    func tappedLink(_ url: URL, headerView: OldTalkPageHeaderView, sourceView: UIView, sourceRect: CGRect?) {
         tappedLink(url, loadingViewController: self, sourceView: sourceView, sourceRect: sourceRect)
     }
     
-    func tappedIntro(headerView: TalkPageHeaderView) {
+    func tappedIntro(headerView: OldTalkPageHeaderView) {
         if let introTopic = self.introTopic {
             pushToReplyThread(topic: introTopic)
         }
     }
 }
 
-//MARK: EmptyViewControllerDelegate
+// MARK: EmptyViewControllerDelegate
 
 extension TalkPageContainerViewController: EmptyViewControllerDelegate {
     func emptyViewScrollViewDidScroll(_ scrollView: UIScrollView) {
@@ -758,20 +845,25 @@ extension TalkPageContainerViewController: EmptyViewControllerDelegate {
     }
 }
 
-//MARK: WMFPreferredLanguagesViewControllerDelegate
+// MARK: WMFPreferredLanguagesViewControllerDelegate
 
 extension TalkPageContainerViewController: WMFPreferredLanguagesViewControllerDelegate {
-    func languagesController(_ controller: WMFLanguagesViewController!, didSelectLanguage language: MWKLanguageLink!) {
-        let newSiteURL = language.siteURL()
-        if siteURL != newSiteURL {
-                siteURL = newSiteURL
+    func languagesController(_ controller: WMFLanguagesViewController, didSelectLanguage language: MWKLanguageLink) {
+        
+        guard let currentContentLanguageCode = siteURL.wmf_contentLanguageCode else {
+            return
+        }
+        
+        let newContentLanguageCode = language.contentLanguageCode
+        if currentContentLanguageCode != newContentLanguageCode {
+            siteURL = language.siteURL
                 changeLanguage(siteURL: siteURL)
         }
         controller.dismiss(animated: true, completion: nil)
     }
 }
 
-//MARK: FakeProgressLoading
+// MARK: FakeProgressLoading
 
 extension TalkPageContainerViewController: FakeProgressLoading {
 }
