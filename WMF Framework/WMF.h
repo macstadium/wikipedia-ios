@@ -1,4 +1,4 @@
-@import Foundation;
+#import <Foundation/Foundation.h>
 
 //! Project version number for WMF.
 FOUNDATION_EXPORT double WMFVersionNumber;
@@ -85,6 +85,7 @@ FOUNDATION_EXPORT const unsigned char WMFVersionString[];
 #import <WMF/WMFFeedContentSource.h>
 #import <WMF/WMFRandomContentSource.h>
 #import <WMF/WMFAnnouncementsContentSource.h>
+#import <WMF/WMFSuggestedEditsContentSource.h>
 
 #import <WMF/WMFFeedContentFetcher.h>
 #import <WMF/WMFFeedDayResponse.h>
@@ -104,7 +105,6 @@ FOUNDATION_EXPORT const unsigned char WMFVersionString[];
 #import <WMF/WMFLocationSearchFetcher.h>
 #import <WMF/MWKLocationSearchResult.h>
 
-#import <WMF/EventLoggingFunnel.h>
 #import <WMF/MWKSearchResult.h>
 
 #import <WMF/WMFArticle+Extensions.h>

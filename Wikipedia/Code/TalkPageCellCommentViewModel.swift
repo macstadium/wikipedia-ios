@@ -1,4 +1,4 @@
-import Foundation
+import WMFComponents
 
 final class TalkPageCellCommentViewModel: Identifiable {
 
@@ -8,10 +8,11 @@ final class TalkPageCellCommentViewModel: Identifiable {
     let authorTalkPageURL: String
     let timestamp: Date?
     let replyDepth: Int
+    let talkPageURL: URL?
     
     weak var cellViewModel: TalkPageCellViewModel?
     
-    init?(commentId: String, html: String?, author: String?, authorTalkPageURL: String, timestamp: Date?, replyDepth: Int?) {
+    init?(commentId: String, html: String?, author: String?, authorTalkPageURL: String, timestamp: Date?, replyDepth: Int?, talkPageURL: URL?) {
         
         guard let html = html,
               let author = author,
@@ -25,11 +26,16 @@ final class TalkPageCellCommentViewModel: Identifiable {
         self.authorTalkPageURL = authorTalkPageURL
         self.timestamp = timestamp
         self.replyDepth = replyDepth
+        self.talkPageURL = talkPageURL
     }
     
     func commentAttributedString(traitCollection: UITraitCollection, theme: Theme) -> NSAttributedString {
-        return html.byAttributingHTML(with: .callout, boldWeight: .semibold, matching: traitCollection, color: theme.colors.primaryText, linkColor: theme.colors.link, handlingLists: true, handlingSuperSubscripts: true).removingInitialNewlineCharacters()
+        let styles = HtmlUtils.Styles(font: WMFFont.for(.callout, compatibleWith: traitCollection), boldFont: WMFFont.for(.boldCallout, compatibleWith: traitCollection), italicsFont: WMFFont.for(.italicCallout, compatibleWith: traitCollection), boldItalicsFont: WMFFont.for(.boldItalicCallout, compatibleWith: traitCollection), color: theme.colors.primaryText, linkColor: theme.colors.link, lineSpacing: 1)
+
+        return NSMutableAttributedString.mutableAttributedStringFromHtml(html, styles: styles).removingInitialNewlineCharacters()
     }
+
+
 }
 
 extension TalkPageCellCommentViewModel: Hashable {

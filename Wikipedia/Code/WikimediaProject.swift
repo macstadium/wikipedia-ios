@@ -1,4 +1,5 @@
 import Foundation
+import WMFData
 
 public enum WikimediaProject: Hashable {
     public typealias LanguageCode = String
@@ -75,6 +76,19 @@ public enum WikimediaProject: Hashable {
         }
     }
     
+    public var wmfProject: WMFProject? {
+        switch self {
+        case .commons:
+            return WMFProject.commons
+        case .wikidata:
+            return WMFProject.wikidata
+        case .wikipedia(let languageCode, _, let languageVariantCode):
+            return WMFProject.wikipedia(WMFLanguage(languageCode: languageCode, languageVariantCode: languageVariantCode))
+        default:
+            return nil
+        }
+    }
+    
     public init?(siteURL: URL, languageLinkController: MWKLanguageLinkController? = nil) {
         
         let canonicalSiteURL = siteURL.canonical
@@ -99,20 +113,20 @@ public enum WikimediaProject: Hashable {
             return nil
         }
         
+        let languageVariantCode = canonicalSiteURL.wmf_languageVariantCode
+        
         let recognizedLanguage = languageLinkController?.allLanguages.first { languageLink in
-            languageLink.languageCode == languageCode
+            languageLink.languageCode == languageCode && languageLink.languageVariantCode == languageVariantCode
         }
         
         let localizedLanguageName = recognizedLanguage?.localizedName ?? ""
         
         if siteURLString.contains(Configuration.current.defaultSiteDomain) {
-            self = .wikipedia(languageCode, localizedLanguageName, nil)
+            self = .wikipedia(languageCode, localizedLanguageName, languageVariantCode)
         } else if siteURLString.contains(Configuration.Domain.wikiquote) {
             self = .wikiquote(languageCode, localizedLanguageName)
         } else if siteURLString.contains(Configuration.Domain.wikibooks) {
             self = .wikibooks(languageCode, localizedLanguageName)
-        } else if siteURLString.contains(Configuration.Domain.wiktionary) {
-            self = .wiktionary(languageCode, localizedLanguageName)
         } else if siteURLString.contains(Configuration.Domain.wiktionary) {
             self = .wiktionary(languageCode, localizedLanguageName)
         } else if siteURLString.contains(Configuration.Domain.wikisource) {
@@ -127,7 +141,18 @@ public enum WikimediaProject: Hashable {
             return nil
         }
     }
-    
+
+    public init(wmfProject: WMFProject) {
+        switch wmfProject {
+        case .wikipedia(let wmfLanguage):
+            self = .wikipedia(wmfLanguage.languageCode, "", wmfLanguage.languageVariantCode)
+        case .wikidata:
+            self = .wikidata
+        case .commons:
+            self = .commons
+        }
+    }
+
     // MARK: Routing Helpers
     
     public var supportsNativeArticleTalkPages: Bool {

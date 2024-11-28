@@ -88,6 +88,7 @@ class ExploreCardViewController: UIViewController, UICollectionViewDataSource, U
         layoutManager.register(ArticleLocationExploreCollectionViewCell.self, forCellWithReuseIdentifier: ArticleLocationExploreCollectionViewCell.identifier, addPlaceholder: true)
         layoutManager.register(ArticleLocationAuthorizationCollectionViewCell.self, forCellWithReuseIdentifier: ArticleLocationAuthorizationCollectionViewCell.identifier, addPlaceholder: true)
         layoutManager.register(ImageCollectionViewCell.self, forCellWithReuseIdentifier: ImageCollectionViewCell.identifier, addPlaceholder: true)
+        layoutManager.register(SuggestedEditsExploreCell.self, forCellWithReuseIdentifier: SuggestedEditsExploreCell.identifier, addPlaceholder: true)
         collectionView.isOpaque = true
         view.isOpaque = true
     }
@@ -197,6 +198,8 @@ class ExploreCardViewController: UIViewController, UICollectionViewDataSource, U
             return ArticleRightAlignedImageExploreCollectionViewCell.identifier
         case .announcement, .notification, .theme, .readingList:
             return AnnouncementCollectionViewCell.identifier
+        case .suggestedEdits:
+            return SuggestedEditsExploreCell.identifier
         default:
             return ArticleFullWidthImageExploreCollectionViewCell.identifier
         }
@@ -369,10 +372,24 @@ class ExploreCardViewController: UIViewController, UICollectionViewDataSource, U
             configureOnThisDayCell(cell, forItemAt: indexPath, layoutOnly: layoutOnly)
         case .theme, .notification, .announcement, .readingList:
             configureAnnouncementCell(cell, displayType: displayType, layoutOnly: layoutOnly)
+        case .suggestedEdits:
+            configureSuggestedEditsCell(cell, layoutOnly: layoutOnly)
         default:
             configureArticleCell(cell, forItemAt: indexPath, with: displayType, layoutOnly: layoutOnly)
         }
         cell.layoutMargins = layout.itemLayoutMargins
+    }
+    
+    private func configureSuggestedEditsCell(_ cell: UICollectionViewCell, layoutOnly: Bool) {
+        guard let cell = cell as? SuggestedEditsExploreCell else {
+            return
+        }
+        
+        let languageCode = dataStore.languageLinkController.appLanguage?.languageCode
+        
+        cell.title = WMFLocalizedString("explore-suggested-edits-image-recs-title", languageCode: languageCode, value: "Add an image", comment: "Title text shown in the image recommendations explore feed card.")
+        cell.body = WMFLocalizedString("explore-suggested-edits-image-recs-body", languageCode: languageCode, value: "Add suggested images to Wikipedia articles to enhance understanding.", comment: "Body text shown in the image recommendations explore feed card.")
+        cell.apply(theme: theme)
     }
 
     func updateLocationCells() {
@@ -552,18 +569,21 @@ extension ExploreCardViewController: ActionDelegate, ShareableArticlesProvider {
             if let articleURL = articleURL(at: indexPath) {
                 dataStore.savedPageList.addSavedPage(with: articleURL)
                 UIAccessibility.post(notification: UIAccessibility.Notification.announcement, argument: CommonStrings.accessibilitySavedNotification)
-                ReadingListsFunnel.shared.logSaveInFeed(context: FeedFunnelContext(contentGroup), articleURL: articleURL, index: action.indexPath.item)
+                if let date = contentGroup?.midnightUTCDate {
+                    ReadingListsFunnel.shared.logSaveInFeed(label: contentGroup?.getAnalyticsLabel(), measureAge: date, articleURL: articleURL, index: action.indexPath.item)
+                }
                 return true
             }
         case .unsave:
             if let articleURL = articleURL(at: indexPath) {
                 dataStore.savedPageList.removeEntry(with: articleURL)
                 UIAccessibility.post(notification: UIAccessibility.Notification.announcement, argument: CommonStrings.accessibilityUnsavedNotification)
-                ReadingListsFunnel.shared.logUnsaveInFeed(context: FeedFunnelContext(contentGroup), articleURL: articleURL, index: action.indexPath.item)
+                if let date = contentGroup?.midnightUTCDate {
+                    ReadingListsFunnel.shared.logUnsaveInFeed(label: contentGroup?.getAnalyticsLabel(), measureAge: date, articleURL: articleURL, index: action.indexPath.item)
+                }
                 return true
             }
         case .share:
-            FeedFunnel.shared.logFeedShareTapped(for: FeedFunnelContext(contentGroup), index: indexPath.item)
             return share(article: article(at: indexPath), articleURL: articleURL(at: indexPath), at: indexPath, dataStore: dataStore, theme: theme, eventLoggingCategory: eventLoggingCategory, eventLoggingLabel: eventLoggingLabel, sourceView: sourceView)
         default:
             return false
@@ -581,7 +601,8 @@ extension ExploreCardViewController: SideScrollingCollectionViewCellDelegate {
 extension ExploreCardViewController: AnnouncementCollectionViewCellDelegate {
     func dismissAnnouncementCell(_ cell: AnnouncementCollectionViewCell) {
         contentGroup?.markDismissed()
-        contentGroup?.updateVisibilityForUserIsLogged(in: dataStore.session.isAuthenticated)
+        let isLoggedIn = dataStore.authenticationManager.authStateIsPermanent
+        contentGroup?.updateVisibilityForUserIsLogged(in: isLoggedIn)
         do {
             try dataStore.save()
         } catch let error {
@@ -689,14 +710,15 @@ extension ExploreCardViewController: Themeable {
     }
 }
 
-extension ExploreCardViewController: EventLoggingEventValuesProviding {
-    var eventLoggingLabel: EventLoggingLabel? {
-        return contentGroup?.eventLoggingLabel
+extension ExploreCardViewController: MEPEventsProviding {
+    var eventLoggingLabel: EventLabelMEP? {
+        return contentGroup?.getAnalyticsLabel()
     }
     
-    var eventLoggingCategory: EventLoggingCategory {
-        return EventLoggingCategory.feed
+    var eventLoggingCategory: EventCategoryMEP {
+        return .feed
     }
+
 }
 
 // MARK: - Context Menu

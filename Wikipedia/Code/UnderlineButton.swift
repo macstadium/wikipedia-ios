@@ -1,8 +1,10 @@
-import UIKit
+import WMFComponents
+import WMF
 
 @IBDesignable
 @objc(WMFUnderlineButton)
 class UnderlineButton: AutoLayoutSafeMultiLineButton {
+    
     var underline: UIView?
     @IBInspectable var underlineHeight: CGFloat = 1.0 {
         didSet {
@@ -13,14 +15,16 @@ class UnderlineButton: AutoLayoutSafeMultiLineButton {
 
     override func setup() {
         super.setup()
+        let titleEdgeInsets = (self as DeprecatedButton).deprecatedTitleEdgeInsets
         let adjustedTitleInsets = UIEdgeInsets(top: titleEdgeInsets.top, left: titleEdgeInsets.left, bottom: titleEdgeInsets.bottom + underlineHeight, right: titleEdgeInsets.right)
-        titleEdgeInsets = adjustedTitleInsets
+        var deprecatedSelf = (self as DeprecatedButton)
+        deprecatedSelf.deprecatedTitleEdgeInsets = adjustedTitleInsets
         configureStyle()
     }
 
     private func configureStyle() {
         if useDefaultFont {
-            titleLabel?.font = UIFont.wmf_font(.subheadline)
+            titleLabel?.font = WMFFont.for(.subheadline)
         }
         addUnderline()
         setTitleColor(tintColor, for: .selected)

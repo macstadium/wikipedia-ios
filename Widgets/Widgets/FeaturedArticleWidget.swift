@@ -1,7 +1,7 @@
 import SwiftUI
 import WidgetKit
 import WMF
-import UIKit
+import WMFComponents
 
 // MARK: - Widget
 
@@ -15,6 +15,8 @@ struct FeaturedArticleWidget: Widget {
 		.configurationDisplayName(FeaturedArticleWidget.LocalizedStrings.widgetTitle)
 		.description(FeaturedArticleWidget.LocalizedStrings.widgetDescription)
 		.supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        .contentMarginsDisabled()
+        .containerBackgroundRemovable(false)
 	}
 }
 
@@ -25,41 +27,38 @@ struct FeaturedArticleEntry: TimelineEntry {
 	// MARK: - Properties
 
 	var date: Date
-	var content: WidgetFeaturedContent?
+	var content: WidgetFeaturedArticle?
 	var fetchError: WidgetContentFetcher.FetcherError?
 
 	// MARK: - Computed Properties
 
 	var hasDisplayableContent: Bool {
-		return fetchError == nil && content?.featuredArticle != nil
+		return fetchError == nil && content != nil
 	}
 
 	var fetchedLanguageCode: String? {
-		return content?.featuredArticle?.languageCode
+		return content?.languageCode
 	}
 
-	var title: String {
-		return (content?.featuredArticle?.displayTitle as NSString?)?.wmf_stringByRemovingHTML() ?? ""
-	}
+    var title: String {
+        return content?.displayTitle.removingHTML ?? ""
+    }
 
 	var description: String {
-		return content?.featuredArticle?.description ?? ""
+		return content?.description ?? ""
 	}
 
 	var extract: String {
-		return content?.featuredArticle?.extract ?? ""
+		return content?.extract ?? ""
 	}
 
 	var layoutDirection: LayoutDirection {
-		if let direction = content?.featuredArticle?.languageDirection {
-			return direction == "rtl" ? .rightToLeft : .leftToRight
-		}
-
-		return .leftToRight
+        let isRTL = content?.isRTL ?? false
+        return isRTL ? .rightToLeft : .leftToRight
 	}
 
 	var contentURL: URL? {
-		guard let page = content?.featuredArticle?.contentURL.desktop.page else {
+		guard let page = content?.contentURL.desktop.page else {
 			return nil
 		}
 
@@ -67,7 +66,7 @@ struct FeaturedArticleEntry: TimelineEntry {
 	}
 
 	var imageData: Data? {
-		return content?.featuredArticle?.thumbnailImageSource?.data
+		return content?.thumbnailImageSource?.data
 	}
 
 }
@@ -82,7 +81,7 @@ struct FeaturedArticleProvider: TimelineProvider {
 	}
 
 	func getSnapshot(in context: Context, completion: @escaping (FeaturedArticleEntry) -> Void) {
-		WidgetController.shared.fetchFeaturedContent(isSnapshot: context.isPreview) { result in
+		WidgetController.shared.fetchFeaturedArticleContent(isSnapshot: context.isPreview) { result in
 			let currentDate = Date()
 			switch result {
 			case .success(let featuredContent):
@@ -94,7 +93,7 @@ struct FeaturedArticleProvider: TimelineProvider {
 	}
 
 	func getTimeline(in context: Context, completion: @escaping (Timeline<FeaturedArticleEntry>) -> Void) {
-		WidgetController.shared.fetchFeaturedContent { result in
+		WidgetController.shared.fetchFeaturedArticleContent { result in
 			let currentDate = Date()
 			switch result {
 			case .success(let featuredContent):
@@ -176,15 +175,14 @@ struct FeaturedArticleView: View {
 				Spacer()
 				HStack {
 					Text(headerCaptionText)
-						.font(.caption2)
-						.fontWeight(.bold)
+                        .font(Font(WMFFont.for(.boldCaption1)))
 						.foregroundColor(.white)
 						.readableShadow(intensity: 0.8)
 					Spacer()
 				}
 				HStack {
 					Text(headerTitleText)
-						.font(.headline)
+                        .font(Font(WMFFont.for(.headline)))
 						.foregroundColor(.white)
 						.readableShadow(intensity: 0.8)
 					Spacer()
@@ -205,13 +203,13 @@ struct FeaturedArticleView: View {
 			HStack {
 				Text(entry.title)
 					.foregroundColor(Color(colorScheme == .light ? Theme.light.colors.primaryText : Theme.dark.colors.primaryText))
-					.font(.custom("Georgia", size: 21, relativeTo: .title))
+                    .font(Font(WMFFont.for(.georgiaTitle3)))
 				Spacer()
 			}
 			HStack {
 				Text(entry.description)
 					.foregroundColor(Color(colorScheme == .light ? Theme.light.colors.secondaryText : Theme.dark.colors.secondaryText))
-					.font(.caption)
+                    .font(Font(WMFFont.for(.caption1)))
 				Spacer()
 			}
 			Spacer()
@@ -219,7 +217,7 @@ struct FeaturedArticleView: View {
 			HStack {
 				Text(entry.extract)
 					.foregroundColor(Color(colorScheme == .light ? Theme.light.colors.primaryText : Theme.dark.colors.primaryText))
-					.font(.caption)
+                    .font(Font(WMFFont.for(.caption1)))
 					.lineLimit(5)
 					.lineSpacing(4)
 					.truncationMode(.tail)
@@ -238,10 +236,9 @@ struct FeaturedArticleView: View {
 			} else {
 				ZStack {
 					Rectangle()
-						.foregroundColor(Color(UIColor("318CDB")))
+                        .foregroundColor(Color(WMFColor.blue600))
 					Text(entry.extract)
-						.font(.headline)
-						.fontWeight(.semibold)
+                        .font(Font(WMFFont.for(.semiboldHeadline)))
 						.lineSpacing(6)
 						.foregroundColor(Color.black.opacity(0.15))
 						.frame(width: proxy.size.width * 1.25, height: proxy.size.height * 2, alignment: .topLeading)
@@ -253,11 +250,10 @@ struct FeaturedArticleView: View {
 
 	func noContent(message: String) -> some View {
 		Rectangle()
-			.foregroundColor(Color(UIColor.base30))
+			.foregroundColor(Color(WMFColor.gray500))
 			.overlay(
 				Text(message)
-					.font(.caption)
-					.bold()
+                    .font(Font(WMFFont.for(.boldCaption1)))
 					.multilineTextAlignment(.leading)
 					.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
 					.foregroundColor(.white)
@@ -281,6 +277,7 @@ struct FeaturedArticleView: View {
 
 	var body: some View {
 		widgetBody
+            .clearWidgetContainerBackground()
 			.widgetURL(entry.contentURL)
 			.environment(\.layoutDirection, entry.layoutDirection)
 			.flipsForRightToLeftLayoutDirection(true)

@@ -9,9 +9,6 @@
 #import "RMessageView.h"
 #import "Wikipedia-Swift.h"
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-
 static NSString *const RDesignFileName = @"RMessageDefaultDesign";
 
 /** Animation constants */
@@ -30,7 +27,7 @@ static NSMutableDictionary *globalDesignDictionary;
 @property (nonatomic, weak) IBOutlet UIButton *button;
 @property (nonatomic, weak) IBOutlet UIStackView *stackView;
 @property (weak, nonatomic) IBOutlet NSLayoutConstraint *titleSubtitleContainerViewLeadingConstraint;
-@property (weak, nonatomic) IBOutlet UIImageView *closeImageView;
+@property (weak, nonatomic) IBOutlet UIButton *closeButton;
 
 @property (nonatomic, strong) UIImageView *iconImageView;
 @property (nonatomic, strong) UIImageView *backgroundImageView;
@@ -129,7 +126,7 @@ static NSMutableDictionary *globalDesignDictionary;
 
 + (UIViewController *)defaultViewController
 {
-    UIViewController *viewController = [UIApplication sharedApplication].keyWindow.rootViewController;
+    UIViewController *viewController = [UIApplication sharedApplication].workaroundKeyWindow.rootViewController;
     if (!viewController) {
         return nil;
     }
@@ -266,9 +263,12 @@ static NSMutableDictionary *globalDesignDictionary;
       }
       
     if (dismissingEnabled) {
+        [self.closeButton setTitle:nil forState:UIControlStateNormal];
+        [self.closeButton setImage:[UIImage imageNamed:@"close"] forState:UIControlStateNormal];
+        [self.closeButton addTarget:self action:@selector(closeButtonTapped:) forControlEvents:UIControlEventTouchUpInside];
       [self setupGestureRecognizers];
     } else {
-      self.closeImageView.hidden = YES;
+        self.closeButton.hidden = YES;
     }
   }
   return self;
@@ -311,7 +311,7 @@ static NSMutableDictionary *globalDesignDictionary;
 - (void)setCloseIconColor:(UIColor *)closeIconColor
 {
     _closeIconColor = closeIconColor;
-    [self.closeImageView setTintColor:closeIconColor];
+    [self.closeButton setTintColor:closeIconColor];
 }
 
 
@@ -589,7 +589,7 @@ static NSMutableDictionary *globalDesignDictionary;
   _shouldBlurBackground = NO;
   _titleLabel.numberOfLines = 0;
   _titleLabel.lineBreakMode = NSLineBreakByWordWrapping;
-  _titleLabel.font = [UIFont boldSystemFontOfSize:14.f];
+    _titleLabel.font = [WMFFontWrapper fontFor:WMFFontsSubheadline compatibleWithTraitCollection:self.traitCollection];
   _titleLabel.textAlignment = NSTextAlignmentLeft;
   _titleLabel.textColor = [UIColor blackColor];
   _titleLabel.shadowColor = nil;
@@ -598,7 +598,7 @@ static NSMutableDictionary *globalDesignDictionary;
 
   _subtitleLabel.numberOfLines = 0;
   _subtitleLabel.lineBreakMode = NSLineBreakByWordWrapping;
-  _subtitleLabel.font = [UIFont systemFontOfSize:12.f];
+    _subtitleLabel.font = [WMFFontWrapper fontFor:WMFFontsCaption1 compatibleWithTraitCollection:self.traitCollection];
   _subtitleLabel.textAlignment = NSTextAlignmentLeft;
   _subtitleLabel.textColor = [UIColor darkGrayColor];
   _subtitleLabel.shadowColor = nil;
@@ -607,7 +607,7 @@ static NSMutableDictionary *globalDesignDictionary;
 
     _button.titleLabel.numberOfLines = 0;
     _button.titleLabel.lineBreakMode = NSLineBreakByWordWrapping;
-    _button.titleLabel.font = [UIFont systemFontOfSize:12.f];
+    _button.titleLabel.font = [WMFFontWrapper fontFor:WMFFontsCaption1 compatibleWithTraitCollection:self.traitCollection];
     _button.titleLabel.textAlignment = NSTextAlignmentLeft;
     _button.titleLabel.textColor = [UIColor darkGrayColor];
     _button.titleLabel.shadowColor = nil;
@@ -703,7 +703,7 @@ static NSMutableDictionary *globalDesignDictionary;
         [_button setTitle:_buttonTitle forState:UIControlStateNormal];
         _stackView.spacing = -5;
         [_button addTarget:self action:@selector(executeMessageViewButtonCallBack) forControlEvents:UIControlEventTouchUpInside];
-        _button.titleLabel.font = [UIFont systemFontOfSize:14.0f];
+        _button.titleLabel.font = [WMFFontWrapper fontFor:WMFFontsSubheadline compatibleWithTraitCollection:self.traitCollection];
     } else {
         [_button setHidden:YES];
         _stackView.spacing = 5;
@@ -712,7 +712,7 @@ static NSMutableDictionary *globalDesignDictionary;
 
 - (void)setupSubTitleLabel
 {
-  [_subtitleLabel setHidden:_title == NULL];
+  [_subtitleLabel setHidden:_subtitle == NULL];
   id subTitleFontSizeValue = [_messageViewDesignDictionary valueForKey:@"subTitleFontSize"];
   if (!subTitleFontSizeValue) {
     subTitleFontSizeValue = [_messageViewDesignDictionary valueForKey:@"subtitleFontSize"];
@@ -766,7 +766,7 @@ static NSMutableDictionary *globalDesignDictionary;
 
 - (void)setupIconImageView
 {
-  self.iconImageView.contentMode = UIViewContentModeScaleToFill;
+  self.iconImageView.contentMode = UIViewContentModeScaleAspectFill;
   self.iconImageView.translatesAutoresizingMaskIntoConstraints = NO;
 
   NSLayoutConstraint *imgViewCenterY = [NSLayoutConstraint constraintWithItem:self.iconImageView
@@ -833,6 +833,14 @@ static NSMutableDictionary *globalDesignDictionary;
   if (self.delegate && [self.delegate respondsToSelector:@selector(didTapMessageView:)]) {
     [self.delegate didTapMessageView:self];
   }
+}
+
+- (void)closeButtonTapped:(UIButton *)sender {
+
+    if (self.delegate && [self.delegate respondsToSelector:@selector(didTapCloseButtonOnMessageView:)]) {
+      [self.delegate didTapCloseButtonOnMessageView:self];
+    }
+
 }
 
 #pragma mark - Presentation Methods
@@ -959,4 +967,3 @@ static NSMutableDictionary *globalDesignDictionary;
 }
 
 @end
-#pragma clang diagnostic pop

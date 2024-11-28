@@ -1,6 +1,5 @@
 #import <WMF/WMFContentGroup+CoreDataClass.h>
-
-@import CoreLocation;
+#import <CoreLocation/CoreLocation.h>
 
 @class WMFInMemoryURLKey;
 
@@ -16,7 +15,8 @@ typedef NS_ENUM(int16_t, WMFContentType) {
     WMFContentTypeOnThisDayEvent = 6,
     WMFContentTypeNotification = 7,
     WMFContentTypeTheme = 8,
-    WMFContentTypeReadingList = 9
+    WMFContentTypeReadingList = 9,
+    WMFContentTypeSuggestedEdits = 10
 };
 
 typedef NS_ENUM(int32_t, WMFContentGroupKind) {
@@ -35,7 +35,8 @@ typedef NS_ENUM(int32_t, WMFContentGroupKind) {
     WMFContentGroupKindLocationPlaceholder = 12,
     WMFContentGroupKindOnThisDay = 13,
     WMFContentGroupKindTheme = 14,
-    WMFContentGroupKindReadingList = 15
+    WMFContentGroupKindReadingList = 15,
+    WMFContentGroupKindSuggestedEdits = 16
 };
 
 typedef NS_ENUM(int16_t, WMFContentGroupUndoType) {
@@ -70,12 +71,15 @@ typedef NS_ENUM(int16_t, WMFContentGroupUndoType) {
 + (nullable NSURL *)articleURLForRelatedPagesContentGroupURL:(nullable NSURL *)url;
 + (nullable NSURL *)announcementURLForSiteURL:(NSURL *)siteURL identifier:(NSString *)identifier;
 + (nullable NSURL *)randomContentGroupURLForSiteURL:(NSURL *)url midnightUTCDate:(NSDate *)midnightUTCDate;
++ (nullable NSURL *)pictureOfTheDayContentGroupURLForSiteURL:(NSURL *)url midnightUTCDate:(NSDate *)midnightUTCDate;
++ (nullable NSURL *)topReadContentGroupURLForSiteURL:(NSURL *)url midnightUTCDate:(NSDate *)midnightUTCDate;
 + (nullable NSURL *)onThisDayContentGroupURLForSiteURL:(NSURL *)url midnightUTCDate:(NSDate *)midnightUTCDate;
 + (nullable NSURL *)locationContentGroupURLForLocation:(CLLocation *)location languageVariantCode:(NSString *)languageVariantCode;
 + (nullable NSURL *)locationPlaceholderContentGroupURLWithLanguageVariantCode:(NSString *)languageVariantCode;
 + (nullable NSURL *)notificationContentGroupURLWithLanguageVariantCode:(NSString *)languageVariantCode;
 + (nullable NSURL *)themeContentGroupURLWithLanguageVariantCode:(NSString *)languageVariantCode;
 + (nullable NSURL *)readingListContentGroupURLWithLanguageVariantCode:(NSString *)languageVariantCode;
++ (nullable NSURL *)suggestedEditsURLForSiteURL:(NSURL *)siteURL;
 
 - (BOOL)isForLocalDate:(NSDate *)date;           //date is a date in the user's time zone
 @property (nonatomic, readonly) BOOL isForToday; //is for today in the user's time zone

@@ -40,11 +40,14 @@
     self.navigationBar.standardAppearance = appearance;
     self.navigationBar.scrollEdgeAppearance = appearance;
     self.navigationBar.compactAppearance = appearance;
-
-    if (@available(iOS 15.0, *)) {
-        //do nothing
+    
+    NSString *themeName = [[NSUserDefaults standardUserDefaults] themeName];
+    if ([WMFTheme isDefaultThemeName:themeName]) {
+        self.overrideUserInterfaceStyle = UIUserInterfaceStyleUnspecified;
+    } else if ([WMFTheme isDarkThemeName:themeName]) {
+        self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     } else {
-        self.navigationBar.barTintColor = theme.colors.chromeBackground;
+        self.overrideUserInterfaceStyle = UIUserInterfaceStyleLight;
     }
 
     if (self.style == WMFThemeableNavigationControllerStyleGallery) {

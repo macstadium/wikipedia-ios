@@ -1,3 +1,5 @@
+import WMFComponents
+
 // MARK: - Context Menu for ArticleVC (iOS 13 and later)
 // All functions in this extension are for Context Menus (used in iOS 13 and later)
 extension ArticleViewController: ArticleContextMenuPresenting, WKUIDelegate {
@@ -30,7 +32,7 @@ extension ArticleViewController: ArticleContextMenuPresenting, WKUIDelegate {
     var contextMenuItems: [UIAction] {
         // Read action
         let readActionTitle = WMFLocalizedString("button-read-now", value: "Read now", comment: "Read now button text used in various places.")
-        let readAction = UIAction(title: readActionTitle, handler: { (action) in
+        let readAction = UIAction(title: readActionTitle, image: WMFSFSymbolIcon.for(symbol: .book), handler: { (action) in
             self.articlePreviewingDelegate?.readMoreArticlePreviewActionSelected(with: self)
         })
 
@@ -38,14 +40,14 @@ extension ArticleViewController: ArticleContextMenuPresenting, WKUIDelegate {
 
         // Save action
         let logReadingListsSaveIfNeeded = { [weak self] in
-            guard let delegate = self?.articlePreviewingDelegate as? EventLoggingEventValuesProviding else {
+            guard let delegate = self?.articlePreviewingDelegate as? MEPEventsProviding else {
                 return
             }
             self?.readingListsFunnel.logSave(category: delegate.eventLoggingCategory, label: delegate.eventLoggingLabel, articleURL: self?.articleURL)
         }
         if articleURL.namespace == .main {
             let saveActionTitle = article.isAnyVariantSaved ? WMFLocalizedString("button-saved-remove", value: "Remove from saved", comment: "Remove from saved button text used in various places.") : CommonStrings.saveTitle
-            let saveAction = UIAction(title: saveActionTitle, handler: { (action) in
+            let saveAction = UIAction(title: saveActionTitle, image: WMFSFSymbolIcon.for(symbol: article.isAnyVariantSaved ? .bookmarkFill : .bookmark), handler: { (action) in
                 let isSaved = self.dataStore.savedPageList.toggleSavedPage(for: self.articleURL)
                 let notification = isSaved ? CommonStrings.accessibilitySavedNotification : CommonStrings.accessibilityUnsavedNotification
                 UIAccessibility.post(notification: .announcement, argument: notification)
@@ -57,7 +59,7 @@ extension ArticleViewController: ArticleContextMenuPresenting, WKUIDelegate {
         // Location action
         if article.location != nil {
             let placeActionTitle = WMFLocalizedString("page-location", value: "View on a map", comment: "Label for button used to show an article on the map")
-            let placeAction = UIAction(title: placeActionTitle, handler: { (action) in
+            let placeAction = UIAction(title: placeActionTitle, image: WMFSFSymbolIcon.for(symbol: .map), handler: { (action) in
                 self.articlePreviewingDelegate?.viewOnMapArticlePreviewActionSelected(with: self)
             })
             actions.append(placeAction)
@@ -65,12 +67,12 @@ extension ArticleViewController: ArticleContextMenuPresenting, WKUIDelegate {
 
         // Share action
         let shareActionTitle = CommonStrings.shareMenuTitle
-        let shareAction = UIAction(title: shareActionTitle, handler: { (action) in
+        let shareAction = UIAction(title: shareActionTitle, image: WMFSFSymbolIcon.for(symbol: .squareAndArrowUp), handler: { (action) in
             guard let presenter = self.articlePreviewingDelegate as? UIViewController else {
                 return
             }
             let customActivity = self.addToReadingListActivity(with: presenter, eventLogAction: logReadingListsSaveIfNeeded)
-            guard let shareActivityViewController = self.sharingActivityViewController(with: nil, button: self.toolbarController.shareButton, shareFunnel: self.shareFunnel, customActivities: [customActivity]) else {
+            guard let shareActivityViewController = self.sharingActivityViewController(with: nil, button: self.toolbarController.shareButton, customActivities: [customActivity]) else {
                 return
             }
             self.articlePreviewingDelegate?.shareArticlePreviewActionSelected(with: self, shareActivityController: shareActivityViewController)

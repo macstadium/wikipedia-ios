@@ -1,5 +1,8 @@
+import WMFData
+import WMFComponents
+
 class AnnouncementPanelViewController : ScrollableEducationPanelViewController {
-    
+
     enum Style {
         case standard
         case minimal
@@ -174,13 +177,16 @@ class ErrorPanelViewController : ScrollableEducationPanelViewController {
     private let messageHtml: String
     private let button1Title: String
     private let button2Title: String?
+    private let errorImage: UIImage?
     
-    init(messageHtml: String, button1Title: String, button2Title: String?, primaryButtonTapHandler: ScrollableEducationPanelButtonTapHandler?, secondaryButtonTapHandler: ScrollableEducationPanelButtonTapHandler?, subheadingLinkAction: ((URL) -> Void)?, theme: Theme) {
+    init(messageHtml: String, image: UIImage? = UIImage(named: "error-icon-large"), button1Title: String, button2Title: String?, primaryButtonTapHandler: ScrollableEducationPanelButtonTapHandler?, secondaryButtonTapHandler: ScrollableEducationPanelButtonTapHandler?, subheadingLinkAction: ((URL) -> Void)?, theme: Theme) {
         self.messageHtml = messageHtml
         self.button1Title = button1Title
         self.button2Title = button2Title
-        super.init(showCloseButton: true, primaryButtonTapHandler: primaryButtonTapHandler, secondaryButtonTapHandler: secondaryButtonTapHandler, traceableDismissHandler: nil, theme: theme)
+        self.errorImage = image
+        super.init(showCloseButton: true, primaryButtonTapHandler: primaryButtonTapHandler, secondaryButtonTapHandler: secondaryButtonTapHandler, traceableDismissHandler: nil, hasPinnedButtons: true, theme: theme)
         self.subheadingLinkAction = subheadingLinkAction
+
     }
     
     required public init?(coder aDecoder: NSCoder) {
@@ -189,20 +195,30 @@ class ErrorPanelViewController : ScrollableEducationPanelViewController {
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        image = UIImage(named: "error-icon-large")
+        image = errorImage
         subheadingHTML = messageHtml
         primaryButtonTitle = button1Title
         secondaryButtonTitle = button2Title
+        imageHeightConstraint.constant = 50
     }
     
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         
         evaluateConstraintsOnNewSize(view.frame.size)
+        if scrollView.bounces {
+            scrollView.flashScrollIndicators()
+        }
+    }
+    
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        
+        evaluateConstraintsOnNewSize(view.frame.size)
     }
 
     private func evaluateConstraintsOnNewSize(_ size: CGSize) {
-        width = size.width * 0.9
+        width = traitCollection.horizontalSizeClass == .compact ? 280 : size.width * 0.9
     }
 }
 
@@ -424,7 +440,7 @@ class LanguageVariantEducationalPanelViewController: ScrollableEducationPanelVie
         subheading = alertBodyForLanguageCode(languageCode) + "\n"
         subheadingTextAlignment = .natural
         primaryButtonTitle = isFinalAlert ? CommonStrings.variantsAlertPreferencesButton : CommonStrings.gotItButtonTitle
-        secondaryButtonTitle = isFinalAlert ? CommonStrings.variantsAlertDismissButton : nil
+        secondaryButtonTitle = isFinalAlert ? CommonStrings.noThanksTitle : nil
     }
     
     func alertTitleForLanguageCode(_ languageCode: String) -> String {
@@ -438,6 +454,7 @@ class LanguageVariantEducationalPanelViewController: ScrollableEducationPanelVie
         case "tg": return CommonStrings.tajikVariantsAlertTitle
         case "uz": return CommonStrings.uzbekVariantsAlertTitle
         case "zh": return CommonStrings.chineseVariantsAlertTitle
+        case "shi": return CommonStrings.tachelhitVariantsAlertTitle
         default:
             assertionFailure("No language variant alert title for language code '\(languageCode)'")
             return ""
@@ -455,6 +472,7 @@ class LanguageVariantEducationalPanelViewController: ScrollableEducationPanelVie
         case "tg": return CommonStrings.tajikVariantsAlertBody
         case "uz": return CommonStrings.uzbekVariantsAlertBody
         case "zh": return CommonStrings.chineseVariantsAlertBody
+        case "shi": return CommonStrings.tachelhitVariantsAlertBody
         default:
             assertionFailure("No language variant alert body for language code '\(languageCode)'")
             return ""
@@ -471,7 +489,31 @@ class NotificationsCenterOnboardingPushPanelViewController: ScrollableEducationP
         primaryButtonTitle = WMFLocalizedString("notifications-center-onboarding-panel-primary-button", value:"Turn on push notifications", comment:"Title for Notifications Center onboarding panel primary button.")
         secondaryButtonTitle = WMFLocalizedString("notifications-center-onboarding-panel-secondary-button", value:"No thanks", comment:"Title for Notifications Center onboarding panel secondary button.")
     }
+}
 
+class AltTextExperimentPanelViewController: ScrollableEducationPanelViewController {
+    let isFlowB: Bool
+
+   init(showCloseButton: Bool, buttonStyle: ScrollableEducationPanelViewController.ButtonStyle = .legacyStyle, primaryButtonTapHandler: ScrollableEducationPanelButtonTapHandler?, secondaryButtonTapHandler: ScrollableEducationPanelButtonTapHandler?, traceableDismissHandler: ScrollableEducationPanelTraceableDismissHandler?, theme: Theme, isFlowB: Bool) {
+       self.isFlowB = isFlowB
+        super.init(showCloseButton: showCloseButton, primaryButtonTapHandler: primaryButtonTapHandler, secondaryButtonTapHandler: secondaryButtonTapHandler, traceableDismissHandler: traceableDismissHandler, theme: theme)
+    }
+
+    required public init?(coder aDecoder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+
+        let imageRecsSubtitle = WMFLocalizedString("alt-text-modal-subtitle-image-recommendation", value: "The previous image is missing alt text. Add a description to the image for visually impaired readers?", comment: "Subtitle text for the alt text suggested edit prompt modal when the user is adding images from the add an image task")
+        let regularEditSubtitle =  WMFLocalizedString("alt-text-modal-subtitle-regular-edit", value: "There is an image in this article that is missing alt text. Add a description for visually impaired readers?", comment: "Subtitle text for the alt text suggested edit prompt modal when the user is finished editing an article")
+        image = WMFSFSymbolIcon.for(symbol: .textBelowPhoto, font: .title1, paletteColors: [theme.colors.link])
+        heading = WMFLocalizedString("alt-text-modal-title", value: "Add missing image alt text?", comment: "Title text for the alt text suggested edit prompt modal")
+        subheading = isFlowB ? imageRecsSubtitle : regularEditSubtitle
+        primaryButtonTitle = WMFLocalizedString("alt-text-add-button-title", value: "Add", comment: "Title for the Add button on the alt text modal")
+        secondaryButtonTitle = WMFLocalizedString("alt-text-do-not-add-button-title", value: "Do not add", comment: "Title for the Do Not Add button on the alt text modal")
+    }
 }
 
 extension UIViewController {
@@ -494,12 +536,12 @@ extension UIViewController {
     }
 
     func wmf_showAnnouncementPanel(announcement: WMFAnnouncement, style: AnnouncementPanelViewController.Style = .standard, primaryButtonTapHandler: ScrollableEducationPanelButtonTapHandler?, secondaryButtonTapHandler: ScrollableEducationPanelButtonTapHandler?, footerLinkAction: ((URL) -> Void)?, traceableDismissHandler: ScrollableEducationPanelTraceableDismissHandler?, theme: Theme) {
-        let panel = AnnouncementPanelViewController(announcement: announcement, style: style, primaryButtonTapHandler: { (sender: Any) in
-            primaryButtonTapHandler?(sender)
+        let panel = AnnouncementPanelViewController(announcement: announcement, style: style, primaryButtonTapHandler: { button, viewController in
+            primaryButtonTapHandler?(button, viewController)
             self.dismiss(animated: true)
             // dismissHandler is called on viewDidDisappear
-        }, secondaryButtonTapHandler: { (sender: Any) in
-            secondaryButtonTapHandler?(sender)
+        }, secondaryButtonTapHandler: { button, viewController in
+            secondaryButtonTapHandler?(button, viewController)
             self.dismiss(animated: true)
             // dismissHandler is called on viewDidDisappear
         }, footerLinkAction: footerLinkAction
@@ -508,26 +550,56 @@ extension UIViewController {
         }, theme: theme)
         present(panel, animated: true)
     }
+
     
+    /// Shows new fundraising panel
+    /// - Parameters:
+    ///   - object: WKAsset object, that contains the announcement content
+    ///   - primaryButtonTapHandler: Goes to donation
+    ///   - secondaryButtonTapHandler: Maybe later - remind the user again after a certain period, within campain duration
+    ///   - optionalButtonTapHandler: Dismiss the modal, does not show again
+    func wmf_showFundraisingAnnouncement(theme: Theme, asset: WMFFundraisingCampaignConfig.WMFAsset, primaryButtonTapHandler: ScrollableEducationPanelButtonTapHandler?, secondaryButtonTapHandler: ScrollableEducationPanelButtonTapHandler?, optionalButtonTapHandler: ScrollableEducationPanelButtonTapHandler?,  footerLinkAction: ((URL) -> Void)?, traceableDismissHandler: ScrollableEducationPanelTraceableDismissHandler?, showMaybeLater: Bool) {
+
+        let alert = FundraisingAnnouncementPanelViewController(announcement: asset, theme: theme, showOptionalButton: showMaybeLater, primaryButtonTapHandler: { button, viewController in
+            primaryButtonTapHandler?(button, viewController)
+        }, secondaryButtonTapHandler: { button, viewController in
+            secondaryButtonTapHandler?(button, viewController)
+            self.dismiss(animated: true)
+
+        }, optionalButtonTapHandler: { button, viewController in
+            optionalButtonTapHandler?(button, viewController)
+            self.dismiss(animated: true)
+
+        }, traceableDismissHandler: { lastAction in
+            traceableDismissHandler?(lastAction)
+
+        }, footerLinkAction: footerLinkAction)
+
+        present(alert, animated: true)
+    }
+
     /// Displays a blocked panel message, for use with fully resolved MediaWiki API blocked errors.
     /// - Parameters:
     ///   - messageHtml: Fully resolved message HTML to display
     ///   - linkBaseURL: base URL that relative links within messageHtml will reference
     ///   - currentTitle: Wiki title representing the article the user is currently working against. Used to help resolve relative links against.
     ///   - theme: initial theme for panel.
-    func wmf_showBlockedPanel(messageHtml: String, linkBaseURL: URL, currentTitle: String, theme: Theme) {
+    func wmf_showBlockedPanel(messageHtml: String, linkBaseURL: URL, currentTitle: String, theme: Theme, image: UIImage? = UIImage(named: "error-icon-large"), linkLoggingAction: (() -> Void)? = nil) {
         
-        let panel = ErrorPanelViewController(messageHtml: messageHtml, button1Title: CommonStrings.okTitle, button2Title: nil, primaryButtonTapHandler: { [weak self] sender in
+        let panel = ErrorPanelViewController(messageHtml: messageHtml, image: image, button1Title: CommonStrings.okTitle, button2Title: nil, primaryButtonTapHandler: { [weak self] _, _ in
             self?.dismiss(animated: true)
         }, secondaryButtonTapHandler: nil, subheadingLinkAction: { [weak self] url in
 
             guard let baseURL = linkBaseURL.wmf_URL(withTitle: currentTitle) else {
                 return
             }
+            
+            linkLoggingAction?()
 
             let fullURL = baseURL.resolvingRelativeWikiHref(url.relativeString)
 
-            self?.presentingViewController?.dismiss(animated: true) {
+            let viewController = self?.presentingViewController ?? self?.presentedViewController
+            viewController?.dismiss(animated: true) {
                 self?.navigate(to: fullURL)
             }
 
@@ -548,11 +620,11 @@ extension UIViewController {
         let primaryButtonTapHandler: ScrollableEducationPanelButtonTapHandler
         
         if goBackIsOnlyDismiss {
-            primaryButtonTapHandler = { [weak self] sender in
+            primaryButtonTapHandler = { [weak self] _, _ in
                 self?.dismiss(animated: true)
             }
         } else {
-            primaryButtonTapHandler = { [weak self] sender in
+            primaryButtonTapHandler = { [weak self] _, _ in
                 self?.dismiss(animated: true) {
                     
                     guard let viewControllers = self?.navigationController?.viewControllers,
@@ -593,7 +665,7 @@ extension UIViewController {
     ///   - publishAnywayTapHandler: Handler triggered when the user taps "Publish anyway". Invoke the view controller's edit save method again.
     func wmf_showAbuseFilterWarningPanel(messageHtml: String, linkBaseURL: URL, currentTitle: String, theme: Theme, goBackIsOnlyDismiss: Bool, publishAnywayTapHandler: @escaping ScrollableEducationPanelButtonTapHandler) {
         
-        let panel = ErrorPanelViewController(messageHtml: messageHtml, button1Title: CommonStrings.goBackTitle, button2Title: CommonStrings.publishAnywayTitle, primaryButtonTapHandler: { [weak self] sender in
+        let panel = ErrorPanelViewController(messageHtml: messageHtml, button1Title: CommonStrings.goBackTitle, button2Title: CommonStrings.publishAnywayTitle, primaryButtonTapHandler: { [weak self] _, _ in
             self?.dismiss(animated: true) {
                 
                 guard let viewControllers = self?.navigationController?.viewControllers,
@@ -624,12 +696,12 @@ extension UIViewController {
     
     func wmf_showReadingListImportSurveyPanel(primaryButtonTapHandler: ScrollableEducationPanelButtonTapHandler?, secondaryButtonTapHandler: ScrollableEducationPanelButtonTapHandler?, footerLinkAction: ((URL) -> Void)?, traceableDismissHandler: ScrollableEducationPanelTraceableDismissHandler?, theme: Theme, languageCode: String) {
 
-        let panel = ReadingListImportSurveyPanelViewController(primaryButtonTapHandler: { sender in
-            primaryButtonTapHandler?(sender)
+        let panel = ReadingListImportSurveyPanelViewController(primaryButtonTapHandler: { button, viewController in
+            primaryButtonTapHandler?(button, viewController)
             self.dismiss(animated: true)
             // dismissHandler is called on viewDidDisappear
-        }, secondaryButtonTapHandler: { sender in
-            secondaryButtonTapHandler?(sender)
+        }, secondaryButtonTapHandler: { button, viewController in
+            secondaryButtonTapHandler?(button, viewController)
             self.dismiss(animated: true)
             // dismissHandler is called on viewDidDisappear
         }, footerLinkAction: footerLinkAction, traceableDismissHandler: { lastAction in
@@ -650,13 +722,13 @@ extension UIViewController {
         let dataStore = MWKDataStore.shared()
         let presenter = self.presentedViewController ?? self
         guard !isAlreadyPresenting(presenter),
-              dataStore.authenticationManager.isLoggedIn,
+              dataStore.authenticationManager.authStateIsPermanent,
               dataStore.readingListsController.isSyncRemotelyEnabled,
               !dataStore.readingListsController.isSyncEnabled else {
             didNotPresentPanelCompletion?()
             return
         }
-        let enableSyncTapHandler: ScrollableEducationPanelButtonTapHandler = { _ in
+        let enableSyncTapHandler: ScrollableEducationPanelButtonTapHandler = { _, _ in
             self.presentedViewController?.dismiss(animated: true, completion: {
                 guard self.hasSavedArticles() else {
                     dataStore.readingListsController.setSyncEnabled(true, shouldDeleteLocalLists: false, shouldDeleteRemoteLists: false)
@@ -682,7 +754,7 @@ extension UIViewController {
             wasSyncEnabledOnDevice else {
                 return
         }
-        let primaryButtonTapHandler: ScrollableEducationPanelButtonTapHandler = { _ in
+        let primaryButtonTapHandler: ScrollableEducationPanelButtonTapHandler = { _, _ in
             self.presentedViewController?.dismiss(animated: true)
         }
         let panel = SyncDisabledPanelViewController(showCloseButton: true, primaryButtonTapHandler: primaryButtonTapHandler, secondaryButtonTapHandler: nil, dismissHandler: nil, theme: theme)
@@ -707,7 +779,7 @@ extension UIViewController {
             !wasSyncEnabledOnDevice else {
                 return
         }
-        let primaryButtonTapHandler: ScrollableEducationPanelButtonTapHandler = { _ in
+        let primaryButtonTapHandler: ScrollableEducationPanelButtonTapHandler = { _, _ in
             self.presentedViewController?.dismiss(animated: true)
         }
         let panel = SyncEnabledPanelViewController(showCloseButton: true, primaryButtonTapHandler: primaryButtonTapHandler, secondaryButtonTapHandler: nil, dismissHandler: nil, theme: theme)
@@ -719,12 +791,12 @@ extension UIViewController {
     fileprivate func wmf_showAddSavedArticlesToReadingListPanel(theme: Theme) {
         // SINGLETONTODO
         let dataStore = MWKDataStore.shared()
-        let addSavedArticlesToReadingListsTapHandler: ScrollableEducationPanelButtonTapHandler = { _ in
+        let addSavedArticlesToReadingListsTapHandler: ScrollableEducationPanelButtonTapHandler = { _, _ in
             dataStore.readingListsController.setSyncEnabled(true, shouldDeleteLocalLists: false, shouldDeleteRemoteLists: false)
             SettingsFunnel.shared.logEnableSyncPopoverSyncEnabled()
             self.presentedViewController?.dismiss(animated: true, completion: nil)
         }
-        let deleteSavedArticlesFromDeviceTapHandler: ScrollableEducationPanelButtonTapHandler = { _ in
+        let deleteSavedArticlesFromDeviceTapHandler: ScrollableEducationPanelButtonTapHandler = { _, _ in
             dataStore.readingListsController.setSyncEnabled(true, shouldDeleteLocalLists: true, shouldDeleteRemoteLists: false)
             SettingsFunnel.shared.logEnableSyncPopoverSyncEnabled()
             self.presentedViewController?.dismiss(animated: true, completion: nil)
@@ -735,26 +807,27 @@ extension UIViewController {
         present(panelVC, animated: true, completion: nil)
     }
     
-    @objc func wmf_showLoginViewController(theme: Theme, loginSuccessCompletion: (() -> Void)? = nil, loginDismissedCompletion: (() -> Void)? = nil) {
+    func wmf_showLoginViewController(category: EventCategoryMEP? = nil, theme: Theme, loginSuccessCompletion: (() -> Void)? = nil, loginDismissedCompletion: (() -> Void)? = nil) {
         guard let loginVC = WMFLoginViewController.wmf_initialViewControllerFromClassStoryboard() else {
             assertionFailure("Expected view controller(s) not found")
             return
         }
         loginVC.loginSuccessCompletion = loginSuccessCompletion
         loginVC.loginDismissedCompletion = loginDismissedCompletion
+        loginVC.category = category
         loginVC.apply(theme: theme)
         present(WMFThemeableNavigationController(rootViewController: loginVC, theme: theme), animated: true)
     }
 
     @objc func wmf_showLoggedOutPanel(theme: Theme, dismissHandler: @escaping ScrollableEducationPanelDismissHandler) {
-        let primaryButtonTapHandler: ScrollableEducationPanelButtonTapHandler = { _ in
+        let primaryButtonTapHandler: ScrollableEducationPanelButtonTapHandler = { _, _ in
             self.presentedViewController?.dismiss(animated: true) {
                 self.presenter?.wmf_showLoginViewController(theme: theme, loginDismissedCompletion: {
                     self.presenter?.wmf_showKeepSavedArticlesOnDevicePanelIfNeeded(triggeredBy: .logout, theme: theme)
                 })
             }
         }
-        let secondaryButtonTapHandler: ScrollableEducationPanelButtonTapHandler = { _ in
+        let secondaryButtonTapHandler: ScrollableEducationPanelButtonTapHandler = { _, _ in
             self.presentedViewController?.dismiss(animated: true) {
                 self.presenter?.wmf_showKeepSavedArticlesOnDevicePanelIfNeeded(triggeredBy: .logout, theme: theme)
             }
@@ -766,7 +839,7 @@ extension UIViewController {
     
     @objc func wmf_showNotLoggedInUponPublishPanel(buttonTapHandler: ((Int) -> Void)?, theme: Theme) {
         
-        let primaryButtonTapHandler: ScrollableEducationPanelButtonTapHandler = { [weak self] _ in
+        let primaryButtonTapHandler: ScrollableEducationPanelButtonTapHandler = { [weak self] _, _ in
             
             self?.dismiss(animated: true) { [weak self] in
                 self?.wmf_showLoginViewController(theme: theme, loginSuccessCompletion: nil, loginDismissedCompletion: nil)
@@ -775,7 +848,7 @@ extension UIViewController {
             
         }
         
-        let secondaryButtonTapHandler: ScrollableEducationPanelButtonTapHandler = { [weak self] _ in
+        let secondaryButtonTapHandler: ScrollableEducationPanelButtonTapHandler = { [weak self] _, _ in
             
             self?.dismiss(animated: true) {
                 buttonTapHandler?(1)
@@ -801,9 +874,9 @@ extension UIViewController {
     @objc func wmf_showLoginOrCreateAccountToSyncSavedArticlesToReadingListPanel(theme: Theme, dismissHandler: ScrollableEducationPanelDismissHandler? = nil, loginSuccessCompletion: (() -> Void)? = nil, loginDismissedCompletion: (() -> Void)? = nil) {
         LoginFunnel.shared.logLoginImpressionInSyncPopover()
         
-        let loginToSyncSavedArticlesTapHandler: ScrollableEducationPanelButtonTapHandler = { _ in
+        let loginToSyncSavedArticlesTapHandler: ScrollableEducationPanelButtonTapHandler = { _, _ in
             self.presentedViewController?.dismiss(animated: true, completion: {
-                self.wmf_showLoginViewController(theme: theme, loginSuccessCompletion: loginSuccessCompletion, loginDismissedCompletion: loginDismissedCompletion)
+                self.wmf_showLoginViewController(category: .loginToSyncPopover, theme: theme, loginSuccessCompletion: loginSuccessCompletion, loginDismissedCompletion: loginDismissedCompletion)
                 LoginFunnel.shared.logLoginStartInSyncPopover()
             })
         }
@@ -813,15 +886,16 @@ extension UIViewController {
         present(panelVC, animated: true)
     }
 
-    @objc func wmf_showLoginOrCreateAccountToThankRevisionAuthorPanel(theme: Theme, dismissHandler: ScrollableEducationPanelDismissHandler? = nil, loginSuccessCompletion: (() -> Void)? = nil, loginDismissedCompletion: (() -> Void)? = nil) {
+    func wmf_showLoginOrCreateAccountToThankRevisionAuthorPanel(category: EventCategoryMEP? = nil, theme: Theme, dismissHandler: ScrollableEducationPanelDismissHandler? = nil, tapLoginHandler: (() -> Void)? = nil, loginSuccessCompletion: (() -> Void)? = nil, loginDismissedCompletion: (() -> Void)? = nil) {
 
-        let loginToThankTapHandler: ScrollableEducationPanelButtonTapHandler = { _ in
+        let loginToThankTapHandler: ScrollableEducationPanelButtonTapHandler = { _, _ in
+            tapLoginHandler?()
             self.presentedViewController?.dismiss(animated: true, completion: {
-                self.wmf_showLoginViewController(theme: theme, loginSuccessCompletion: loginSuccessCompletion, loginDismissedCompletion: loginDismissedCompletion)
+                self.wmf_showLoginViewController(category: category, theme: theme, loginSuccessCompletion: loginSuccessCompletion, loginDismissedCompletion: loginDismissedCompletion)
             })
         }
         
-        let secondaryButtonTapHandler: ScrollableEducationPanelButtonTapHandler = { _ in
+        let secondaryButtonTapHandler: ScrollableEducationPanelButtonTapHandler = { _, _ in
             self.presentedViewController?.dismiss(animated: true)
         }
         
@@ -830,11 +904,8 @@ extension UIViewController {
         present(panelVC, animated: true)
     }
 
-    func wmf_showThankRevisionAuthorEducationPanel(theme: Theme, sendThanksHandler: @escaping ScrollableEducationPanelButtonTapHandler) {
-        let secondaryButtonTapHandler: ScrollableEducationPanelButtonTapHandler = { _ in
-            self.presentedViewController?.dismiss(animated: true)
-        }
-        let panelVC = ThankRevisionAuthorEducationPanelViewController(showCloseButton: false, primaryButtonTapHandler: sendThanksHandler, secondaryButtonTapHandler: secondaryButtonTapHandler, dismissHandler: nil, discardDismissHandlerOnPrimaryButtonTap: true, theme: theme)
+    func wmf_showThankRevisionAuthorEducationPanel(theme: Theme, sendThanksHandler: @escaping ScrollableEducationPanelButtonTapHandler, cancelHandler: @escaping ScrollableEducationPanelButtonTapHandler) {
+        let panelVC = ThankRevisionAuthorEducationPanelViewController(showCloseButton: false, primaryButtonTapHandler: sendThanksHandler, secondaryButtonTapHandler: cancelHandler, dismissHandler: nil, discardDismissHandlerOnPrimaryButtonTap: true, theme: theme)
         present(panelVC, animated: true)
     }
     
@@ -842,7 +913,7 @@ extension UIViewController {
         // SINGLETONTODO
         let dataStore = MWKDataStore.shared()
         guard
-            !dataStore.authenticationManager.isLoggedIn &&
+            !dataStore.authenticationManager.authStateIsPermanent &&
             !UserDefaults.standard.wmf_didShowLoginToSyncSavedArticlesToReadingListPanel() &&
             !dataStore.readingListsController.isSyncEnabled
         else {
@@ -851,9 +922,9 @@ extension UIViewController {
         
         LoginFunnel.shared.logLoginImpressionInSyncPopover()
         
-        let loginToSyncSavedArticlesTapHandler: ScrollableEducationPanelButtonTapHandler = { _ in
+        let loginToSyncSavedArticlesTapHandler: ScrollableEducationPanelButtonTapHandler = { _, _ in
             self.presentedViewController?.dismiss(animated: true, completion: {
-                self.wmf_showLoginViewController(theme: theme)
+                self.wmf_showLoginViewController(category: .loginToSyncPopover,theme: theme)
                 LoginFunnel.shared.logLoginStartInSyncPopover()
             })
         }
@@ -872,11 +943,11 @@ extension UIViewController {
             return
         }
         
-        let keepSavedArticlesOnDeviceTapHandler: ScrollableEducationPanelButtonTapHandler = { _ in
+        let keepSavedArticlesOnDeviceTapHandler: ScrollableEducationPanelButtonTapHandler = { _, _ in
             MWKDataStore.shared().readingListsController.setSyncEnabled(false, shouldDeleteLocalLists: false, shouldDeleteRemoteLists: false)
             self.presentedViewController?.dismiss(animated: true, completion: nil)
         }
-        let deleteSavedArticlesFromDeviceTapHandler: ScrollableEducationPanelButtonTapHandler = { _ in
+        let deleteSavedArticlesFromDeviceTapHandler: ScrollableEducationPanelButtonTapHandler = { _, _ in
             MWKDataStore.shared().readingListsController.setSyncEnabled(false, shouldDeleteLocalLists: true, shouldDeleteRemoteLists: false)
             self.presentedViewController?.dismiss(animated: true, completion: nil)
         }
@@ -898,7 +969,7 @@ extension UIViewController {
         guard !UserDefaults.standard.didShowDescriptionPublishedPanel else {
             return
         }
-        let doneTapHandler: ScrollableEducationPanelButtonTapHandler = { sender in
+        let doneTapHandler: ScrollableEducationPanelButtonTapHandler = { _, _ in
             self.dismiss(animated: true, completion: nil)
         }
         let panelVC = DescriptionPublishedPanelViewController(showCloseButton: true, primaryButtonTapHandler: doneTapHandler, secondaryButtonTapHandler: nil, dismissHandler: nil, theme: theme)
@@ -912,7 +983,7 @@ extension UIViewController {
             return
         }
 
-        let doneTapHandler: ScrollableEducationPanelButtonTapHandler = { sender in
+        let doneTapHandler: ScrollableEducationPanelButtonTapHandler = { _, _ in
             self.dismiss(animated: true, completion: nil)
         }
         let panelVC = EditPublishedPanelViewController(showCloseButton: false, primaryButtonTapHandler: doneTapHandler, secondaryButtonTapHandler: nil, dismissHandler: nil, theme: theme)

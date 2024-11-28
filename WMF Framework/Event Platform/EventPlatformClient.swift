@@ -38,6 +38,7 @@
 
 import Foundation
 import CocoaLumberjackSwift
+import WMFData
 
 /**
  * Event Platform Client (EPC)
@@ -52,19 +53,49 @@ import CocoaLumberjackSwift
  * - `app_session_id`: the ID of the session at the time of the event when it was
  *   originally submitted
  */
-public class EventPlatformClient: NSObject, SamplingControllerDelegate {
+@objc public class EventPlatformClient: NSObject, SamplingControllerDelegate {
+
+
     // MARK: - Properties
 
-    public static let shared: EventPlatformClient = {
+    @objc public static let shared: EventPlatformClient = {
         return EventPlatformClient()
     }()
-    
-    // SINGLETONTODO
-    /// Session for requesting data
-    let session = MWKDataStore.shared().session
+
+    let dataStore = MWKDataStore.shared()
     let samplingController: SamplingController
     let storageManager: StorageManager?
+    let userSession = UserSession.shared
 
+    var sessionID: String {
+        return userSession.sessionID
+    }
+    
+    public var sessionStartDate: Date? {
+        return userSession.sessionStartDate
+    }
+        
+    public func resetAll() {
+        samplingController.removeAllSamplingCache()
+        userSession.resetAll()
+    }
+    
+    public func generateSessionID() {
+        userSession.generateSessionID()
+    }
+    
+    public func needsReset() -> Bool {
+        return userSession.needsReset()
+    }
+    
+    public func resetBackgroundTimestamp() {
+        userSession.resetBackgroundTimestamp()
+    }
+    
+    public func appDidBackground() {
+        userSession.appDidBackground()
+    }
+    
     /**
      * Store events until the library is finished initializing
      *
@@ -90,6 +121,18 @@ public class EventPlatformClient: NSObject, SamplingControllerDelegate {
         case editHistoryCompare = "ios.edit_history_compare"
         case remoteNotificationsInteraction = "ios.notification_interaction"
         case talkPagesInteraction = "ios.talk_page_interaction"
+        case readingLists = "ios.reading_lists"
+        case userHistory = "ios.user_history"
+        case search = "ios.search"
+        case sessions = "app_session"
+        case settings = "ios.setting_action"
+        case login = "ios.login_action"
+        case navigation = "ios.navigation_events"
+        case editAttempt = "eventlogging_EditAttemptStep"
+        case watchlist = "ios.watchlists"
+        case appDonorExperience = "app_donor_experience"
+        case editInteraction = "ios.edit_interaction"
+        case imageRecommendation = "android.image_recommendation_event"
     }
     
     /**
@@ -102,9 +145,20 @@ public class EventPlatformClient: NSObject, SamplingControllerDelegate {
      * analytics-related schemas are collected.
      */
     public enum Schema: String, Codable {
-        case editHistoryCompare = "/analytics/mobile_apps/ios_edit_history_compare/2.1.0"
-        case remoteNotificationsInteraction = "/analytics/mobile_apps/ios_notification_interaction/2.1.0"
-        case talkPages = "/analytics/mobile_apps/ios_talk_page_interaction/1.0.0"
+        case editHistoryCompare = "/analytics/mobile_apps/ios_edit_history_compare/2.2.0"
+        case remoteNotificationsInteraction = "/analytics/mobile_apps/ios_notification_interaction/2.2.0"
+        case talkPages = "/analytics/mobile_apps/ios_talk_page_interaction/2.1.0"
+        case readingLists = "/analytics/mobile_apps/ios_reading_lists/2.2.0"
+        case userHistory = "/analytics/mobile_apps/ios_user_history/1.1.0"
+        case search = "/analytics/mobile_apps/ios_search/2.2.0"
+        case sessions = "/analytics/mobile_apps/app_session/1.1.0"
+        case settings = "/analytics/mobile_apps/ios_setting_action/1.1.0"
+        case login = "/analytics/mobile_apps/ios_login_action/1.1.0"
+        case navigation = "/analytics/mobile_apps/ios_navigation_events/1.1.0"
+        case editAttempt = "/analytics/legacy/editattemptstep/2.0.3"
+        case watchlist = "/analytics/mobile_apps/ios_watchlists/4.1.0"
+        case appInteraction = "/analytics/mobile_apps/app_interaction/1.1.0"
+        case imageRecommendation = "/analytics/mobile_apps/android_image_recommendation_event/1.1.0"
     }
 
     /**
@@ -126,7 +180,13 @@ public class EventPlatformClient: NSObject, SamplingControllerDelegate {
      * **eventgate-analytics-external**.  This service uses the stream
      * configurations from Meta wiki as its source of truth.
      */
-    private static let eventIntakeURI = URL(string: "https://intake-analytics.wikimedia.org/v1/events")!
+    private static var eventIntakeURI: URL {
+        if WMFDeveloperSettingsDataController.shared.sendAnalyticsToWMFLabs {
+            URL(string: "https://intake-analytics-beta.wmflabs.org/v1/events")!
+        } else {
+            URL(string: "https://intake-analytics.wikimedia.org/v1/events")!
+        }
+    }
 
     /**
      * MediaWiki API endpoint which returns stream configurations as JSON
@@ -174,32 +234,25 @@ public class EventPlatformClient: NSObject, SamplingControllerDelegate {
     }
     private var _streamConfigurations: [Stream: StreamConfiguration]? = nil
 
-    /**
-     * Updated when app enters background, used for determining if the session has
-     * expired.
-     */
-    private var lastTimestamp: Date = Date()
-    
-    /**
-     * Return a session identifier
-     * - Returns: session ID
-     *
-     * The identifier is a string of 20 zero-padded hexadecimal digits
-     * representing a uniformly random 80-bit integer.
-     */
-    internal var sessionID: String {
-        queue.sync {
-            guard let sID = _sessionID else {
-                let newID = generateID()
-                _sessionID = newID
-                return newID
-            }
 
-            return sID
-        }
+    private var isAnon: Bool {
+        return !dataStore.authenticationManager.authStateIsPermanent
     }
-    private var _sessionID: String?
+    
+    private var isTemp: Bool {
+        return dataStore.authenticationManager.authStateIsTemporary
+    }
 
+    private var _primaryLanguage: String {
+        if let appLanguage = dataStore.languageLinkController.appLanguage {
+            return appLanguage.languageCode
+        }
+        return "en"
+    }
+
+    public var primaryLanguage: String {
+        return _primaryLanguage
+    }
 
     // MARK: - Methods
 
@@ -219,81 +272,6 @@ public class EventPlatformClient: NSObject, SamplingControllerDelegate {
         self.fetchStreamConfiguration(retries: 10, retryDelay: 30)
     }
 
-    /**
-     * This method is called by the application delegate in
-     * `applicationWillResignActive()` and disables event logging.
-     */
-    public func appInBackground() {
-        lastTimestamp = Date()
-    }
-    /**
-     * This method is called by the application delegate in
-     * `applicationDidBecomeActive()` and re-enables event logging.
-     *
-     * If it has been more than 15 minutes since the app entered background state,
-     * a new session is started.
-     */
-    public func appInForeground() {
-        if sessionTimedOut() {
-            resetSession()
-        }
-    }
-    /**
-     * This method is called by the application delegate in
-     * `applicationWillTerminate()`
-     *
-     * We do not persist session ID on app close because we have decided that a
-     * session ends when the user (or the OS) has closed the app or when 15
-     * minutes of inactivity have passed.
-     */
-    public func appWillClose() {
-        // Placeholder for any onTerminate logic
-    }
-
-    /**
-     * Generates a new identifier using the same algorithm as EPC libraries for
-     * web and Android
-     */
-    private func generateID() -> String {
-        var id: String = ""
-        for _ in 1...5 {
-            id += String(format: "%04x", arc4random_uniform(65535))
-        }
-        return id
-    }
-    
-    /**
-     * Called when user toggles logging permissions in Settings
-     *
-     * This assumes storageManager's deviceID will be reset separately by a
-     * different owner (EventLoggingService's `reset()` method)
-     */
-    public func reset() {
-        resetSession()
-    }
-
-    /**
-     * Unset the session
-     */
-    private func resetSession() {
-        queue.async {
-            self._sessionID = nil
-        }
-        samplingController.removeAllSamplingCache()
-    }
-
-    /**
-     * Check if session expired, based on last active timestamp
-     *
-     * A new session ID is required if it has been more than 15 minutes since the
-     * user was last active (e.g. when app entered background).
-     */
-    private func sessionTimedOut() -> Bool {
-        /*
-         * A TimeInterval value is always specified in seconds.
-         */
-        return lastTimestamp.timeIntervalSinceNow < -900
-    }
 
     /**
      * Fetch stream configuration from stream configuration service
@@ -395,7 +373,6 @@ public class EventPlatformClient: NSObject, SamplingControllerDelegate {
 
         let events = storageManager.popAll()
         if events.count == 0 {
-//            DDLogDebug("EPC: Nothing to send.")
             completion?()
             return
         }
@@ -429,22 +406,65 @@ public class EventPlatformClient: NSObject, SamplingControllerDelegate {
         }
     }
     
+    /// Codable struct of additional metadata, embedded in the structure of EventBody and MinimalEventBody.
+    struct Meta: Codable {
+        let stream: Stream
+
+        /**
+         * meta.id is *optional* and should only be done in case the client is
+         * known to send duplicates of events, otherwise we don't need to
+         * make the payload any heavier than it already is
+         */
+        let id: UUID
+        let domain: String?
+    }
+    
+    /// MinimalEventBody is used to encode event data into the POST body of a request to the Modern Event Platform. It is the same as EventBody, minus some apps-specfic requirements like appInstallID, appSessionID, isAnon and primaryLanguage. It is used for posting to general cross-platform schemas like EditAttemptStep.
+    struct MinimalEventBody<E>: Encodable where E: EventInterface {
+        /// EventGate needs to know which version of the schema to validate against
+        var meta: Meta
+
+        /**
+         * The top-level field `dt` is for recording the time the event
+         * was generated. EventGate sets `meta.dt` during ingestion, so for
+         * analytics events that field is used as "timestamp of reception" and
+         * is used for partitioning the events in the database. See Phab:T240460
+         * for more information.
+         */
+        let dt: Date
+        
+        /**
+         * Event represents the client-provided event data.
+         * The event is encoded at the top level of the resulting structure.
+         * If any of the `CodingKeys` conflict with keys defined by `EventBody`,
+         * the values from `event` will be used.
+         */
+        let event: E
+
+        enum CodingKeys: String, CodingKey {
+            case schema = "$schema"
+            case meta
+            case dt
+            case event
+        }
+        
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            do {
+                try container.encode(meta, forKey: .meta)
+                try container.encode(dt, forKey: .dt)
+                try container.encode(E.schema, forKey: .schema)
+                try event.encode(to: encoder)
+            } catch let error {
+                DDLogError("EPC: Error encoding event body: \(error)")
+            }
+        }
+    }
+    
     /// EventBody is used to encode event data into the POST body of a request to the Modern Event Platform
     struct EventBody<E>: Encodable where E: EventInterface {
         /// EventGate needs to know which version of the schema to validate against
         var meta: Meta
-
-        struct Meta: Codable {
-            let stream: Stream
-
-            /**
-             * meta.id is *optional* and should only be done in case the client is
-             * known to send duplicates of events, otherwise we don't need to
-             * make the payload any heavier than it already is
-             */
-            let id: UUID
-            let domain: String?
-        }
 
         let appInstallID: String
 
@@ -472,6 +492,26 @@ public class EventPlatformClient: NSObject, SamplingControllerDelegate {
          */
         let event: E
 
+        /**
+         * Required field for all iOS schemas
+         * False for logged in users
+        **/
+
+        let isAnon: Bool
+        
+        /**
+         * Not a required field, but we want to send it for all iOS schemas
+         * True if there are no stored credentials but we have a central auth username cookie.
+        **/
+
+        let isTemp: Bool
+
+        /**
+         * Required field for all iOS schemas
+         * Represents the app's primary language
+        **/
+        let primaryLanguage: String
+
         enum CodingKeys: String, CodingKey {
             case schema = "$schema"
             case meta
@@ -479,6 +519,9 @@ public class EventPlatformClient: NSObject, SamplingControllerDelegate {
             case appSessionID = "app_session_id"
             case dt
             case event
+            case isAnon = "is_anon"
+            case isTemp = "is_temp"
+            case primaryLanguage = "primary_language"
         }
         
         func encode(to encoder: Encoder) throws {
@@ -489,6 +532,9 @@ public class EventPlatformClient: NSObject, SamplingControllerDelegate {
                 try container.encode(appSessionID, forKey: .appSessionID)
                 try container.encode(dt, forKey: .dt)
                 try container.encode(E.schema, forKey: .schema)
+                try container.encode(isAnon, forKey: .isAnon)
+                try container.encode(isTemp, forKey: .isTemp)
+                try container.encode(primaryLanguage, forKey: .primaryLanguage)
                 try event.encode(to: encoder)
             } catch let error {
                 DDLogError("EPC: Error encoding event body: \(error)")
@@ -551,33 +597,29 @@ public class EventPlatformClient: NSObject, SamplingControllerDelegate {
      *   1st preferred language – in which case use
      *   `MWKLanguageLinkController.sharedInstance().appLanguage.siteURL().host`
      */
-    public func submit<E: EventInterface>(stream: Stream, event: E, domain: String? = nil) {
+    public func submit<E: EventInterface>(stream: Stream, event: E, domain: String? = nil, needsMinimal: Bool = false, completion: (() -> Void)? = nil) {
         let date = Date() // Record the date synchronously so there's no delay
         encodeQueue.async {
-            self._submit(stream: stream, event: event, date: date, domain: domain)
+            self._submit(stream: stream, event: event, date: date, domain: domain, needsMinimal: needsMinimal)
+            completion?()
         }
     }
 
     /// Private, synchronous version of `submit`.
-    private func _submit<E: EventInterface>(stream: Stream, event: E, date: Date, domain: String? = nil) {
+    private func _submit<E: EventInterface>(stream: Stream, event: E, date: Date, domain: String? = nil, needsMinimal: Bool = false) {
         guard let storageManager = self.storageManager else {
             return
         }
 
         let userDefaults = UserDefaults.standard
 
-        if !userDefaults.wmf_sendUsageReports {
-            return
-        }
-
         guard let appInstallID = userDefaults.wmf_appInstallId else {
-            DDLogWarn("EPC: App install ID is unset. This shouldn't happen.")
+            DDLogError("EPC: App install ID is unset. This shouldn't happen.")
             return
         }
-
-        let meta = EventBody<E>.Meta(stream: stream, id: UUID(), domain: domain)
-
-        let eventPayload = EventBody(meta: meta, appInstallID: appInstallID, appSessionID: sessionID, dt: date, event: event)
+        
+        let meta = Meta(stream: stream, id: UUID(), domain: domain)
+        let eventPayload: Encodable = needsMinimal ? MinimalEventBody<E>(meta: meta, dt: date, event: event) : EventBody<E>(meta: meta, appInstallID: appInstallID, appSessionID: sessionID, dt: date, event: event, isAnon: isAnon, isTemp: isTemp, primaryLanguage: primaryLanguage)
         do {
             let encoder = JSONEncoder()
             encoder.dateEncodingStrategy = .iso8601
@@ -678,10 +720,10 @@ private extension EventPlatformClient {
      */
     private func httpPost(url: URL, body: Data? = nil, completion: @escaping ((Result<Void, PostEventError>) -> Void)) {
         DDLogDebug("EPC: Attempting to POST events")
-        let request = session.request(with: url, method: .post, bodyData: body, bodyEncoding: .json)
-        let task = session.dataTask(with: request, completionHandler: { (_, response, error) in
+        let request = dataStore.session.request(with: url, method: .post, bodyData: body, bodyEncoding: .json)
+        let task = dataStore.session.dataTask(with: request, completionHandler: { (_, response, error) in
             let fail: (PostEventError) -> Void = { error in
-                DDLogDebug("EPC: An error occurred sending the request: \(error)")
+                DDLogError("EPC: An error occurred sending the request: \(error)")
                 completion(.failure(error))
             }
             if let error = error {
@@ -710,7 +752,7 @@ private extension EventPlatformClient {
         DDLogDebug("EPC: Attempting to GET data from \(url.absoluteString)")
         var request = URLRequest.init(url: url) // httpMethod = "GET" by default
         request.setValue(WikipediaAppUtils.versionedUserAgent(), forHTTPHeaderField: "User-Agent")
-        let task = session.dataTask(with: request, completionHandler: completion)
+        let task = dataStore.session.dataTask(with: request, completionHandler: completion)
         task?.resume()
     }
 }

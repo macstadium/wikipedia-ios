@@ -21,7 +21,11 @@ public final class WidgetController: NSObject {
     // MARK: Properties
 
 	@objc public static let shared = WidgetController()
-    private let sharedCache = SharedContainerCache<WidgetCache>(fileName: "Widget Cache", defaultCache: { WidgetCache(settings: .default, featuredContent: nil) })
+    private let sharedCache = SharedContainerCache(fileName: SharedContainerCacheCommonNames.widgetCache)
+    
+    private var widgetCache: WidgetCache {
+        return sharedCache.loadCache() ?? WidgetCache(settings: .default, featuredContent: nil)
+    }
 
     // MARK: Public
 
@@ -39,6 +43,21 @@ public final class WidgetController: NSObject {
 
         WidgetCenter.shared.reloadAllTimelines()
 	}
+    
+    public func reloadFeaturedArticleWidgetIfNecessary() {
+        guard !Bundle.main.isAppExtension else {
+            return
+        }
+
+        let dataStore = MWKDataStore.shared()
+        let appLanguage = dataStore.languageLinkController.appLanguage
+        if let siteURL = appLanguage?.siteURL, let languageCode = appLanguage?.languageCode {
+            let updatedWidgetSettings = WidgetSettings(siteURL: siteURL, languageCode: languageCode, languageVariantCode: appLanguage?.languageVariantCode)
+            updateCacheWith(settings: updatedWidgetSettings)
+        }
+        
+        WidgetCenter.shared.reloadTimelines(ofKind: SupportedWidget.featuredArticle.rawValue)
+    }
     
     /// For requesting background time from widgets
     /// - Parameter userCompletion: the completion block to call with the result
@@ -106,15 +125,15 @@ public final class WidgetController: NSObject {
         isCreatingDataStore = true
         backgroundActivity = ProcessInfo.processInfo.beginActivity(options: [.background, .suddenTerminationDisabled, .automaticTerminationDisabled], reason: "Wikipedia Extension - " + UUID().uuidString)
         let dataStore = MWKDataStore()
-        dataStore.performLibraryUpdates {
-            DispatchQueue.main.async {
-                self._dataStore = dataStore
-                self.isCreatingDataStore = false
-                self.completions.forEach { $0(dataStore) }
-                self.completions.removeAll()
+        dataStore.finishSetup {
+            dataStore.performLibraryUpdates {
+                DispatchQueue.main.async {
+                    self._dataStore = dataStore
+                    self.isCreatingDataStore = false
+                    self.completions.forEach { $0(dataStore) }
+                    self.completions.removeAll()
+                }
             }
-        } needsMigrateBlock: {
-            DDLogDebug("Needed a migration from the widgets")
         }
     }
     
@@ -181,22 +200,44 @@ public final class WidgetController: NSObject {
 /// When the old widget data loading model is removed, this should be moved out of this extension into the class itself and refactored (e.g. the properties here don't need to be computed).
 public extension WidgetController {
 
+    // MARK: - Computed Properties
+
+    var featuredContentSiteURL: URL {
+        return widgetCache.settings.siteURL
+    }
+
+    var potdTargetImageSize: CGSize {
+        CGSize(width: 1000, height: 1000)
+    }
+
+    // MARK: - Utility
+
     /// This is currently unused. It will be useful when we update the main app to also update the widget's cache when it performs any updates to the featured content in the explore feed.
     func updateCacheWith(featuredContent: WidgetFeaturedContent) {
-        var updatedCache = sharedCache.loadCache()
+        var updatedCache = widgetCache
         updatedCache.featuredContent = featuredContent
         sharedCache.saveCache(updatedCache)
     }
 
     func updateCacheWith(settings: WidgetSettings) {
-        var updatedCache = sharedCache.loadCache()
+        var updatedCache = widgetCache
         updatedCache.settings = settings
         sharedCache.saveCache(updatedCache)
     }
 
-    // MARK: - Featured Article Widget
+    /// Returns cached content if it's available for the current date in the current app selected language
+    private func cachedContentIfAvailable() -> WidgetFeaturedContent? {
+        let widgetCache = widgetCache
+        if let cachedContent = widgetCache.featuredContent, let fetchDate = cachedContent.fetchDate, Calendar.current.isDateInToday(fetchDate), let cachedLanguageCode = cachedContent.featuredArticle?.languageCode, cachedLanguageCode == widgetCache.settings.languageCode, widgetCache.settings.languageVariantCode == cachedContent.fetchedLanguageVariantCode {
+            return cachedContent
+        }
 
-    func fetchFeaturedContent(isSnapshot: Bool = false, completion: @escaping (WidgetContentFetcher.FeaturedContentResult) -> Void) {
+        return nil
+    }
+
+    // MARK: - Fetch Featured Content
+
+    private func fetchFeaturedContent(useCacheIfAvailable: Bool = true, completion: @escaping (WidgetContentFetcher.FeaturedContentResult) -> Void) {
         func performCompletion(result: WidgetContentFetcher.FeaturedContentResult) {
             DispatchQueue.main.async {
                 completion(result)
@@ -204,22 +245,120 @@ public extension WidgetController {
         }
 
         let fetcher = WidgetContentFetcher.shared
-        var widgetCache = sharedCache.loadCache()
+        var widgetCache = widgetCache
 
-        guard !isSnapshot else {
-            let previewSnapshot = widgetCache.featuredContent ?? WidgetFeaturedContent.previewContent() ?? WidgetFeaturedContent(featuredArticle: nil)
-            performCompletion(result: .success(previewSnapshot))
-            return
-        }
-        
-        // If cached data is still relevant, use it
-        if let cachedContent = widgetCache.featuredContent, let fetchDate = cachedContent.fetchDate, Calendar.current.isDateInToday(fetchDate), let cachedLanguageCode = cachedContent.featuredArticle?.languageCode, cachedLanguageCode == widgetCache.settings.languageCode, widgetCache.settings.languageVariantCode == cachedContent.fetchedLanguageVariantCode {
+        if useCacheIfAvailable, let cachedContent = cachedContentIfAvailable() {
             performCompletion(result: .success(cachedContent))
             return
         }
 
-        // Fetch fresh feed content from network
+        // Fetch fresh featured content from network
         fetcher.fetchFeaturedContent(forDate: Date(), siteURL: widgetCache.settings.siteURL, languageCode: widgetCache.settings.languageCode, languageVariantCode: widgetCache.settings.languageVariantCode) { result in
+            switch result {
+            case .success(let featuredContent):
+                widgetCache.featuredContent = featuredContent
+                self.sharedCache.saveCache(widgetCache)
+                performCompletion(result: .success(featuredContent))
+            case .failure(let error):
+                self.sharedCache.saveCache(widgetCache)
+                performCompletion(result: .failure(error))
+            }
+        }
+    }
+
+    // MARK: - Fetch Top Read Widget Content
+
+    func fetchTopReadContent(isSnapshot: Bool = false, completion: @escaping (WidgetContentFetcher.TopReadResult) -> Void) {
+        func performCompletion(result: WidgetContentFetcher.TopReadResult) {
+            DispatchQueue.main.async {
+                completion(result)
+            }
+        }
+
+        let fetcher = WidgetContentFetcher.shared
+        var widgetCache = widgetCache
+
+        guard !isSnapshot else {
+            let previewSnapshot = widgetCache.featuredContent ?? WidgetFeaturedContent.previewContent() ?? WidgetFeaturedContent()
+            if let previewTopRead = previewSnapshot.topRead {
+                performCompletion(result: .success(previewTopRead))
+            } else {
+                performCompletion(result: .failure(.contentFailure))
+            }
+            return
+        }
+
+        fetchFeaturedContent { result in
+            switch result {
+            case .success(var featuredContent):
+                if var topRead = featuredContent.topRead {
+                    // Fetch images, if available, for the top four elements
+                    let group = DispatchGroup()
+                    for (index, element) in topRead.topFourElements.enumerated() {
+                        group.enter()
+                        guard let thumbnailImageSource = element.thumbnailImageSource else {
+                            group.leave()
+                            continue
+                        }
+
+                        fetcher.fetchImageDataFrom(imageSource: thumbnailImageSource) { result in
+                            switch result {
+                            case .success(let imageData):
+                                topRead.elements[index].thumbnailImageSource?.data = imageData
+                                group.leave()
+                            case .failure:
+                                group.leave()
+                            }
+                        }
+                    }
+
+                    group.notify(queue: .main) {
+                        featuredContent.topRead = topRead
+                        widgetCache.featuredContent = featuredContent
+                        self.sharedCache.saveCache(widgetCache)
+                        if let featuredTopReadContent = featuredContent.topRead {
+                            performCompletion(result: .success(featuredTopReadContent))
+                        } else {
+                            performCompletion(result: .failure(.contentFailure))
+                        }
+                    }
+                } else {
+                    performCompletion(result: .failure(.contentFailure))
+                }
+            case .failure(let error):
+                performCompletion(result: .failure(error))
+            }
+        }
+    }
+
+    // MARK: - Fetch Featured Article Widget Content
+
+    func fetchFeaturedArticleContent(isSnapshot: Bool = false, completion: @escaping (WidgetContentFetcher.FeaturedArticleResult) -> Void) {
+        func performCompletion(result: WidgetContentFetcher.FeaturedArticleResult) {
+            DispatchQueue.main.async {
+                completion(result)
+            }
+        }
+
+        let fetcher = WidgetContentFetcher.shared
+        var widgetCache = widgetCache
+
+        guard !isSnapshot else {
+            let previewSnapshot = widgetCache.featuredContent ?? WidgetFeaturedContent.previewContent() ?? WidgetFeaturedContent()
+            if let previewArticle = previewSnapshot.featuredArticle {
+                performCompletion(result: .success(previewArticle))
+            } else {
+                performCompletion(result: .failure(.contentFailure))
+            }
+            return
+        }
+
+        guard WidgetFeaturedArticle.supportedLanguageCodes.contains(widgetCache.settings.languageCode) else {
+            performCompletion(result: .failure(.unsupportedLanguage))
+            return
+        }
+
+        fetchFeaturedContent { result in
             switch result {
             case .success(var featuredContent):
                 if let featuredArticleThumbnailImageSource = featuredContent.featuredArticle?.thumbnailImageSource {
@@ -227,15 +366,72 @@ public extension WidgetController {
                         featuredContent.featuredArticle?.thumbnailImageSource?.data = try? imageResult.get()
                         widgetCache.featuredContent = featuredContent
                         self.sharedCache.saveCache(widgetCache)
-                        performCompletion(result: .success(featuredContent))
+                        if let featureArticle = featuredContent.featuredArticle {
+                            performCompletion(result: .success(featureArticle))
+                        } else {
+                            performCompletion(result: .failure(.contentFailure))
+                        }
                     }
                 } else {
                     widgetCache.featuredContent = featuredContent
                     self.sharedCache.saveCache(widgetCache)
-                    performCompletion(result: .success(featuredContent))
+                    if let featureArticle = featuredContent.featuredArticle {
+                        performCompletion(result: .success(featureArticle))
+                    } else {
+                        performCompletion(result: .failure(.contentFailure))
+                    }
                 }
             case .failure(let error):
-                self.sharedCache.saveCache(widgetCache)
+                performCompletion(result: .failure(error))
+            }
+        }
+    }
+
+    // MARK: - Fetch Picture of the Day Widget Content
+
+    func fetchPictureOfTheDayContent(isSnapshot: Bool = false, completion: @escaping (WidgetContentFetcher.PictureOfTheDayResult) -> Void) {
+        func performCompletion(result: WidgetContentFetcher.PictureOfTheDayResult) {
+            DispatchQueue.main.async {
+                completion(result)
+            }
+        }
+
+        let fetcher = WidgetContentFetcher.shared
+        var widgetCache = widgetCache
+
+        guard !isSnapshot else {
+            let previewSnapshot = widgetCache.featuredContent ?? WidgetFeaturedContent.previewContent() ?? WidgetFeaturedContent()
+            if let previewPictureOfTheDay = previewSnapshot.pictureOfTheDay {
+                performCompletion(result: .success(previewPictureOfTheDay))
+            } else {
+                performCompletion(result: .failure(.contentFailure))
+            }
+            return
+        }
+
+        fetchFeaturedContent { result in
+            switch result {
+            case .success(var featuredContent):
+                if var imageSource = featuredContent.pictureOfTheDay?.originalImageSource {
+                    imageSource.source = WMFChangeImageSourceURLSizePrefix(imageSource.source, Int(self.potdTargetImageSize.width))
+                    featuredContent.pictureOfTheDay?.originalImageSource = imageSource
+                    fetcher.fetchImageDataFrom(imageSource: imageSource) { imageResult in
+                        featuredContent.pictureOfTheDay?.originalImageSource?.data = try? imageResult.get()
+                        widgetCache.featuredContent = featuredContent
+                        self.sharedCache.saveCache(widgetCache)
+
+                        if let pictureOftheDay = featuredContent.pictureOfTheDay {
+                            performCompletion(result: .success(pictureOftheDay))
+                        } else {
+                            performCompletion(result: .failure(.contentFailure))
+                        }
+                    }
+                } else {
+                    widgetCache.featuredContent = featuredContent
+                    self.sharedCache.saveCache(widgetCache)
+                    performCompletion(result: .failure(.contentFailure))
+                }
+            case .failure(let error):
                 performCompletion(result: .failure(error))
             }
         }

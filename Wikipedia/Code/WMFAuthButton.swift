@@ -1,3 +1,5 @@
+import WMF
+
 /// Button configured with common auth style settings which also updates layer border color on "isEnabled" state change.
 class WMFAuthButton: AutoLayoutSafeMultiLineButton, Themeable {
     fileprivate var theme: Theme = Theme.standard
@@ -13,13 +15,14 @@ class WMFAuthButton: AutoLayoutSafeMultiLineButton, Themeable {
     override open func awakeFromNib() {
         super.awakeFromNib()
         layer.cornerRadius = 5
-        titleEdgeInsets = UIEdgeInsets.init(top: 10, left: 10, bottom: 10, right: 10)
+        var deprecatedSelf = self as DeprecatedButton
+        deprecatedSelf.deprecatedTitleEdgeInsets = UIEdgeInsets.init(top: 10, left: 10, bottom: 10, right: 10)
         apply(theme: self.theme)
     }
     
     func apply(theme: Theme) {
         self.theme = theme
-        backgroundColor = theme.colors.cardButtonBackground
+        backgroundColor = theme.colors.baseBackground
         setTitleColor(theme.colors.unselected, for: .disabled)
         setNeedsDisplay()
     }

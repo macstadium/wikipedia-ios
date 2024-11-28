@@ -1,37 +1,43 @@
 {
     "zh": [
         {
-            "languageVariantCode": "zh-hans",
+            "languageVariantCode": "zh-Hans",
+            "legacyLanguageVariantCode": "zh-hans",
             "languageName": "简体",
             "localName": "Simplified Chinese",
             "languageCode": "zh"
         },
         {
-            "languageVariantCode": "zh-hk",
+            "languageVariantCode": "zh-Hant-HK",
+            "legacyLanguageVariantCode": "zh-hk",
             "languageName": "香港繁體",
             "localName": "Traditional Chinese (Hong Kong)",
             "languageCode": "zh"
         },
         {
-            "languageVariantCode": "zh-mo",
+            "languageVariantCode": "zh-Hant-MO",
+            "legacyLanguageVariantCode": "zh-mo",
             "languageName": "澳門繁體",
             "localName": "Traditional Chinese (Macao)",
             "languageCode": "zh"
         },
         {
-            "languageVariantCode": "zh-my",
+            "languageVariantCode": "zh-Hans-MY",
+            "legacyLanguageVariantCode": "zh-my",
             "languageName": "大马简体",
             "localName": "Simplified Chinese (Malaysia)",
             "languageCode": "zh"
         },
         {
-            "languageVariantCode": "zh-sg",
+            "languageVariantCode": "zh-Hans-SG",
+            "legacyLanguageVariantCode": "zh-sg",
             "languageName": "新加坡简体",
             "localName": "Simplified Chinese (Singapore)",
             "languageCode": "zh"
         },
         {
-            "languageVariantCode": "zh-tw",
+            "languageVariantCode": "zh-Hant-TW",
+            "legacyLanguageVariantCode": "zh-tw",
             "languageName": "臺灣正體",
             "localName": "Traditional Chinese (Taiwan)",
             "languageCode": "zh"
@@ -39,13 +45,15 @@
     ],
     "sr": [
         {
-            "languageVariantCode": "sr-ec",
+            "languageVariantCode": "sr-Cyrl",
+            "legacyLanguageVariantCode": "sr-ec",
             "languageName": "српски",
             "localName": "Serbian (Cyrillic)",
             "languageCode": "sr"
         },
         {
-            "languageVariantCode": "sr-el",
+            "languageVariantCode": "sr-Latn",
+            "legacyLanguageVariantCode": "sr-el",
             "languageName": "srpski",
             "localName": "Serbian (Latin)",
             "languageCode": "sr"
@@ -53,13 +61,15 @@
     ],
     "crh": [
         {
-            "languageVariantCode": "crh-latn",
+            "languageVariantCode": "crh-Latn",
+            "legacyLanguageVariantCode": "crh-latn",
             "languageName": "Qırımtatarca",
             "localName": "Crimean Tatar (Latin)",
             "languageCode": "crh"
         },
         {
-            "languageVariantCode": "crh-cyrl",
+            "languageVariantCode": "crh-Cyrl",
+            "legacyLanguageVariantCode": "crh-cyrl",
             "languageName": "къырымтатарджа",
             "localName": "Crimean Tatar (Cyrillic)",
             "languageCode": "crh"
@@ -67,13 +77,15 @@
     ],
     "gan": [
         {
-            "languageVariantCode": "gan-hans",
+            "languageVariantCode": "gan-Hans",
+            "legacyLanguageVariantCode": "gan-hans",
             "languageName": "赣语",
             "localName": "Gan (Simplified)",
             "languageCode": "gan"
         },
         {
-            "languageVariantCode": "gan-hant",
+            "languageVariantCode": "gan-Hant",
+            "legacyLanguageVariantCode": "gan-hant",
             "languageName": "贛語",
             "localName": "Gan (Traditional)",
             "languageCode": "gan"
@@ -81,13 +93,15 @@
     ],
     "iu": [
         {
-            "languageVariantCode": "ike-latn",
+            "languageVariantCode": "ike-Latn",
+            "legacyLanguageVariantCode": "ike-latn",
             "languageName": "Inuktitut",
             "localName": "Inuktitut (Latin)",
             "languageCode": "iu"
         },
         {
-            "languageVariantCode": "ike-cans",
+            "languageVariantCode": "ike-Cans",
+            "legacyLanguageVariantCode": "ike-cans",
             "languageName": "ᐃᓄᒃᑎᑐᑦ",
             "localName": "Inuktitut (Syllabics)",
             "languageCode": "iu"
@@ -95,19 +109,22 @@
     ],
     "kk": [
         {
-            "languageVariantCode": "kk-cyrl",
+            "languageVariantCode": "kk-Cyrl",
+            "legacyLanguageVariantCode": "kk-cyrl",
             "languageName": "Қазақша",
             "localName": "Kazakh (Cyrillic)",
             "languageCode": "kk"
         },
         {
-            "languageVariantCode": "kk-latn",
+            "languageVariantCode": "kk-Latn",
+            "legacyLanguageVariantCode": "kk-latn",
             "languageName": "qazaqşa",
             "localName": "Kazakh (Latin)",
             "languageCode": "kk"
         },
         {
-            "languageVariantCode": "kk-arab",
+            "languageVariantCode": "kk-Arab",
+            "legacyLanguageVariantCode": "kk-arab",
             "languageName": "توتە",
             "localName": "Kazakh (Arabic)",
             "languageCode": "kk"
@@ -115,27 +132,48 @@
     ],
     "ku": [
         {
-            "languageVariantCode": "ku-latn",
+            "languageVariantCode": "ku-Latn",
+            "legacyLanguageVariantCode": "ku-latn",
             "languageName": "Kurdî",
             "localName": "Kurdish (Latin)",
             "languageCode": "ku"
         },
         {
-            "languageVariantCode": "ku-arab",
+            "languageVariantCode": "ku-Arab",
+            "legacyLanguageVariantCode": "ku-arab",
             "languageName": "كوردی",
             "localName": "Kurdish (Arabic)",
             "languageCode": "ku"
         }
     ],
+    "shi": [
+        {
+            "languageVariantCode": "shi-Latn",
+            "legacyLanguageVariantCode": "shi-latn",
+            "languageName": "Taclḥit",
+            "localName": "Tachelhit (Latin)",
+            "languageCode": "shi"
+        },
+        {
+            "languageVariantCode": "shi-Tfng",
+            "legacyLanguageVariantCode": "shi-tfng",
+            "languageName": "ⵜⴰⵛⵍⵃⵉⵜ ",
+            "localName": "Tachelhit (Tifinagh)",
+            "languageCode": "shi"
+
+        },
+    ],
     "tg": [
         {
-            "languageVariantCode": "tg-cyrl",
+            "languageVariantCode": "tg-Cyrl",
+            "legacyLanguageVariantCode": "tg-cyrl",
             "languageName": "тоҷикӣ",
             "localName": "Tajik (Cyrillic)",
             "languageCode": "tg"
         },
         {
-            "languageVariantCode": "tg-latn",
+            "languageVariantCode": "tg-Latn",
+            "legacyLanguageVariantCode": "tg-latn",
             "languageName": "tojikī",
             "localName": "Tajik (Latin)",
             "languageCode": "tg"
@@ -143,13 +181,15 @@
     ],
     "uz": [
         {
-            "languageVariantCode": "uz-cyrl",
+            "languageVariantCode": "uz-Cyrl",
+            "legacyLanguageVariantCode": "uz-cyrl",
             "languageName": "ўзбекча",
             "localName": "Uzbek (Cyrillic)",
             "languageCode": "uz"
         },
         {
-            "languageVariantCode": "uz-latin",
+            "languageVariantCode": "uz-Latn",
+            "legacyLanguageVariantCode": "uz-latn",
             "languageName": "oʻzbekcha",
             "localName": "Uzbek (Latin)",
             "languageCode": "uz"

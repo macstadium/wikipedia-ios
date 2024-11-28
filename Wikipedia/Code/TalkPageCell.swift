@@ -1,5 +1,4 @@
-import Foundation
-import UIKit
+import WMFComponents
 import WMF
 
 protocol TalkPageCellDelegate: AnyObject {
@@ -48,7 +47,7 @@ final class TalkPageCell: UICollectionViewCell {
         let button = UIButton()
         button.layer.cornerRadius = 8
         button.titleLabel?.adjustsFontForContentSizeCategory = true
-        button.titleLabel?.font = UIFont.wmf_scaledSystemFont(forTextStyle: .body, weight: .semibold, size: 15)
+        button.titleLabel?.font = WMFFont.for(.boldCallout)
         button.setTitleColor(.black, for: .normal)
         button.setImage(UIImage(systemName: "arrowshape.turn.up.left"), for: .normal)
 
@@ -189,15 +188,16 @@ final class TalkPageCell: UICollectionViewCell {
             subview.semanticContentAttribute = semanticContentAttribute
         }
         
+        var deprecatedLeadReplyButton = leadReplyButton as DeprecatedButton
         switch semanticContentAttribute {
         case .forceRightToLeft:
-            leadReplyButton.contentEdgeInsets = UIEdgeInsets(top: 8, left: 12, bottom: 8, right: 12)
-            leadReplyButton.imageEdgeInsets = UIEdgeInsets(top: 0, left: 2, bottom: 0, right: -2)
-            leadReplyButton.titleEdgeInsets = UIEdgeInsets(top: 0, left: -2, bottom: 0, right: 2)
+            deprecatedLeadReplyButton.deprecatedContentEdgeInsets = UIEdgeInsets(top: 8, left: 12, bottom: 8, right: 12)
+            deprecatedLeadReplyButton.deprecatedImageEdgeInsets = UIEdgeInsets(top: 0, left: 2, bottom: 0, right: -2)
+            deprecatedLeadReplyButton.deprecatedTitleEdgeInsets = UIEdgeInsets(top: 0, left: -2, bottom: 0, right: 2)
         default:
-            leadReplyButton.contentEdgeInsets = UIEdgeInsets(top: 8, left: 12, bottom: 8, right: 12)
-            leadReplyButton.imageEdgeInsets = UIEdgeInsets(top: 0, left: -2, bottom: 0, right: 2)
-            leadReplyButton.titleEdgeInsets = UIEdgeInsets(top: 0, left: 2, bottom: 0, right: -2)
+            deprecatedLeadReplyButton.deprecatedContentEdgeInsets = UIEdgeInsets(top: 8, left: 12, bottom: 8, right: 12)
+            deprecatedLeadReplyButton.deprecatedImageEdgeInsets = UIEdgeInsets(top: 0, left: -2, bottom: 0, right: 2)
+            deprecatedLeadReplyButton.deprecatedTitleEdgeInsets = UIEdgeInsets(top: 0, left: 2, bottom: 0, right: -2)
         }
     }
 
@@ -227,7 +227,7 @@ extension TalkPageCell: Themeable {
 
     func apply(theme: Theme) {
         rootContainer.backgroundColor = theme.colors.paperBackground
-        rootContainer.layer.borderColor = theme.colors.border.cgColor
+        rootContainer.layer.borderColor = theme.colors.midCardBorder.cgColor
 
         stackView.arrangedSubviews.forEach { ($0 as? Themeable)?.apply(theme: theme) }
 

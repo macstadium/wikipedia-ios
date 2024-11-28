@@ -13,13 +13,17 @@ struct ArticleDescriptionPublishResult {
     let newDescription: String
 }
 
+enum ArticleDescriptionEditType {
+    case add
+    case change
+}
+
 protocol ArticleDescriptionControlling {
     var descriptionSource: ArticleDescriptionSource { get }
     var article: WMFArticle { get }
     var articleLanguageCode: String { get }
-    func publishDescription(_ description: String, completion: @escaping (Result<ArticleDescriptionPublishResult, Error>) -> Void)
+    func publishDescription(_ description: String, editType: ArticleDescriptionEditType, completion: @escaping (Result<ArticleDescriptionPublishResult, Error>) -> Void)
     func currentDescription(completion: @escaping (String?, MediaWikiAPIDisplayError?) -> Void)
-    func errorCodeFromError(_ error: Error) -> String
     func learnMoreViewControllerWithTheme(_ theme: Theme) -> UIViewController?
     func warningTypesForDescription(_ description: String?) -> ArticleDescriptionWarningTypes
 }

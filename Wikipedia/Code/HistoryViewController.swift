@@ -1,5 +1,7 @@
 import UIKit
 import WMF
+import WMFData
+import CocoaLumberjackSwift
 
 @objc(WMFHistoryViewController)
 class HistoryViewController: ArticleFetchedResultsViewController {
@@ -52,6 +54,45 @@ class HistoryViewController: ArticleFetchedResultsViewController {
         } catch let error {
             showError(error)
         }
+        
+        Task {
+            do {
+                let dataController = try WMFPageViewsDataController()
+                try await dataController.deleteAllPageViews()
+            } catch {
+                DDLogError("Failure deleting WMFData WMFPageViews: \(error)")
+            }
+            
+        }
+    }
+    
+    override func delete(at indexPath: IndexPath) {
+        
+        guard let article = article(at: indexPath) else {
+            return
+        }
+        
+        super.delete(at: indexPath)
+
+        // Also delete from WMFData WMFPageViews
+        guard let title = article.url?.wmf_title,
+              let languageCode = article.url?.wmf_languageCode else {
+            return
+        }
+        
+        let variant = article.variant
+        
+        let project = WMFProject.wikipedia(WMFLanguage(languageCode: languageCode, languageVariantCode: variant))
+        
+        Task {
+            do {
+                let dataController = try WMFPageViewsDataController()
+                try await dataController.deletePageView(title: title, namespaceID: 0, project: project)
+            } catch {
+                DDLogError("Failure deleting WMFData WMFPageViews: \(error)")
+            }
+            
+        }
     }
     
     override var headerStyle: ColumnarCollectionViewController.HeaderStyle {
@@ -91,7 +132,7 @@ class HistoryViewController: ArticleFetchedResultsViewController {
         }
     }
     
-    override var eventLoggingCategory: EventLoggingCategory {
+    override var eventLoggingCategory: EventCategoryMEP {
         return .history
     }
 }

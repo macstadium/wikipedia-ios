@@ -1,4 +1,4 @@
-import UIKit
+import WMFComponents
 import WMF
 
 final class TalkPageCellCommentView: SetupView {
@@ -29,7 +29,7 @@ final class TalkPageCellCommentView: SetupView {
         button.setContentCompressionResistancePriority(.required, for: .horizontal)
         button.setContentCompressionResistancePriority(.required, for: .vertical)
 
-        button.titleLabel?.font = UIFont.wmf_scaledSystemFont(forTextStyle: .body, weight: .semibold, size: 15)
+        button.titleLabel?.font = WMFFont.for(.boldCallout)
         button.titleLabel?.adjustsFontForContentSizeCategory = true
         
         button.addTarget(self, action: #selector(tappedReply), for: .touchUpInside)
@@ -99,15 +99,16 @@ final class TalkPageCellCommentView: SetupView {
         
         commentTextView.textAlignment = semanticContentAttribute == .forceRightToLeft ? NSTextAlignment.right : NSTextAlignment.left
         
+        var deprecatedReplyButton = replyButton as DeprecatedButton
         switch semanticContentAttribute {
         case .forceRightToLeft:
-            replyButton.contentEdgeInsets = UIEdgeInsets(top: 8, left: 0, bottom: 8, right: 0)
-            replyButton.imageEdgeInsets = UIEdgeInsets(top: 0, left: 2, bottom: 0, right: -2)
-            replyButton.titleEdgeInsets = UIEdgeInsets(top: 0, left: -2, bottom: 0, right: 2)
+            deprecatedReplyButton.deprecatedContentEdgeInsets = UIEdgeInsets(top: 8, left: 0, bottom: 8, right: 0)
+            deprecatedReplyButton.deprecatedImageEdgeInsets = UIEdgeInsets(top: 0, left: 2, bottom: 0, right: -2)
+            deprecatedReplyButton.deprecatedTitleEdgeInsets = UIEdgeInsets(top: 0, left: -2, bottom: 0, right: 2)
         default:
-            replyButton.contentEdgeInsets = UIEdgeInsets(top: 8, left: 0, bottom: 8, right: 0)
-            replyButton.imageEdgeInsets = UIEdgeInsets(top: 0, left: -2, bottom: 0, right: 2)
-            replyButton.titleEdgeInsets = UIEdgeInsets(top: 0, left: 2, bottom: 0, right: -2)
+            deprecatedReplyButton.deprecatedContentEdgeInsets = UIEdgeInsets(top: 8, left: 0, bottom: 8, right: 0)
+            deprecatedReplyButton.deprecatedImageEdgeInsets = UIEdgeInsets(top: 0, left: -2, bottom: 0, right: 2)
+            deprecatedReplyButton.deprecatedTitleEdgeInsets = UIEdgeInsets(top: 0, left: 2, bottom: 0, right: -2)
         }
         
     }
@@ -126,7 +127,7 @@ final class TalkPageCellCommentView: SetupView {
     // MARK: - Find in page
 
     private func applyTextHighlightIfNecessary(theme: Theme) {
-        let activeHighlightBackgroundColor: UIColor = .yellow50
+        let activeHighlightBackgroundColor: UIColor = WMFColor.yellow600
         let backgroundHighlightColor: UIColor
         let foregroundHighlightColor: UIColor
 

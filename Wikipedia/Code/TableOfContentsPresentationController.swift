@@ -122,7 +122,7 @@ open class TableOfContentsPresentationController: UIPresentationController, Them
             return
         }
         
-        // Add the dimming view and the presented view to the heirarchy
+        // Add the dimming view and the presented view to the hierarchy
         self.backgroundView.frame = containerView.bounds
         updateStatusBarBackgroundFrame()
 
@@ -143,7 +143,7 @@ open class TableOfContentsPresentationController: UIPresentationController, Them
         
         // Fade in the dimming view alongside the transition
         if let transitionCoordinator = self.presentingViewController.transitionCoordinator {
-            transitionCoordinator.animate(alongsideTransition: {(context: UIViewControllerTransitionCoordinatorContext!) -> Void in
+            transitionCoordinator.animate(alongsideTransition: {(context: UIViewControllerTransitionCoordinatorContext!) in
                 self.backgroundView.alpha  = 1.0
                 }, completion:nil)
         }
@@ -158,7 +158,7 @@ open class TableOfContentsPresentationController: UIPresentationController, Them
     
     override open func dismissalTransitionWillBegin() {
         if let transitionCoordinator = self.presentingViewController.transitionCoordinator {
-            transitionCoordinator.animate(alongsideTransition: {(context: UIViewControllerTransitionCoordinatorContext!) -> Void in
+            transitionCoordinator.animate(alongsideTransition: {(context: UIViewControllerTransitionCoordinatorContext!) in
                 self.backgroundView.alpha  = 0.0
                 }, completion:nil)
         }
@@ -210,7 +210,7 @@ open class TableOfContentsPresentationController: UIPresentationController, Them
     override open func viewWillTransition(to size: CGSize, with transitionCoordinator: UIViewControllerTransitionCoordinator) {
         super.viewWillTransition(to: size, with: transitionCoordinator)
 
-        transitionCoordinator.animate(alongsideTransition: {(context: UIViewControllerTransitionCoordinatorContext!) -> Void in
+        transitionCoordinator.animate(alongsideTransition: {(context: UIViewControllerTransitionCoordinatorContext!) in
             guard let containerView = self.containerView else {
                 return
             }

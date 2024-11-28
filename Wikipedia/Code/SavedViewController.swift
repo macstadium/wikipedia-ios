@@ -1,4 +1,4 @@
-import UIKit
+import WMFComponents
 
 protocol SavedViewControllerDelegate: NSObjectProtocol {
     func savedWillShowSortAlert(_ saved: SavedViewController, from button: UIButton)
@@ -57,6 +57,7 @@ class SavedViewController: ViewController {
             }
             title = CommonStrings.savedTabTitle
             savedArticlesViewController = SavedArticlesCollectionViewController(with: newValue)
+            savedArticlesViewController?.delegate = self
         }
     }
     
@@ -104,6 +105,7 @@ class SavedViewController: ViewController {
                 activeEditableCollection = savedArticlesViewController
                 extendedNavBarViewType = isCurrentViewEmpty ? .none : .search
                 evaluateEmptyState()
+                ReadingListsFunnel.shared.logTappedAllArticlesTab()
             case .readingLists :
                 readingListsViewController?.editController.navigationDelegate = self
                 savedArticlesViewController?.editController.navigationDelegate = nil
@@ -114,6 +116,7 @@ class SavedViewController: ViewController {
                 activeEditableCollection = readingListsViewController
                 extendedNavBarViewType = isCurrentViewEmpty ? .none : .createNewReadingList
                 evaluateEmptyState()
+                ReadingListsFunnel.shared.logTappedReadingListsTab()
             }
         }
     }
@@ -167,13 +170,13 @@ class SavedViewController: ViewController {
         vc.willMove(toParent: nil)
         vc.removeFromParent()
     }
-    
+
     private func logTappedView(_ view: View) {
         switch view {
         case .savedArticles:
-            NavigationEventsFunnel.shared.logTappedSavedAllArticles()
+            NavigationEventsFunnel.shared.logEvent(action: .savedAll)
         case .readingLists:
-            NavigationEventsFunnel.shared.logTappedSavedReadingLists()
+            NavigationEventsFunnel.shared.logEvent(action: .savedLists)
         }
     }
     
@@ -240,13 +243,14 @@ class SavedViewController: ViewController {
     }
 
     private func updateFonts() {
-        actionButton.titleLabel?.font = UIFont.wmf_font(.body, compatibleWithTraitCollection: traitCollection)
+        actionButton.titleLabel?.font = WMFFont.for(.callout, compatibleWith: traitCollection)
     }
     
     private func setSavedArticlesViewControllerIfNeeded() {
         if let dataStore = dataStore,
             savedArticlesViewController == nil {
             savedArticlesViewController = SavedArticlesCollectionViewController(with: dataStore)
+            savedArticlesViewController?.delegate = self
             savedArticlesViewController?.apply(theme: theme)
         }
     }
@@ -330,7 +334,7 @@ extension SavedViewController: CollectionViewEditControllerNavigationDelegate {
         let editingStates: [EditingState] = [.swiping, .open, .editing]
         let isEditing = editingStates.contains(newEditingState)
         actionButton.isEnabled = !isEditing
-        if (newEditingState == .open),
+        if newEditingState == .open,
             let batchEditToolbar = savedArticlesViewController?.editController.batchEditToolbarView,
             let contentView = containerView,
             let appTabBar = tabBarDelegate?.tabBar {
@@ -344,6 +348,7 @@ extension SavedViewController: CollectionViewEditControllerNavigationDelegate {
         if searchBar.isFirstResponder {
             searchBar.resignFirstResponder()
         }
+        ReadingListsFunnel.shared.logTappedEditButton()
     }
     
     func newEditingState(for currentEditingState: EditingState, fromEditBarButtonWithSystemItem systemItem: UIBarButtonItem.SystemItem) -> EditingState {
@@ -390,4 +395,15 @@ extension SavedViewController: UISearchBarDelegate {
     }
 }
 
-
+extension SavedViewController: ReadingListEntryCollectionViewControllerDelegate {
+    func readingListEntryCollectionViewController(_ viewController: ReadingListEntryCollectionViewController, didUpdate collectionView: UICollectionView) {
+    }
+    
+    func readingListEntryCollectionViewControllerDidChangeEmptyState(_ viewController: ReadingListEntryCollectionViewController) {
+    }
+    
+    func readingListEntryCollectionViewControllerDidSelectArticleURL(_ articleURL: URL, viewController: ReadingListEntryCollectionViewController) {
+        navigate(to: articleURL)
+    }
+    
+}

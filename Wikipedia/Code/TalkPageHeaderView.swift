@@ -1,4 +1,4 @@
-import UIKit
+import WMFComponents
 import WMF
 import CocoaLumberjackSwift
 
@@ -10,7 +10,7 @@ final class TalkPageHeaderView: SetupView {
         let label = UILabel()
         label.translatesAutoresizingMaskIntoConstraints = false
         label.numberOfLines = 0
-        label.font = UIFont.wmf_font(.semiboldFootnote, compatibleWithTraitCollection: traitCollection)
+        label.font = WMFFont.for(.mediumFootnote, compatibleWith: traitCollection)
         label.adjustsFontForContentSizeCategory = true
         label.accessibilityTraits = [.header]
         return label
@@ -20,7 +20,7 @@ final class TalkPageHeaderView: SetupView {
         let label = UILabel()
         label.translatesAutoresizingMaskIntoConstraints = false
         label.numberOfLines = 4
-        label.font = UIFont.wmf_font(.boldTitle1, compatibleWithTraitCollection: traitCollection)
+        label.font = WMFFont.for(.boldTitle1, compatibleWith: traitCollection)
         label.adjustsFontForContentSizeCategory = true
         label.accessibilityTraits = [.header]
         return label
@@ -30,7 +30,7 @@ final class TalkPageHeaderView: SetupView {
         let label = UILabel()
         label.translatesAutoresizingMaskIntoConstraints = false
         label.numberOfLines = 3
-        label.font = UIFont.wmf_font(.footnote)
+        label.font = WMFFont.for(.footnote, compatibleWith: traitCollection)
         label.adjustsFontForContentSizeCategory = true
         return label
     }()
@@ -117,7 +117,7 @@ final class TalkPageHeaderView: SetupView {
         label.numberOfLines = 1
         label.textAlignment = .center
         label.baselineAdjustment = .alignCenters
-        label.font = UIFont.wmf_font(.mediumCaption2)
+        label.font = WMFFont.for(.boldCaption1, compatibleWith: traitCollection)
         label.adjustsFontForContentSizeCategory = true
         label.isAccessibilityElement = false
         return label
@@ -145,7 +145,7 @@ final class TalkPageHeaderView: SetupView {
         let label = UILabel()
         label.translatesAutoresizingMaskIntoConstraints = false
         label.numberOfLines = 2
-        label.font = UIFont.wmf_font(.body)
+        label.font = WMFFont.for(.callout, compatibleWith: traitCollection)
         label.adjustsFontForContentSizeCategory = true
         return label
     }()
@@ -154,7 +154,7 @@ final class TalkPageHeaderView: SetupView {
         let button = UIButton()
         button.translatesAutoresizingMaskIntoConstraints = false
         button.contentHorizontalAlignment = .trailing
-        button.titleLabel?.font = UIFont.wmf_scaledSystemFont(forTextStyle: .body, weight: .medium, size: 15)
+        button.titleLabel?.font = WMFFont.for(.boldCallout, compatibleWith: traitCollection)
         button.titleLabel?.adjustsFontForContentSizeCategory = true
         return button
     }()
@@ -326,7 +326,7 @@ final class TalkPageHeaderView: SetupView {
         
         if let leadImageURL = viewModel.leadImageURL {
             imageView.wmf_setImage(with: leadImageURL, detectFaces: true, onGPU: true, failure: { (error) in
-                DDLogError("Failure loading talk page header image: \(error)")
+                DDLogWarn("Failure loading talk page header image: \(error)")
             }, success: { [weak self] in
                 self?.imageView.isHidden = false
             })
@@ -338,10 +338,10 @@ final class TalkPageHeaderView: SetupView {
     }
 
     func updateLabelFonts() {
-        typeLabel.font = UIFont.wmf_font(.semiboldFootnote, compatibleWithTraitCollection: traitCollection)
-        titleLabel.font = UIFont.wmf_font(.boldTitle1, compatibleWithTraitCollection: traitCollection)
-        projectLanguageLabel.font = UIFont.wmf_font(.mediumCaption2, compatibleWithTraitCollection: traitCollection)
-        
+        typeLabel.font = WMFFont.for(.mediumFootnote, compatibleWith: traitCollection)
+        titleLabel.font = WMFFont.for(.boldTitle1, compatibleWith: traitCollection)
+        projectLanguageLabel.font = WMFFont.for(.boldCaption1, compatibleWith: traitCollection)
+
         updateCoffeeRollText()
     }
     
@@ -353,12 +353,14 @@ final class TalkPageHeaderView: SetupView {
         }
         
         let theme = viewModel.theme
-        
-        let coffeeRollAttributedText: NSMutableAttributedString = coffeeRollText.byAttributingHTML(with: .callout, boldWeight: .semibold, matching: traitCollection, color: theme.colors.primaryText, linkColor: theme.colors.link, handlingLists: true, handlingSuperSubscripts: true, tagMapping: ["a": "b"])
-        
+
+        let styles = HtmlUtils.Styles(font: WMFFont.for(.callout, compatibleWith: traitCollection), boldFont: WMFFont.for(.boldCallout, compatibleWith: traitCollection), italicsFont: WMFFont.for(.italicCallout, compatibleWith: traitCollection), boldItalicsFont: WMFFont.for(.boldItalicCallout, compatibleWith: traitCollection), color: theme.colors.primaryText, linkColor: nil, lineSpacing: 1)
+
+        let coffeeRollAttributedText = NSMutableAttributedString.mutableAttributedStringFromHtml(coffeeRollText, styles: styles)
+
         coffeeRollLabel.attributedText = coffeeRollAttributedText.removingInitialNewlineCharacters()
     }
-    
+
     private func updateSemanticContentAttribute(_ semanticContentAttribute: UISemanticContentAttribute) {
         self.semanticContentAttribute = semanticContentAttribute
         typeLabel.semanticContentAttribute = semanticContentAttribute
@@ -398,22 +400,7 @@ extension TalkPageHeaderView: Themeable {
         projectLanguageLabel.textColor = theme.colors.secondaryText
         projectLanguageLabelContainer.layer.borderColor = theme.colors.secondaryText.cgColor
 
-        // TODO: Replace these once new theme colors are added/refreshed in the app
-        let coffeeRollContainerBackground: UIColor!
-        switch theme {
-        case .light:
-            coffeeRollContainerBackground = UIColor.wmf_colorWithHex(0xF8F1E3)
-        case .sepia:
-            coffeeRollContainerBackground = UIColor.wmf_colorWithHex(0xE1DAD1)
-        case .dark:
-            coffeeRollContainerBackground = UIColor.wmf_colorWithHex(0x101418)
-        case .black:
-            coffeeRollContainerBackground = UIColor.wmf_colorWithHex(0x101418)
-        default:
-            coffeeRollContainerBackground = UIColor.wmf_colorWithHex(0xF8F1E3)
-        }
-        coffeeRollContainer.backgroundColor = coffeeRollContainerBackground
-
+        coffeeRollContainer.backgroundColor = theme.colors.talkPageCoffeRollBackground
         coffeeRollSeparator.backgroundColor = theme.colors.tertiaryText
         coffeeRollReadMoreButton.setTitleColor(theme.colors.link, for: .normal)
         updateCoffeeRollText()

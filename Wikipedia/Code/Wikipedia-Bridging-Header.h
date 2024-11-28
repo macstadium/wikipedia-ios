@@ -1,6 +1,7 @@
 #import <WMF/WMF.h> // without this, compilation fails with Abort trap: 6
 
 #import "WMFAppViewController.h"
+#import "UIApplicationShortcutItem+WMFShortcutItem.h"
 
 #import "RMessage.h"
 #import "RMessageView.h"
@@ -23,7 +24,6 @@
 #import "WMFWebView.h"
 
 #import "WikiTextSectionUploader.h"
-#import "WMFShareFunnel.h"
 #import "WMFLanguagesViewControllerDelegate.h"
 
 // Model
@@ -41,8 +41,8 @@
 #import "WMFSettingsViewController.h"
 #import "WMFEmptyView.h"
 #import "UIViewController+WMFEmptyView.h"
-#import "UIViewController+WMFDynamicHeightPopoverMessage.h"
 #import "WMFThemeableNavigationController.h"
+#import "WMFBarButtonItemPopoverMessageViewController.h"
 #import "WMFFirstRandomViewController.h"
 #import "WMFImageGalleryViewController.h"
 
@@ -55,17 +55,9 @@
 #import "UIView+WMFSnapshotting.h"
 #import "WMFLanguageCell.h"
 #import "WMFCompassView.h"
-#import "WKWebView+ElementLocation.h"
 #import "UIScrollView+WMFContentOffsetUtils.h"
 #import "WKWebView+WMFWebViewControllerJavascript.h"
 #import "WMFRandomDiceButton.h"
-
-// Diagnostics
-#import "WMFSearchFunnel.h"
-#import "ToCInteractionFunnel.h"
-#import "WMFLoginFunnel.h"
-#import "CreateAccountFunnel.h"
-#import "SavedPagesFunnel.h"
 
 // Third Party
 #import "TUSafariActivity.h"

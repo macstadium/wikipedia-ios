@@ -18,11 +18,10 @@ class WMFLoginViewController: WMFScrollViewController, UITextFieldDelegate, WMFC
     
     public var loginSuccessCompletion: (() -> Void)?
     public var loginDismissedCompletion: (() -> Void)?
-    
-    @objc public var funnel: WMFLoginFunnel?
 
     private var startDate: Date? // to calculate time elapsed between login start and login success
     
+    var category: EventCategoryMEP?
     fileprivate var theme: Theme = Theme.standard
     
     fileprivate lazy var captchaViewController: WMFCaptchaViewController? = WMFCaptchaViewController.wmf_initialViewControllerFromClassStoryboard()
@@ -172,10 +171,9 @@ class WMFLoginViewController: WMFScrollViewController, UITextFieldDelegate, WMFC
                 self.loginSuccessCompletion?()
                 self.setViewControllerUserInteraction(enabled: true)
                 self.dismiss(animated: true)
-                self.funnel?.logSuccess()
 
                 if let start = self.startDate {
-                    LoginFunnel.shared.logSuccess(timeElapsed: fabs(start.timeIntervalSinceNow))
+                    LoginFunnel.shared.logSuccess(category: self.category, timeElapsed: fabs(start.timeIntervalSinceNow))
                 } else {
                     assertionFailure("startDate is nil; startDate is required to calculate timeElapsed")
                 }
@@ -201,7 +199,6 @@ class WMFLoginViewController: WMFScrollViewController, UITextFieldDelegate, WMFC
                         self.passwordAlertLabel.isHidden = false
                         self.passwordField.textColor = self.theme.colors.error
                         self.passwordField.keyboardAppearance = self.theme.keyboardAppearance
-                        self.funnel?.logError(error.localizedDescription)
                         WMFAlertManager.sharedInstance.dismissAlert()
                         return
                     default: break
@@ -210,9 +207,6 @@ class WMFLoginViewController: WMFScrollViewController, UITextFieldDelegate, WMFC
 
                 self.enableProgressiveButtonIfNecessary()
                 WMFAlertManager.sharedInstance.showErrorAlert(error as NSError, sticky: true, dismissPreviousAlerts: true, tapCallBack: nil)
-                self.funnel?.logError(error.localizedDescription)
-            default:
-                break
             }
         }
     }
@@ -274,13 +268,12 @@ class WMFLoginViewController: WMFScrollViewController, UITextFieldDelegate, WMFC
             assertionFailure("Expected view controller(s) not found")
             return
         }
+        createAcctVC.category = category
         createAcctVC.apply(theme: theme)
-        funnel?.logCreateAccountAttempt()
-        LoginFunnel.shared.logCreateAccountAttempt()
+        LoginFunnel.shared.logCreateAccountAttempt(category: category)
         dismiss(animated: true, completion: {
-            createAcctVC.funnel = CreateAccountFunnel()
-            createAcctVC.funnel?.logStart(fromLogin: self.funnel?.loginSessionToken)
             let navigationController = WMFThemeableNavigationController(rootViewController: createAcctVC, theme: self.theme, style: .sheet)
+            createAcctVC.category = self.category
             presenter.present(navigationController, animated: true, completion: nil)
         })
     }
@@ -289,7 +282,6 @@ class WMFLoginViewController: WMFScrollViewController, UITextFieldDelegate, WMFC
         let captchaFailure: WMFErrorHandler = {error in
             DispatchQueue.main.async {
                 WMFAlertManager.sharedInstance.showErrorAlert(error as NSError, sticky: true, dismissPreviousAlerts: true, tapCallBack: nil)
-                self.funnel?.logError(error.localizedDescription)
             }
         }
         let siteURL = dataStore.primarySiteURL

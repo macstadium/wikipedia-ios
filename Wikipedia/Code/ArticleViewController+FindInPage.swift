@@ -56,6 +56,7 @@ extension ArticleViewController {
         view.delegate = self
         view.apply(theme: theme)
         findInPage.view = view
+        NavigationEventsFunnel.shared.logEvent(action: .articleToolbarSearchSuccess)
     }
     
     func showFindInPage() {
@@ -70,6 +71,10 @@ extension ArticleViewController {
             self.resignFirstResponder()
             completion?()
         }
+
+        self.findInPage.view?.removeFromSuperview()
+        self.view.layoutSubviews()
+        self.findInPage.view = nil
     }
 
     func resetFindInPage(_ completion: (() -> Void)? = nil) {
@@ -82,7 +87,7 @@ extension ArticleViewController {
             }
         })
     }
-    
+
     func scrollToAndFocusOnFirstFindInPageMatch() {
         findInPage.selectedIndex = -1
         keyboardBarDidTapNext(findInPage.view)

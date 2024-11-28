@@ -1,12 +1,13 @@
-import UIKit
+import WMFComponents
 
 class ActionButton: SetupButton {
     
-    var titleLabelFont = DynamicTextStyle.semiboldSubheadline
-    
+    var titleLabelFont = WMFFont.mediumSubheadline
+
     override func setup() {
         super.setup()
-        contentEdgeInsets = UIEdgeInsets(top: layoutMargins.top + 1, left: layoutMargins.left + 7, bottom: layoutMargins.bottom + 1, right: layoutMargins.right + 7)
+        var deprecatedSelf = self as DeprecatedButton
+        deprecatedSelf.deprecatedContentEdgeInsets = UIEdgeInsets(top: layoutMargins.top + 1, left: layoutMargins.left + 7, bottom: layoutMargins.bottom + 1, right: layoutMargins.right + 7)
         titleLabel?.numberOfLines = 0
         updateFonts(with: traitCollection)
     }
@@ -21,16 +22,16 @@ class ActionButton: SetupButton {
     
     var contentSizeCategory: UIContentSizeCategory?
     fileprivate func maybeUpdateFonts(with traitCollection: UITraitCollection) {
-        guard contentSizeCategory == nil || contentSizeCategory != traitCollection.wmf_preferredContentSizeCategory else {
+        guard contentSizeCategory == nil || contentSizeCategory != traitCollection.preferredContentSizeCategory else {
             return
         }
-        contentSizeCategory = traitCollection.wmf_preferredContentSizeCategory
+        contentSizeCategory = traitCollection.preferredContentSizeCategory
         updateFonts(with: traitCollection)
     }
     
     // Override this method and call super
     open func updateFonts(with traitCollection: UITraitCollection) {
-        titleLabel?.font = UIFont.wmf_font(titleLabelFont, compatibleWithTraitCollection: traitCollection)
+        titleLabel?.font = WMFFont.for(titleLabelFont, compatibleWith: traitCollection)
     }
 }
 

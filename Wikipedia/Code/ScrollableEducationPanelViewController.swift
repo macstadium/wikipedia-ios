@@ -1,6 +1,7 @@
-import UIKit
+import WMFComponents
+import WMF
 
-typealias ScrollableEducationPanelButtonTapHandler = ((_ sender: Any) -> Void)
+typealias ScrollableEducationPanelButtonTapHandler = ((_ button: UIButton, _ viewController: UIViewController) -> Void)
 typealias ScrollableEducationPanelDismissHandler = (() -> Void)
 typealias ScrollableEducationPanelTraceableDismissHandler = ((ScrollableEducationPanelViewController.LastAction) -> Void)
 
@@ -34,15 +35,32 @@ class ScrollableEducationPanelViewController: UIViewController, Themeable {
     enum LastAction {
         case tappedPrimary
         case tappedSecondary
+        case tappedOptional
         case tappedClose
         case tappedBackground
         case none
     }
+
     
-    @IBOutlet fileprivate weak var closeButton: UIButton!
+    /// Enum for customizing button styles
+    /// `legacyStyle` stands for the default apperance
+    /// `updatedStyle` stands for the component-like style
+    enum ButtonStyle {
+        case legacyStyle
+        case updatedStyle
+    }
+
+    @IBOutlet fileprivate weak var inlineCloseButton: UIButton!
+    @IBOutlet fileprivate weak var pinnedCloseButton: UIButton!
     @IBOutlet fileprivate weak var imageView: UIImageView!
     @IBOutlet fileprivate weak var headingLabel: UILabel!
-    @IBOutlet fileprivate weak var subheadingTextView: UITextView!
+    @IBOutlet weak var subheadingTextView: UITextView!
+    
+    @IBOutlet weak var inlineActionButtonContainerView: UIView!
+    @IBOutlet weak var inlineCloseButtonStackView: UIStackView!
+    @IBOutlet weak var pinnedCloseButtonContainerView: UIView!
+    @IBOutlet weak var pinnedActionButtonContainerView: UIView!
+    @IBOutlet weak var pinnedCloseButtonStackView: UIStackView!
     
     // use as an indication of what triggered a dismissal
     private var lastAction: LastAction = .none
@@ -56,44 +74,59 @@ class ScrollableEducationPanelViewController: UIViewController, Themeable {
         }
     }
     
+    @IBOutlet weak var containerStackViewBottomConstraint: NSLayoutConstraint!
+    
     @IBOutlet var subheadingBottomConstraint: NSLayoutConstraint! {
        didSet {
            subheadingBottomConstraint.constant = originalSubheadingBottomConstraint
        }
     }
     
-    @IBOutlet fileprivate weak var primaryButton: AutoLayoutSafeMultiLineButton!
-    @IBOutlet fileprivate weak var secondaryButton: AutoLayoutSafeMultiLineButton!
+    @IBOutlet fileprivate weak var inlinePrimaryButton: AutoLayoutSafeMultiLineButton!
+    @IBOutlet weak var inlinePrimaryButtonSpinner: UIActivityIndicatorView!
+    @IBOutlet fileprivate weak var pinnedPrimaryButton: AutoLayoutSafeMultiLineButton!
+    @IBOutlet fileprivate weak var inlineSecondaryButton: AutoLayoutSafeMultiLineButton!
+    @IBOutlet fileprivate weak var pinnedSecondaryButton: AutoLayoutSafeMultiLineButton!
     @IBOutlet fileprivate weak var footerTextView: UITextView!
 
-    @IBOutlet fileprivate weak var scrollViewContainer: UIView!
-    @IBOutlet fileprivate weak var stackView: UIStackView!
-    @IBOutlet fileprivate weak var roundedCornerContainer: UIView!
+    @IBOutlet fileprivate weak var inlineOptionalButton: AutoLayoutSafeMultiLineButton!
 
+    @IBOutlet private(set) weak var scrollView: UIScrollView!
+    @IBOutlet fileprivate weak var scrollViewContainer: UIView!
+    @IBOutlet fileprivate weak var roundedCornerContainer: UIView!
+    
+    @IBOutlet weak var gradientViewBottomConstraint: NSLayoutConstraint!
+    @IBOutlet weak var gradientViewTopConstraint: NSLayoutConstraint!
+    @IBOutlet weak var gradientView: ScrollViewGradientView!
+    
     fileprivate var primaryButtonTapHandler: ScrollableEducationPanelButtonTapHandler?
     fileprivate var secondaryButtonTapHandler: ScrollableEducationPanelButtonTapHandler?
-    
+    fileprivate var optionalButtonTapHandler: ScrollableEducationPanelButtonTapHandler?
+
     // traceableDismissHandler takes priority if it's populated. It will pass back a LastAction indicating the action that triggered the dismissal, for the caller to react with.
     fileprivate var dismissHandler: ScrollableEducationPanelDismissHandler?
     fileprivate var traceableDismissHandler: ScrollableEducationPanelTraceableDismissHandler?
     
     fileprivate var showCloseButton = true
+    fileprivate var buttonStyle: ButtonStyle = .legacyStyle
+    private(set) public var showOptionalButton = false
     private var discardDismissHandlerOnPrimaryButtonTap = false
     private var primaryButtonTapped = false
     var theme: Theme = Theme.standard
 
+    @IBOutlet weak var imageHeightConstraint: NSLayoutConstraint!
     @IBOutlet private var widthConstraint: NSLayoutConstraint!
     @IBOutlet private var buttonTopSpacingConstraint: NSLayoutConstraint!
-    @IBOutlet private var stackViewLeadingConstraint: NSLayoutConstraint!
-    @IBOutlet private var stackViewTrailingConstraint: NSLayoutConstraint!
+    @IBOutlet weak var contentStackView: UIStackView!
 
+    @IBOutlet weak var separatorView: UIView!
     var width: CGFloat = 280 {
         didSet {
             widthConstraint.constant = width
         }
     }
     
-    var image:UIImage? {
+    var image: UIImage? {
         get {
             return imageView.image
         }
@@ -138,27 +171,39 @@ class ScrollableEducationPanelViewController: UIViewController, Themeable {
 
     var contentHorizontalPadding: CGFloat = 15 {
         didSet {
-            stackViewLeadingConstraint.constant = contentHorizontalPadding
-            stackViewTrailingConstraint.constant = contentHorizontalPadding
+            let oldLayoutMargins = contentStackView.directionalLayoutMargins
+            contentStackView.directionalLayoutMargins = NSDirectionalEdgeInsets(top: oldLayoutMargins.top, leading: contentHorizontalPadding, bottom: oldLayoutMargins.bottom, trailing: contentHorizontalPadding)
         }
     }
 
     var primaryButtonTitle:String? {
         get {
-            return primaryButton.title(for: .normal)
+            return inlinePrimaryButton.title(for: .normal)
         }
         set {
-            primaryButton.setTitle(newValue, for: .normal)
+            inlinePrimaryButton.setTitle(newValue, for: .normal)
+            pinnedPrimaryButton.setTitle(newValue, for: .normal)
             view.setNeedsLayout()
         }
     }
 
     var secondaryButtonTitle:String? {
         get {
-            return secondaryButton.title(for: .normal)
+            return inlineSecondaryButton.title(for: .normal)
         }
         set {
-            secondaryButton.setTitle(newValue, for: .normal)
+            inlineSecondaryButton.setTitle(newValue, for: .normal)
+            pinnedSecondaryButton.setTitle(newValue, for: .normal)
+            view.setNeedsLayout()
+        }
+    }
+
+    var optionalButtonTitle: String? {
+        get {
+            return inlineOptionalButton.title(for: .normal)
+        }
+        set {
+            inlineOptionalButton.setTitle(newValue, for: .normal)
             view.setNeedsLayout()
         }
     }
@@ -178,6 +223,21 @@ class ScrollableEducationPanelViewController: UIViewController, Themeable {
             updateFooterHTML()
         }
     }
+    
+    var isLoading: Bool = false {
+        didSet {
+            if isLoading {
+                inlinePrimaryButtonSpinner.startAnimating()
+                inlinePrimaryButtonSpinner.isHidden = false
+                inlinePrimaryButton.titleLabel?.alpha = 0
+            } else {
+                inlinePrimaryButtonSpinner.stopAnimating()
+                inlinePrimaryButton.titleLabel?.alpha = 1
+                inlinePrimaryButtonSpinner.isHidden = true
+            }
+            
+        }
+    }
 
     var footerLinkAction: ((URL) -> Void)? = nil
     var subheadingLinkAction: ((URL) -> Void)? = nil
@@ -194,32 +254,19 @@ class ScrollableEducationPanelViewController: UIViewController, Themeable {
             subheadingTextView.attributedText = nil
             return
         }
-        
-        let attributedText = subheadingHTML.byAttributingHTML(with: .subheadline,
-                                                                    boldWeight: .bold,
-                                                                    matching: traitCollection,
-                                                                    color: theme.colors.primaryText,
-                                                                    handlingLinks: true,
-                                                                    linkColor: theme.colors.link,
-                                                                    tagMapping: ["em": "i"], // em tags are generally italicized by default, match this behavior)
-                                                                    additionalTagAttributes: [
-                                                                        "u": [
-                                                                          NSAttributedString.Key.underlineColor: theme.colors.error,
-                                                                          NSAttributedString.Key.underlineStyle: NSNumber(value: NSUnderlineStyle.single.rawValue)
-                                                                        ],
-                                                                        "strong": [
-                                                                          NSAttributedString.Key.foregroundColor: theme.colors.primaryText
-                                                                        ]
-                                                                    ])
-        
+
+        let styles = HtmlUtils.Styles(font: WMFFont.for(.subheadline, compatibleWith: traitCollection), boldFont: WMFFont.for(.boldSubheadline, compatibleWith: traitCollection), italicsFont: WMFFont.for(.italicSubheadline, compatibleWith: traitCollection), boldItalicsFont: WMFFont.for(.boldItalicSubheadline, compatibleWith: traitCollection), color: theme.colors.primaryText, linkColor: theme.colors.link, lineSpacing: 1)
+
+        let attributedText =  NSMutableAttributedString.mutableAttributedStringFromHtml(subheadingHTML, styles: styles)
         var attributes: [NSAttributedString.Key : Any] = [:]
         if let subheadingParagraphStyle = subheadingParagraphStyle {
             attributes[NSAttributedString.Key.paragraphStyle] = subheadingParagraphStyle
         }
         attributedText.addAttributes(attributes, range: NSRange(location: 0, length: attributedText.length))
         
-        subheadingTextView.attributedText = attributedText.removingRepetitiveNewlineCharacters()
+        subheadingTextView.attributedText = attributedText.removingInitialNewlineCharacters().removingRepetitiveNewlineCharacters()
         subheadingTextView.linkTextAttributes = [.foregroundColor: theme.colors.link]
+        subheadingTextView.tintColor = theme.colors.link
     }
     
     var footerParagraphStyle: NSParagraphStyle? {
@@ -234,7 +281,8 @@ class ScrollableEducationPanelViewController: UIViewController, Themeable {
             footerTextView.attributedText = nil
             return
         }
-        let attributedText = footerHTML.byAttributingHTML(with: .footnote, matching: traitCollection, color: footerTextView.textColor)
+        let styles = HtmlUtils.Styles(font: WMFFont.for(.footnote, compatibleWith: traitCollection), boldFont: WMFFont.for(.boldFootnote, compatibleWith: traitCollection), italicsFont: WMFFont.for(.italicFootnote, compatibleWith: traitCollection), boldItalicsFont: WMFFont.for(.boldItalicFootnote, compatibleWith: traitCollection), color: theme.colors.primaryText, linkColor: theme.colors.link, lineSpacing: 1)
+        let attributedText = NSMutableAttributedString.mutableAttributedStringFromHtml(footerHTML, styles: styles)
         let pStyle = NSMutableParagraphStyle()
         pStyle.lineBreakMode = .byWordWrapping
         pStyle.baseWritingDirection = .natural
@@ -244,24 +292,29 @@ class ScrollableEducationPanelViewController: UIViewController, Themeable {
         }
         attributedText.addAttributes(attributes, range: NSRange(location: 0, length: attributedText.length))
         footerTextView.attributedText = attributedText
+        footerTextView.linkTextAttributes = [NSAttributedString.Key.foregroundColor: theme.colors.link]
+        footerTextView.textContainerInset = .zero
     }
 
     var primaryButtonBorderWidth: CGFloat = 0 {
         didSet {
-            primaryButton?.layer.borderWidth = primaryButtonBorderWidth
+            inlinePrimaryButton?.layer.borderWidth = primaryButtonBorderWidth
         }
     }
     
     var isUrgent: Bool = false
+    private let hasPinnedButtons: Bool
+    
     var spacing: CGFloat = 14 {
         didSet {
-            stackView.spacing = spacing
+            contentStackView.spacing = spacing
         }
     }
 
     var buttonCornerRadius: CGFloat = 5 {
         didSet {
-            primaryButton.cornerRadius = buttonCornerRadius
+            inlinePrimaryButton.cornerRadius = buttonCornerRadius
+            pinnedPrimaryButton.cornerRadius = buttonCornerRadius
         }
     }
 
@@ -273,11 +326,15 @@ class ScrollableEducationPanelViewController: UIViewController, Themeable {
 
     var primaryButtonTitleEdgeInsets: UIEdgeInsets = UIEdgeInsets(top: 10, left: 14, bottom: 10, right: 14) {
         didSet {
-            primaryButton.titleEdgeInsets = primaryButtonTitleEdgeInsets
+            var deprecatedInlinePrimaryButton = inlinePrimaryButton as DeprecatedButton
+            var deprecatedPinnedPrimaryButton = pinnedPrimaryButton as DeprecatedButton
+            deprecatedInlinePrimaryButton.deprecatedTitleEdgeInsets = primaryButtonTitleEdgeInsets
+            deprecatedPinnedPrimaryButton.deprecatedTitleEdgeInsets = primaryButtonTitleEdgeInsets
         }
     }
 
-    init(showCloseButton: Bool, primaryButtonTapHandler: ScrollableEducationPanelButtonTapHandler?, secondaryButtonTapHandler: ScrollableEducationPanelButtonTapHandler?, dismissHandler: ScrollableEducationPanelDismissHandler?, discardDismissHandlerOnPrimaryButtonTap: Bool = false, theme: Theme) {
+    init(showCloseButton: Bool, primaryButtonTapHandler: ScrollableEducationPanelButtonTapHandler?, secondaryButtonTapHandler: ScrollableEducationPanelButtonTapHandler?, dismissHandler: ScrollableEducationPanelDismissHandler?, discardDismissHandlerOnPrimaryButtonTap: Bool = false, hasPinnedButtons: Bool = false, theme: Theme) {
+        self.hasPinnedButtons = hasPinnedButtons
         super.init(nibName: "ScrollableEducationPanelView", bundle: nil)
         self.modalPresentationStyle = .overFullScreen
         self.modalTransitionStyle = .crossDissolve
@@ -289,14 +346,18 @@ class ScrollableEducationPanelViewController: UIViewController, Themeable {
         self.discardDismissHandlerOnPrimaryButtonTap = discardDismissHandlerOnPrimaryButtonTap
     }
     
-    init(showCloseButton: Bool, primaryButtonTapHandler: ScrollableEducationPanelButtonTapHandler?, secondaryButtonTapHandler: ScrollableEducationPanelButtonTapHandler?, traceableDismissHandler: ScrollableEducationPanelTraceableDismissHandler?, discardDismissHandlerOnPrimaryButtonTap: Bool = false, theme: Theme) {
+    init(showCloseButton: Bool, showOptionalButton: Bool = false, buttonStyle: ButtonStyle = .legacyStyle, primaryButtonTapHandler: ScrollableEducationPanelButtonTapHandler?, secondaryButtonTapHandler: ScrollableEducationPanelButtonTapHandler?, optionalButtonTapHandler: ScrollableEducationPanelButtonTapHandler? = nil,traceableDismissHandler: ScrollableEducationPanelTraceableDismissHandler?, discardDismissHandlerOnPrimaryButtonTap: Bool = false, hasPinnedButtons: Bool = false, theme: Theme) {
+        self.hasPinnedButtons = hasPinnedButtons
         super.init(nibName: "ScrollableEducationPanelView", bundle: nil)
         self.modalPresentationStyle = .overFullScreen
         self.modalTransitionStyle = .crossDissolve
         self.theme = theme
         self.showCloseButton = showCloseButton
+        self.showOptionalButton = showOptionalButton
+        self.buttonStyle = buttonStyle
         self.primaryButtonTapHandler = primaryButtonTapHandler
         self.secondaryButtonTapHandler = secondaryButtonTapHandler
+        self.optionalButtonTapHandler = optionalButtonTapHandler
         self.traceableDismissHandler = traceableDismissHandler
         self.discardDismissHandlerOnPrimaryButtonTap = discardDismissHandlerOnPrimaryButtonTap
     }
@@ -307,28 +368,62 @@ class ScrollableEducationPanelViewController: UIViewController, Themeable {
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        assert(stackView.wmf_firstArrangedSubviewWithRequiredNonZeroHeightConstraint() == nil, stackView.wmf_anArrangedSubviewHasRequiredNonZeroHeightConstraintAssertString())
+        assert(contentStackView.wmf_firstArrangedSubviewWithRequiredNonZeroHeightConstraint() == nil, contentStackView.wmf_anArrangedSubviewHasRequiredNonZeroHeightConstraintAssertString())
         
         reset()
         
-        primaryButton.titleLabel?.textAlignment = .center
-        secondaryButton.titleLabel?.textAlignment = .center
-        
-        closeButton.isHidden = !showCloseButton
+        inlinePrimaryButton.titleLabel?.textAlignment = .center
+        pinnedPrimaryButton.titleLabel?.textAlignment = .center
+        inlineSecondaryButton.titleLabel?.textAlignment = .center
+        pinnedSecondaryButton.titleLabel?.textAlignment = .center
+        inlineOptionalButton.titleLabel?.textAlignment = .center
+
+        inlineCloseButton.isHidden = !showCloseButton
+        pinnedCloseButton.isHidden = !showCloseButton
+        inlineOptionalButton.isHidden = !showOptionalButton
+        separatorView.isHidden = buttonStyle == .legacyStyle ? true : false
         [self.view, self.roundedCornerContainer].forEach {view in
             view.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(self.overlayTapped(_:))))
         }
         
-        closeButton.setImage(UIImage(named:"places-auth-close")?.withRenderingMode(.alwaysTemplate), for: .normal)
-        closeButton.accessibilityLabel = CommonStrings.closeButtonAccessibilityLabel
+        inlineCloseButton.setImage(UIImage(named:"places-auth-close")?.withRenderingMode(.alwaysTemplate), for: .normal)
+        inlineCloseButton.accessibilityLabel = CommonStrings.closeButtonAccessibilityLabel
+        pinnedCloseButton.setImage(UIImage(named:"places-auth-close")?.withRenderingMode(.alwaysTemplate), for: .normal)
+        pinnedCloseButton.accessibilityLabel = CommonStrings.closeButtonAccessibilityLabel
 
         updateFonts()
 
-        stackView.spacing = spacing
+        contentStackView.spacing = spacing
 
         footerTextView.delegate = self
         subheadingTextView.delegate = self
         
+        if hasPinnedButtons {
+            inlineCloseButtonStackView.alpha = 0
+            inlineActionButtonContainerView.alpha = 0
+            pinnedCloseButtonContainerView.alpha = 1
+            pinnedActionButtonContainerView.alpha = 1
+        } else {
+            inlineCloseButtonStackView.alpha = 1
+            inlineActionButtonContainerView.alpha = 1
+            pinnedCloseButtonContainerView.alpha = 0
+            pinnedActionButtonContainerView.alpha = 0
+        }
+
+        if buttonStyle == .updatedStyle {
+            inlineCloseButtonStackView.alignment = .trailing
+            inlineCloseButton.isHidden = false
+
+            let image = UIImage(systemName: "xmark.circle.fill")?.withTintColor(theme.colors.secondaryText, renderingMode: .alwaysOriginal)
+            let button = UIButton(type: .system)
+            button.setImage(image, for: .normal)
+            inlineCloseButton.setImage(image, for: .normal)
+            inlineCloseButtonStackView.layoutMargins = UIEdgeInsets(top: 0, left: 20, bottom: 0, right: 20)
+            inlineCloseButtonStackView.isLayoutMarginsRelativeArrangement = true
+        }
+        
+        inlinePrimaryButtonSpinner.isHidden = true
+
         apply(theme: theme)
     }
 
@@ -346,8 +441,10 @@ class ScrollableEducationPanelViewController: UIViewController, Themeable {
         imageView.image = nil
         headingLabel.text = nil
         subheadingTextView.attributedText = nil
-        primaryButton.setTitle(nil, for: .normal)
-        secondaryButton.setTitle(nil, for: .normal)
+        inlinePrimaryButton.setTitle(nil, for: .normal)
+        pinnedPrimaryButton.setTitle(nil, for: .normal)
+        inlineSecondaryButton.setTitle(nil, for: .normal)
+        pinnedSecondaryButton.setTitle(nil, for: .normal)
         footerTextView.text = nil
     }
     
@@ -369,14 +466,31 @@ class ScrollableEducationPanelViewController: UIViewController, Themeable {
         updateFonts()
     }
 
-    var secondaryButtonTextStyle: DynamicTextStyle = .semiboldFootnote {
+    var secondaryButtonTextStyle: WMFFont = .mediumFootnote {
+        didSet {
+            updateFonts()
+        }
+    }
+
+    var optionalButtonTextStyle: WMFFont = .boldSubheadline {
         didSet {
             updateFonts()
         }
     }
 
     private func updateFonts() {
-        secondaryButton.titleLabel?.font = UIFont.wmf_font(secondaryButtonTextStyle, compatibleWithTraitCollection: traitCollection)
+
+        switch buttonStyle {
+        case .legacyStyle:
+            inlineSecondaryButton.titleLabel?.font = WMFFont.for(secondaryButtonTextStyle, compatibleWith: traitCollection)
+            pinnedSecondaryButton.titleLabel?.font = WMFFont.for(secondaryButtonTextStyle, compatibleWith: traitCollection)
+
+            inlineOptionalButton.titleLabel?.font = WMFFont.for(secondaryButtonTextStyle, compatibleWith: traitCollection)
+        case .updatedStyle:
+            inlinePrimaryButton.titleLabel?.font = WMFFont.for(optionalButtonTextStyle, compatibleWith: traitCollection)
+            inlineSecondaryButton.titleLabel?.font = WMFFont.for(optionalButtonTextStyle, compatibleWith: traitCollection)
+            inlineOptionalButton.titleLabel?.font = WMFFont.for(optionalButtonTextStyle, compatibleWith: traitCollection)
+        }
     }
     
     fileprivate func adjustImageViewVisibility(for verticalSizeClass: UIUserInterfaceSizeClass) {
@@ -390,8 +504,10 @@ class ScrollableEducationPanelViewController: UIViewController, Themeable {
         headingLabel.isHidden = !headingLabel.wmf_hasAnyNonWhitespaceText
         subheadingTextView.isHidden = !subheadingTextView.wmf_hasAnyNonWhitespaceText
         footerTextView.isHidden = !footerTextView.wmf_hasAnyNonWhitespaceText
-        primaryButton.isHidden = !primaryButton.wmf_hasAnyNonWhitespaceText
-        secondaryButton.isHidden = !secondaryButton.wmf_hasAnyNonWhitespaceText
+        inlinePrimaryButton.isHidden = !inlinePrimaryButton.wmf_hasAnyNonWhitespaceText
+        pinnedPrimaryButton.isHidden = !pinnedPrimaryButton.wmf_hasAnyNonWhitespaceText
+        inlineSecondaryButton.isHidden = !inlineSecondaryButton.wmf_hasAnyNonWhitespaceText
+        pinnedSecondaryButton.isHidden = !inlineSecondaryButton.wmf_hasAnyNonWhitespaceText
     }
     
     @IBAction fileprivate func close(_ sender: Any) {
@@ -399,22 +515,31 @@ class ScrollableEducationPanelViewController: UIViewController, Themeable {
         dismiss(animated: true, completion: nil)
     }
     
-    @IBAction fileprivate func primaryButtonTapped(_ sender: Any) {
+    @IBAction fileprivate func primaryButtonTapped(_ button: UIButton) {
         lastAction = .tappedPrimary
         guard let primaryButtonTapHandler = primaryButtonTapHandler else {
             return
         }
         primaryButtonTapped = true
-        primaryButtonTapHandler(sender)
+        primaryButtonTapHandler(button, self)
     }
 
-    @IBAction fileprivate func secondaryButtonTapped(_ sender: Any) {
+    @IBAction fileprivate func secondaryButtonTapped(_ button: UIButton) {
         lastAction = .tappedSecondary
         guard let secondaryButtonTapHandler = secondaryButtonTapHandler else {
             return
         }
-        secondaryButtonTapHandler(sender)
+        secondaryButtonTapHandler(button, self)
     }
+
+    @IBAction fileprivate func optionalButtonTapped(_ button: UIButton) {
+        lastAction = .tappedOptional
+        guard let optionalButtonTapHandler = optionalButtonTapHandler else {
+            return
+        }
+        optionalButtonTapHandler(button, self)
+    }
+
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
@@ -447,26 +572,45 @@ class ScrollableEducationPanelViewController: UIViewController, Themeable {
             return
         }
         headingLabel?.textColor = theme.colors.primaryText
-        closeButton.tintColor = theme.colors.primaryText
-        primaryButton?.tintColor = theme.colors.link
-        secondaryButton?.tintColor = theme.colors.secondaryText
-        primaryButton?.layer.borderColor = theme.colors.link.cgColor
-
-        if theme == .sepia {
-            primaryButton.backgroundColor = theme.colors.baseBackground
-        } else {
-            primaryButton.backgroundColor = theme.colors.cardButtonBackground
-        }
+        inlineCloseButton.tintColor = theme.colors.primaryText
+        pinnedCloseButton.tintColor = theme.colors.primaryText
+        inlinePrimaryButton?.tintColor = theme.colors.link
+        pinnedPrimaryButton?.tintColor = theme.colors.link
+        inlineSecondaryButton?.tintColor = theme.colors.secondaryText
+        pinnedSecondaryButton?.tintColor = theme.colors.secondaryText
+        inlinePrimaryButton?.layer.borderColor = theme.colors.link.cgColor
+        pinnedPrimaryButton?.layer.borderColor = theme.colors.link.cgColor
+        inlinePrimaryButton.backgroundColor = theme.colors.baseBackground
+        pinnedPrimaryButton.backgroundColor = theme.colors.baseBackground
+        inlineOptionalButton.backgroundColor = theme.colors.baseBackground
+        separatorView.backgroundColor = theme.colors.border.withAlphaComponent(0.2)
 
         if isUrgent {
+            gradientViewTopConstraint.constant = 3
+            gradientViewBottomConstraint.constant = -3
             roundedCornerContainer.layer.borderWidth = 3
             roundedCornerContainer.layer.borderColor = theme.colors.error.cgColor
         } else {
             roundedCornerContainer.layer.borderWidth = 0
         }
         roundedCornerContainer.backgroundColor = theme.colors.cardBackground
+        pinnedActionButtonContainerView.backgroundColor = theme.colors.cardBackground
+        pinnedCloseButtonContainerView.backgroundColor = theme.colors.cardBackground
         updateSubheadingHTML()
         updateFooterHTML()
+
+        if buttonStyle == .updatedStyle {
+            inlinePrimaryButton.backgroundColor = theme.colors.link
+            inlinePrimaryButton.setTitleColor(theme.colors.paperBackground, for: .normal)
+
+            inlineSecondaryButton.backgroundColor = .clear
+            inlineSecondaryButton.setTitleColor(theme.colors.link, for: .normal)
+
+            inlineOptionalButton.backgroundColor = .clear
+            inlineOptionalButton.setTitleColor(theme.colors.link, for: .normal)
+        }
+        
+        self.inlinePrimaryButtonSpinner.color = theme.colors.paperBackground
     }
 }
 

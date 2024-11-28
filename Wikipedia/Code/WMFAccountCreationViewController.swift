@@ -27,13 +27,14 @@ class WMFAccountCreationViewController: WMFScrollViewController, WMFCaptchaViewC
     let accountCreationInfoFetcher = WMFAuthAccountCreationInfoFetcher()
     let accountCreator = WMFAccountCreator()
     
+    var category: EventCategoryMEP?
     fileprivate var theme = Theme.standard
-    
-    public var funnel: CreateAccountFunnel?
     
     private var startDate: Date? // to calculate time elapsed between account creation start and account creation success
     
     fileprivate lazy var captchaViewController: WMFCaptchaViewController? = WMFCaptchaViewController.wmf_initialViewControllerFromClassStoryboard()
+    
+    private var checkingUsernameAvailability: Bool = false
     
     @objc func closeButtonPushed(_ : UIBarButtonItem?) {
         dismiss(animated: true, completion: nil)
@@ -118,7 +119,6 @@ class WMFAccountCreationViewController: WMFScrollViewController, WMFCaptchaViewC
             DispatchQueue.main.async {
                 self.captchaViewController?.captcha = info.captcha
                 if info.captcha != nil {
-                    self.funnel?.logCaptchaShown()
                 }
                 self.updateEmailFieldReturnKeyType()
                 self.enableProgressiveButtonIfNecessary()
@@ -223,7 +223,7 @@ class WMFAccountCreationViewController: WMFScrollViewController, WMFCaptchaViewC
                 let loggedInMessage = String.localizedStringWithFormat(WMFLocalizedString("main-menu-account-title-logged-in", value:"Logged in as %1$@", comment:"Header text used when account is logged in. %1$@ will be replaced with current username."), self.usernameField.text ?? "")
                 WMFAlertManager.sharedInstance.showSuccessAlert(loggedInMessage, sticky: false, dismissPreviousAlerts: true, tapCallBack: nil)
                 if let start = self.startDate {
-                    LoginFunnel.shared.logCreateAccountSuccess(timeElapsed: fabs(start.timeIntervalSinceNow))
+                    LoginFunnel.shared.logCreateAccountSuccess(category: self.category, timeElapsed: fabs(start.timeIntervalSinceNow))
                 } else {
                     assertionFailure("startDate is nil; startDate is required to calculate timeElapsed")
                 }
@@ -235,9 +235,6 @@ class WMFAccountCreationViewController: WMFScrollViewController, WMFCaptchaViewC
                 self.setViewControllerUserInteraction(enabled: true)
                 self.enableProgressiveButtonIfNecessary()
                 WMFAlertManager.sharedInstance.showErrorAlert(error as NSError, sticky: true, dismissPreviousAlerts: true, tapCallBack: nil)
-            default:
-                assertionFailure("Unhandled login result")
-                break
             }
         }
     }
@@ -280,7 +277,7 @@ class WMFAccountCreationViewController: WMFScrollViewController, WMFCaptchaViewC
     @IBAction func textFieldDidBeginEditing(_ textField: UITextField) {
         switch textField {
         case usernameField:
-            usernameAlertLabel.isHidden = true
+            usernameAlertLabel.text = ""
             usernameField.textColor = theme.colors.primaryText
             usernameField.keyboardAppearance = theme.keyboardAppearance
         case passwordRepeatField:
@@ -289,6 +286,33 @@ class WMFAccountCreationViewController: WMFScrollViewController, WMFCaptchaViewC
             passwordRepeatField.keyboardAppearance = theme.keyboardAppearance
         default: break
         }
+    }
+    
+    @IBAction func textFieldDidEndEditing(_ textField: UITextField, reason: UITextField.DidEndEditingReason) {
+        guard textField === usernameField, reason == .committed, let username = textField.text else { return }
+        let siteURL = dataStore.primarySiteURL!
+        
+        guard !checkingUsernameAvailability else {
+            // Already checking username availability. Returning early to prevent duplicate calls.
+            return
+        }
+        
+        checkingUsernameAvailability = true
+        
+        accountCreator.checkUsername(username, siteURL: siteURL, success: { [weak self] canCreate in
+            DispatchQueue.main.async {
+                guard let self else {
+                    return
+                }
+                self.checkingUsernameAvailability = false
+                if !canCreate {
+                    self.usernameAlertLabel.text = WMFAccountCreatorError.usernameUnavailable.localizedDescription
+                    self.usernameField.textColor = self.theme.colors.error
+                }
+            }
+        }, failure: { [weak self] error in
+            self?.checkingUsernameAvailability = false
+        })
     }
 
     fileprivate func createAccount() {
@@ -307,10 +331,8 @@ class WMFAccountCreationViewController: WMFScrollViewController, WMFCaptchaViewC
                     switch error {
                     case .usernameUnavailable:
                         self.usernameAlertLabel.text = error.localizedDescription
-                        self.usernameAlertLabel.isHidden = false
                         self.usernameField.textColor = self.theme.colors.error
                         self.usernameField.keyboardAppearance = self.theme.keyboardAppearance
-                        self.funnel?.logError(error.localizedDescription)
                         WMFAlertManager.sharedInstance.dismissAlert()
                         return
                     case .wrongCaptcha:
@@ -323,18 +345,16 @@ class WMFAccountCreationViewController: WMFScrollViewController, WMFCaptchaViewC
                         
                         WMFAlertManager.sharedInstance.dismissAlert()
                         
-                        self.wmf_showBlockedPanel(messageHtml: parsedMessage, linkBaseURL: linkBaseURL, currentTitle: "Special:CreateAccount", theme: self.theme)
+                            self.wmf_showBlockedPanel(messageHtml: parsedMessage, linkBaseURL: linkBaseURL, currentTitle: "Special:CreateAccount", theme: self.theme)
 
-                        self.funnel?.logError(error.localizedDescription)
                         self.enableProgressiveButtonIfNecessary()
                         return
                         
-                        
-                    default: break
+                    default:
+                        break
                     }
                 }
                 
-                self.funnel?.logError(error.localizedDescription)
                 self.enableProgressiveButtonIfNecessary()
                 WMFAlertManager.sharedInstance.showErrorAlert(error as NSError, sticky: true, dismissPreviousAlerts: true, tapCallBack: nil)
             }

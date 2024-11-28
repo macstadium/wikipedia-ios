@@ -1,4 +1,4 @@
-import UIKit
+import WMFComponents
 
 protocol ArticleLocationAuthorizationCollectionViewCellDelegate: AnyObject {
     func articleLocationAuthorizationCollectionViewCellDidTapAuthorize(_ cell: ArticleLocationAuthorizationCollectionViewCell)
@@ -14,7 +14,9 @@ class ArticleLocationAuthorizationCollectionViewCell: ArticleLocationExploreColl
         authorizeButton.layer.cornerRadius = 5
         authorizeButton.titleLabel?.numberOfLines = 2
         authorizeButton.titleLabel?.textAlignment = .center
-        authorizeButton.contentEdgeInsets = UIEdgeInsets(top: 10, left: 15, bottom: 10, right: 15)
+        
+        var deprecatedAuthorizeButton = authorizeButton as DeprecatedButton
+        deprecatedAuthorizeButton.deprecatedContentEdgeInsets = UIEdgeInsets(top: 10, left: 15, bottom: 10, right: 15)
         authorizeButton.addTarget(self, action: #selector(authorizeButtonPressed(_:)), for: .touchUpInside)
         addSubview(authorizeButton)
         
@@ -25,8 +27,8 @@ class ArticleLocationAuthorizationCollectionViewCell: ArticleLocationExploreColl
 
     override func updateFonts(with traitCollection: UITraitCollection) {
         super.updateFonts(with: traitCollection)
-        authorizeButton.titleLabel?.font = UIFont.wmf_font(.semiboldSubheadline, compatibleWithTraitCollection: traitCollection)
-        authorizeDescriptionLabel.font = UIFont.wmf_font(.footnote, compatibleWithTraitCollection: traitCollection)
+        authorizeButton.titleLabel?.font = WMFFont.for(.mediumSubheadline, compatibleWith: traitCollection)
+        authorizeDescriptionLabel.font = WMFFont.for(.footnote, compatibleWith: traitCollection)
     }
     
     override func sizeThatFits(_ size: CGSize, apply: Bool) -> CGSize {

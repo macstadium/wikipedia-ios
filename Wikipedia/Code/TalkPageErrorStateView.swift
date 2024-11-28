@@ -1,3 +1,4 @@
+import WMFComponents
 import WMF
 
 final class TalkPageErrorStateView: SetupView {
@@ -5,9 +6,9 @@ final class TalkPageErrorStateView: SetupView {
     fileprivate var titleText = WMFLocalizedString("talk-page-error-loading-title", value: "Unable to load talk page", comment: "Title text for error page on talk pages")
     fileprivate var subtitleText = WMFLocalizedString("talk-page-error-loading-subtitle", value: "Something went wrong.", comment: "Subtitle text for error page on talk pages")
 
-    fileprivate var titleFont = UIFont.wmf_scaledSystemFont(forTextStyle: .title2, weight: .medium, size: 17)
-    fileprivate var subtitleFont = UIFont.wmf_scaledSystemFont(forTextStyle: .body, weight: .regular, size: 13)
-    fileprivate var buttonFont = UIFont.wmf_scaledSystemFont(forTextStyle: .body, weight: .semibold, size: 15)
+    fileprivate var titleFont = WMFFont.for(.headline)
+    fileprivate var subtitleFont = WMFFont.for(.footnote)
+    fileprivate var buttonFont = WMFFont.for(.boldCallout)
 
     lazy var imageView: UIImageView = {
         let imageView = UIImageView(image: UIImage(named: "talk-page-error-message"))
@@ -115,22 +116,7 @@ final class TalkPageErrorStateView: SetupView {
 
 extension TalkPageErrorStateView: Themeable {
     func apply(theme: Theme) {
-        // TODO: Replace these once new theme colors are added/refreshed in the app
-        let baseBackground: UIColor!
-        switch theme {
-        case .light:
-            baseBackground = UIColor.wmf_colorWithHex(0xF8F9FA)
-        case .sepia:
-            baseBackground = UIColor.wmf_colorWithHex(0xF0E6D6)
-        case .dark:
-            baseBackground = UIColor.wmf_colorWithHex(0x202122)
-        case .black:
-            baseBackground = UIColor.wmf_colorWithHex(0x202122)
-        default:
-            baseBackground = UIColor.wmf_colorWithHex(0xF8F9FA)
-        }
-        
-        backgroundColor = baseBackground
+        backgroundColor = theme.colors.midBackground
         button.setTitleColor(theme.colors.paperBackground, for: .normal)
         button.backgroundColor = theme.colors.link
         titleLabel.textColor = theme.colors.primaryText

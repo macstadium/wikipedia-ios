@@ -79,13 +79,22 @@ class ArticleTestHelpers {
     }
     static var fixtureData: FixtureData?
     
-    static let dataStore = MWKDataStore.temporary()
-    static let cacheController: PermanentCacheController = {
-        let tempPath = WMFRandomTemporaryPath()!
-        let randomURL = NSURL.fileURL(withPath: tempPath)
-        let temporaryCacheURL = randomURL.appendingPathComponent("Permanent Cache", isDirectory: true)
-        return PermanentCacheController.testController(with: temporaryCacheURL, dataStore: dataStore)
-    }()
+    static var dataStore: MWKDataStore!
+    static var cacheController: PermanentCacheController!
+    
+    static func setup(completion: @escaping () -> Void) {
+        MWKDataStore.createTemporaryDataStore(completion: { dataStore in
+            
+            let tempPath = WMFRandomTemporaryPath()!
+            let randomURL = NSURL.fileURL(withPath: tempPath)
+            let temporaryCacheURL = randomURL.appendingPathComponent("Permanent Cache", isDirectory: true)
+            let permCache = PermanentCacheController.testController(with: temporaryCacheURL, dataStore: dataStore)
+            
+            self.dataStore = dataStore
+            self.cacheController = permCache
+            completion()
+        })
+    }
     
     static func pullDataFromFixtures(inBundle bundle: Bundle) {
         
@@ -139,9 +148,19 @@ class ArticleTestHelpers {
             .withHeaders(["Content-Type": "application/json"])?
             .withBody(dogSummaryJSONData as NSData)
         
-
+        _ = stubRequest("GET", "https://en.wikipedia.org/api/rest_v1/page/summary/Cat" as NSString)
+            .andReturn(200)?
+            .withHeaders(["Content-Type": "application/json"])?
+            .withBody(dogSummaryJSONData as NSData)
+        
         _ = stubRequest("GET", "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d9/Collage_of_Nine_Dogs.jpg/1280px-Collage_of_Nine_Dogs.jpg" as NSString)
             .andReturnRawResponse(dogCollageImageData)
+        
+        _ = stubRequest("GET", "https://upload.wikimedia.org/wikipedia/commons/thumb/6/69/Dog_morphological_variation.png/640px-Dog_morphological_variation.png" as NSString)
+            .andReturnRawResponse(genericDogImageData)
+        
+        _ = stubRequest("GET", "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a0/Llop.jpg/320px-Llop.jpg" as NSString)
+            .andReturnRawResponse(genericDogImageData)
         
         _ = stubRequest("POST", "https://en.wikipedia.org/w/api.php" as NSString)
             .withBody("action=query&format=json&meta=userinfo&uiprop=groups" as NSString)?
@@ -149,6 +168,10 @@ class ArticleTestHelpers {
             .withBody(userGroupsData as NSData)
         
         _ = stubRequest("GET", "https://en.wikipedia.org/api/rest_v1/page/mobile-html/Dog" as NSString)
+            .andReturn(200)?
+            .withBody(mobileHTMLData as NSData)
+        
+        _ = stubRequest("GET", "https://en.wikipedia.org/api/rest_v1/page/mobile-html/Cat" as NSString)
             .andReturn(200)?
             .withBody(mobileHTMLData as NSData)
         

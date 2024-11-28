@@ -2,7 +2,7 @@
 #import <WMF/WMFLogging.h>
 #import <WMF/WMF-Swift.h>
 
-static NSRegularExpression *WMFImageURLParsingRegex() {
+static NSRegularExpression *WMFImageURLParsingRegex(void) {
     static NSRegularExpression *imageNameFromURLRegex = nil;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
@@ -30,7 +30,7 @@ NSString *WMFParseImageNameFromSourceURL(NSString *sourceURL) __attribute__((ove
     }
     NSArray *pathComponents = [sourceURL componentsSeparatedByString:@"/"];
     if (pathComponents.count < 2) {
-        DDLogWarn(@"Unable to parse source URL with too few path components: %@", pathComponents);
+        DDLogError(@"Unable to parse source URL with too few path components: %@", pathComponents);
         return nil;
     }
 

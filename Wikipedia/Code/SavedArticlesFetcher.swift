@@ -18,7 +18,7 @@ final class SavedArticlesFetcher: NSObject {
     }
     
     private let dataStore: MWKDataStore
-    private var backgroundTaskIdentifier: UIBackgroundTaskIdentifier?
+    private var backgroundTaskIdentifier: UIBackgroundTaskIdentifier = UIBackgroundTaskIdentifier.invalid
     
     private let articleCacheController: ArticleCacheController
     private let spotlightManager: WMFSavedPageSpotlightManager
@@ -125,6 +125,28 @@ private extension SavedArticlesFetcher {
         perform(#selector(_update), with: nil, afterDelay: 0.5)
     }
     
+    private func startBackgroundTask(expirationHandler: @escaping () -> Void) {
+        guard backgroundTaskIdentifier == UIBackgroundTaskIdentifier.invalid else {
+            return
+        }
+        
+        backgroundTaskIdentifier = UIApplication.shared.beginBackgroundTask(withName: "SavedArticlesFetch", expirationHandler: { [weak self] in
+            expirationHandler()
+            self?.endBackgroundTask()
+        })
+    }
+    
+    private func endBackgroundTask() {
+        
+        guard backgroundTaskIdentifier != UIBackgroundTaskIdentifier.invalid else {
+            return
+        }
+        
+        let backgroundTaskIdentifier = self.backgroundTaskIdentifier
+        self.backgroundTaskIdentifier = UIBackgroundTaskIdentifier.invalid
+        UIApplication.shared.endBackgroundTask(backgroundTaskIdentifier)
+    }
+    
     @objc func _update() {
         if isUpdating || !isRunning {
             updateCountOfFetchesInProcess()
@@ -133,19 +155,9 @@ private extension SavedArticlesFetcher {
         
         isUpdating = true
         
-        let endBackgroundTask = {
-            if let backgroundTaskIdentifier = self.backgroundTaskIdentifier {
-                UIApplication.shared.endBackgroundTask(backgroundTaskIdentifier)
-                self.backgroundTaskIdentifier = nil
-            }
-        }
-        
-        if backgroundTaskIdentifier == nil {
-            self.backgroundTaskIdentifier = UIApplication.shared.beginBackgroundTask(withName: "SavedArticlesFetch", expirationHandler: {
-                self.cancelAllRequests()
-                self.stop()
-                endBackgroundTask()
-            })
+        startBackgroundTask {
+            self.cancelAllRequests()
+            self.stop()
         }
         
         assert(Thread.isMainThread)
@@ -166,6 +178,7 @@ private extension SavedArticlesFetcher {
         let updateAgain = {
             DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(100)) {
                 self.isUpdating = false
+                self.endBackgroundTask()
                 self.update()
             }
         }
@@ -185,7 +198,7 @@ private extension SavedArticlesFetcher {
                 DispatchQueue.main.async {
                     switch groupResult {
                     case .success(let itemKeys):
-                        DDLogInfo("Successfully saved all items for \(articleKey), itemKeyCount: \(itemKeys.count)")
+                        DDLogDebug("Successfully saved all items for \(articleKey), itemKeyCount: \(itemKeys.count)")
                         self.didFetchArticle(with: articleObjectID)
                         self.spotlightManager.addToIndex(url: articleURL as NSURL)
                         self.updateCountOfFetchesInProcess()
@@ -213,7 +226,7 @@ private extension SavedArticlesFetcher {
             let noArticleToDeleteCompletion = {
                 self.isUpdating = false
                 self.updateCountOfFetchesInProcess()
-                endBackgroundTask()
+                self.endBackgroundTask()
             }
             
             if let articleToDelete = articleToDelete {
@@ -237,7 +250,7 @@ private extension SavedArticlesFetcher {
                     DispatchQueue.main.async {
                         switch groupResult {
                         case .success:
-                            DDLogInfo("Successfully removed all items for \(articleKey)")
+                            DDLogDebug("Successfully removed all items for \(articleKey)")
                             self.spotlightManager.removeFromIndex(url: articleURL as NSURL)
                         case .failure(let error):
                             DDLogError("Failed removing items for \(articleKey): \(error)")
@@ -356,99 +369,6 @@ private extension SavedArticlesFetcher {
             try dataStore.save()
         } catch let error {
             DDLogError("Error saving after saved articles fetch: \(error)")
-        }
-    }
-}
-
-@objc(WMFMobileViewToMobileHTMLMigrationController)
-class MobileViewToMobileHTMLMigrationController: NSObject {
-    private let dataStore: MWKDataStore
-    private var backgroundTaskIdentifier: UIBackgroundTaskIdentifier?
-    
-    @objc init(dataStore: MWKDataStore) {
-        self.dataStore = dataStore
-        super.init()
-    }
-    
-    @objc func start() {
-        convertOneArticleIfNecessary()
-    }
-    
-    @objc func stop() {
-        if let backgroundTaskIdentifier = backgroundTaskIdentifier {
-            UIApplication.shared.endBackgroundTask(backgroundTaskIdentifier)
-            self.backgroundTaskIdentifier = nil
-        }
-    }
-    
-    private func convertOneArticleIfNecessary() {
-        assert(Thread.isMainThread)
-        NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(_convertOneArticleIfNecessary), object: nil)
-        perform(#selector(_convertOneArticleIfNecessary), with: nil, afterDelay: 0.5)
-    }
-    
-    private lazy var isConversionFromMobileViewNeededPredicateString = {
-        return "isConversionFromMobileViewNeeded == TRUE"
-    }()
-    
-    private lazy var conversionsNeededCountFetchRequest: NSFetchRequest<WMFArticle> = {
-        let request = WMFArticle.fetchRequest()
-        request.includesSubentities = false
-        request.predicate = NSPredicate(format: isConversionFromMobileViewNeededPredicateString)
-        return request 
-    }()
-
-    private lazy var mostRecentArticleToBeConvertedFetchRequest: NSFetchRequest<WMFArticle> = {
-        let request = WMFArticle.fetchRequest()
-        request.predicate = NSPredicate(format: isConversionFromMobileViewNeededPredicateString)
-        request.sortDescriptors = [NSSortDescriptor(key: "savedDate", ascending: false)]
-        request.fetchLimit = 1
-        request.propertiesToFetch = []
-        return request
-    }()
-
-    @objc private func _convertOneArticleIfNecessary() {
-        if backgroundTaskIdentifier == nil {
-            backgroundTaskIdentifier = UIApplication.shared.beginBackgroundTask(withName: "MobileviewToMobileHTMLConverter", expirationHandler: stop)
-        }
-        let moc = dataStore.viewContext
-        var article: WMFArticle?
-        do {
-            article = try moc.fetch(mostRecentArticleToBeConvertedFetchRequest).first
-        } catch let error {
-            DDLogError("No articles to convert: \(error)")
-        }
-
-        guard let nonNilArticle = article else {
-            stop()
-            // No more articles to convert, ensure the legacy folder is deleted
-            DispatchQueue.global(qos: .background).async {
-                self.dataStore.removeAllLegacyArticleData()
-            }
-            return
-        }
-        
-        dataStore.migrateMobileviewToMobileHTMLIfNecessary(article: nonNilArticle) { error in
-            do {
-                guard try moc.count(for: self.conversionsNeededCountFetchRequest) > 0 else {
-                    // No more articles to convert, ensure the legacy folder is deleted
-                    DispatchQueue.global(qos: .background).async {
-                        self.dataStore.removeAllLegacyArticleData()
-                    }
-                    self.stop()
-                    return
-                }
-                self.convertOneArticleIfNecessaryAgain()
-            } catch let error {
-                DDLogError("Error counting number of article to be converted: \(error)")
-                self.stop()
-            }
-        }
-    }
-
-    private func convertOneArticleIfNecessaryAgain() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1)) {
-            self.convertOneArticleIfNecessary()
         }
     }
 }

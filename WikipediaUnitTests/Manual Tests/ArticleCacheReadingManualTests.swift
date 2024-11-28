@@ -3,11 +3,12 @@
 import XCTest
 
 class ArticleCacheReadingManualTests: XCTestCase {
-
-    override func setUp() {
-        super.setUp()
-        
-        ArticleTestHelpers.pullDataFromFixtures(inBundle: wmf_bundle())
+    
+    override func setUp(completion: @escaping (Error?) -> Void) {
+        ArticleTestHelpers.setup {
+            ArticleTestHelpers.pullDataFromFixtures(inBundle: self.wmf_bundle())
+            completion(nil)
+        }
     }
     
     override func tearDown() {
@@ -18,7 +19,7 @@ class ArticleCacheReadingManualTests: XCTestCase {
     
     func testBasicNetworkNoConnectionWithCachedArticle() {
 
-        XCTFail("Reminder: these tests need to be on device and in airplane mode, otherwise they won't work. Comment out this failure once this is done and re-run.")
+       XCTFail("Reminder: these tests need to be on device and in airplane mode, otherwise they won't work. Comment out this failure once this is done and re-run.")
 
         ArticleTestHelpers.writeCachedPiecesToCachingSystem()
 
@@ -40,17 +41,19 @@ class ArticleCacheReadingManualTests: XCTestCase {
 
                 htmlExpectation.fulfill()
 
-                let htmlString = String(decoding: data, as: UTF8.self)
-                let trimmedHTML = String(htmlString.filter { !"\n\t\r".contains($0) })
-                XCTAssertEqual(trimmedHTML, "<!DOCTYPE html><html><head><link rel=\"stylesheet\" href=\"//en.wikipedia.org/api/rest_v1/data/css/mobile/site\"></head><body><p>Testing Cached</p><img src=\"//upload.wikimedia.org/wikipedia/en/thumb/a/a4/Flag_of_the_United_States.svg/960px-Flag_of_the_United_States.svg.png\"></body></html>")
+                if let htmlString = String(data: data, encoding: .utf8) {
+                    let trimmedHTML = String(htmlString.filter { !"\n\t\r".contains($0) })
+                    XCTAssertEqual(trimmedHTML, "<!DOCTYPE html><html><head><link rel=\"stylesheet\" href=\"//en.wikipedia.org/api/rest_v1/data/css/mobile/site\"></head><body><p>Testing Cached</p><img src=\"//upload.wikimedia.org/wikipedia/en/thumb/a/a4/Flag_of_the_United_States.svg/960px-Flag_of_the_United_States.svg.png\"></body></html>")
+                }
 
             case "app://en.wikipedia.org/api/rest_v1/data/css/mobile/site":
 
                 cssExpectation.fulfill()
 
-                let cssString = String(decoding: data, as: UTF8.self)
-                let trimmedCSS = String(cssString.filter { !"\n\t\r".contains($0) })
-                XCTAssertEqual(trimmedCSS, "body {background-color: red;}", "Unexpected basic HTML content")
+                if let cssString = String(data: data, encoding: .utf8) {
+                    let trimmedCSS = String(cssString.filter { !"\n\t\r".contains($0) })
+                    XCTAssertEqual(trimmedCSS, "body {background-color: red;}", "Unexpected basic HTML content")
+                }
             case "app://upload.wikimedia.org/wikipedia/en/thumb/a/a4/Flag_of_the_United_States.svg/960px-Flag_of_the_United_States.svg.png":
                 imageExpectation.fulfill()
             default:
@@ -58,7 +61,7 @@ class ArticleCacheReadingManualTests: XCTestCase {
             }
         }
 
-        UIApplication.shared.workaroundKeyWindow?.rootViewController = basicVC
+        basicVC.loadViewIfNeeded()
 
         wait(for: [htmlExpectation], timeout: 10)
         wait(for: [imageExpectation], timeout: 10)
@@ -91,17 +94,19 @@ class ArticleCacheReadingManualTests: XCTestCase {
 
                 htmlExpectation.fulfill()
 
-                let htmlString = String(decoding: data, as: UTF8.self)
-                let trimmedHTML = String(htmlString.filter { !"\n\t\r".contains($0) })
-                XCTAssertEqual(trimmedHTML, "<!DOCTYPE html><html><head><link rel=\"stylesheet\" href=\"//zh.wikipedia.org/api/rest_v1/data/css/mobile/site\"></head><body><p>美国 (美洲北部国家)</p><img src=\"//upload.wikimedia.org/wikipedia/commons/thumb/e/e2/Flag_of_the_United_States_%28Pantone%29.svg/960px-Flag_of_the_United_States_%28Pantone%29.svg.png\"></body></html>")
+                if let htmlString = String(data: data, encoding: .utf8) {
+                    let trimmedHTML = String(htmlString.filter { !"\n\t\r".contains($0) })
+                    XCTAssertEqual(trimmedHTML, "<!DOCTYPE html><html><head><link rel=\"stylesheet\" href=\"//zh.wikipedia.org/api/rest_v1/data/css/mobile/site\"></head><body><p>美国 (美洲北部国家)</p><img src=\"//upload.wikimedia.org/wikipedia/commons/thumb/e/e2/Flag_of_the_United_States_%28Pantone%29.svg/960px-Flag_of_the_United_States_%28Pantone%29.svg.png\"></body></html>")
+                }
 
             case "app://zh.wikipedia.org/api/rest_v1/data/css/mobile/site":
 
                 cssExpectation.fulfill()
 
-                let cssString = String(decoding: data, as: UTF8.self)
-                let trimmedCSS = String(cssString.filter { !"\n\t\r".contains($0) })
-                XCTAssertEqual(trimmedCSS, "body {background-color: blue;}", "Unexpected basic HTML content")
+                if let cssString = String(data: data, encoding: .utf8) {
+                    let trimmedCSS = String(cssString.filter { !"\n\t\r".contains($0) })
+                    XCTAssertEqual(trimmedCSS, "body {background-color: blue;}", "Unexpected basic HTML content")
+                }
             case "app://upload.wikimedia.org/wikipedia/commons/thumb/e/e2/Flag_of_the_United_States_%28Pantone%29.svg/960px-Flag_of_the_United_States_%28Pantone%29.svg.png":
                 imageExpectation.fulfill()
             default:
@@ -109,7 +114,7 @@ class ArticleCacheReadingManualTests: XCTestCase {
             }
         }
 
-       UIApplication.shared.workaroundKeyWindow?.rootViewController = basicVC
+       basicVC.loadViewIfNeeded()
 
         wait(for: [htmlExpectation], timeout: 10)
         wait(for: [imageExpectation], timeout: 10)

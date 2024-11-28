@@ -423,7 +423,9 @@ extension ArticleAsLivingDocViewController: ArticleAsLivingDocHorizontallyScroll
         guard let fullURL = delegate?.articleURL.resolvingRelativeWikiHref(url.absoluteString) else {
             return
         }
-        switch Configuration.current.router.destination(for: fullURL) {
+        let authManager = MWKDataStore.shared().authenticationManager
+        let permanentUsername = authManager.authStatePermanentUsername
+        switch Configuration.current.router.destination(for: fullURL, permanentUsername: permanentUsername) {
         case .article(let articleURL): showInternalLink(url: articleURL)
         default: navigate(to: fullURL)
         }
@@ -454,7 +456,7 @@ extension ArticleAsLivingDocViewController: ArticleDetailsShowing {
             return
         }
         
-        let diffContainerVC = DiffContainerViewController(siteURL: siteURL, theme: theme, fromRevisionID: Int(parentId), toRevisionID: Int(revisionId), type: diffType, articleTitle: title, needsSetNavDelegate: true)
+        let diffContainerVC = DiffContainerViewController(siteURL: siteURL, theme: theme, fromRevisionID: Int(parentId), toRevisionID: Int(revisionId), articleTitle: title, needsSetNavDelegate: true, articleSummaryController: MWKDataStore.shared().articleSummaryController, authenticationManager: MWKDataStore.shared().authenticationManager)
 
         delegate?.livingDocViewWillPush()
         push(diffContainerVC)
@@ -466,7 +468,7 @@ extension ArticleAsLivingDocViewController: ArticleDetailsShowing {
                 return
         }
         
-        let historyVC = PageHistoryViewController(pageTitle: title, pageURL: articleURL)
+        let historyVC = PageHistoryViewController(pageTitle: title, pageURL: articleURL, articleSummaryController: MWKDataStore.shared().articleSummaryController, authenticationManager: MWKDataStore.shared().authenticationManager)
         historyVC.apply(theme: theme)
         
         delegate?.livingDocViewWillPush()

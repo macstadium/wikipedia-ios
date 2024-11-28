@@ -4,9 +4,10 @@ import CocoaLumberjackSwift
 protocol ReadingListEntryCollectionViewControllerDelegate: NSObjectProtocol {
     func readingListEntryCollectionViewController(_ viewController: ReadingListEntryCollectionViewController, didUpdate collectionView: UICollectionView)
     func readingListEntryCollectionViewControllerDidChangeEmptyState(_ viewController: ReadingListEntryCollectionViewController)
+    func readingListEntryCollectionViewControllerDidSelectArticleURL(_ articleURL: URL, viewController: ReadingListEntryCollectionViewController)
 }
 
-class ReadingListEntryCollectionViewController: ColumnarCollectionViewController, EditableCollection, UpdatableCollection, SearchableCollection, ActionDelegate, EventLoggingEventValuesProviding {
+class ReadingListEntryCollectionViewController: ColumnarCollectionViewController, EditableCollection, UpdatableCollection, SearchableCollection, ActionDelegate, MEPEventsProviding {
     let dataStore: MWKDataStore
     var fetchedResultsController: NSFetchedResultsController<ReadingListEntry>?
     var collectionViewUpdater: CollectionViewUpdater<ReadingListEntry>?
@@ -285,14 +286,14 @@ class ReadingListEntryCollectionViewController: ColumnarCollectionViewController
         collectionView.reloadItems(at: visibleIndexPathsWithChanges)
     }
     
-    // MARK: - EventLoggingEventValuesProviding
+    // MARK: -
     
-    var eventLoggingLabel: EventLoggingLabel? {
+    var eventLoggingLabel: EventLabelMEP? {
         return nil
     }
     
-    var eventLoggingCategory: EventLoggingCategory {
-        return EventLoggingCategory.saved
+    var eventLoggingCategory: EventCategoryMEP {
+        return .saved
     }
 }
 
@@ -436,10 +437,6 @@ extension ReadingListEntryCollectionViewController: CollectionViewContextMenuSho
         return articleViewController
     }
 
-    var poppingIntoVCCompletion: () -> Void {
-        // Nothing custom needs to run for this VC
-        return {}
-    }
 }
 
 // MARK: - UICollectionViewDelegate
@@ -456,8 +453,8 @@ extension ReadingListEntryCollectionViewController {
         guard let articleURL = articleURL(at: indexPath) else {
             return
         }
-        navigate(to: articleURL)
-        ReadingListsFunnel.shared.logReadStartIReadingList(articleURL)
+        delegate?.readingListEntryCollectionViewControllerDidSelectArticleURL(articleURL, viewController: self)
+        ReadingListsFunnel.shared.logReadStartReadingList(articleURL)
     }
     
     func collectionView(_ collectionView: UICollectionView, didDeselectItemAt indexPath: IndexPath) {

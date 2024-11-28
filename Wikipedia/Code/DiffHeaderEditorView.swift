@@ -1,4 +1,4 @@
-import UIKit
+import WMFComponents
 
 class DiffHeaderEditorView: UIView {
 
@@ -66,8 +66,10 @@ class DiffHeaderEditorView: UIView {
     }
     
     @objc func tappedUserWithSender(_ sender: UITapGestureRecognizer) {
-        if let username = viewModel?.username {
-            delegate?.tappedUsername(username: username)
+        if let viewModel,
+           let username = viewModel.username {
+            WatchlistFunnel.shared.logDiffTapSingleEditorName(project: viewModel.project)
+            delegate?.tappedUsername(username: username, destination: .userPage)
         }
     }
 }
@@ -87,9 +89,9 @@ private extension DiffHeaderEditorView {
     
     func updateFonts(with traitCollection: UITraitCollection) {
     
-        headingLabel.font = UIFont.wmf_font(DynamicTextStyle.boldFootnote, compatibleWithTraitCollection: traitCollection)
-        usernameLabel.font = UIFont.wmf_font(DynamicTextStyle.subheadline, compatibleWithTraitCollection: traitCollection)
-        numberOfEditsLabel.font = UIFont.wmf_font(DynamicTextStyle.callout, compatibleWithTraitCollection: traitCollection)
+        headingLabel.font = WMFFont.for(.boldFootnote, compatibleWith: traitCollection)
+        usernameLabel.font = WMFFont.for(.subheadline, compatibleWith: traitCollection)
+        numberOfEditsLabel.font = WMFFont.for(.callout, compatibleWith: traitCollection)
     }
 }
 

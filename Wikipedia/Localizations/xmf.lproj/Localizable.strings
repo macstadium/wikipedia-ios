@@ -3,6 +3,28 @@
 // Author: Narazeni
 // Author: Silovan
 
+"aaald-added-text-description-2" = "$1 გეძინელი რე";
+"aaald-article-description-updated-description" = "სტატიაშ ეჭარუა მოახალებური რე";
+"aaald-article-insert-header" = "შანულამი მოახალებეფი";
+"aaald-article-insert-last-updated" = "ეკონია მოახალაფა";
+"aaald-article-insert-new-changes" = "ახალი თირუეფი";
+"aaald-article-insert-read-more" = "უმოსი მოახალებეფიშ კითხირი";
+"aaald-characters-text-description" = "{{PLURAL:$1|0=სიმბოლო|სიმბოლო}}";
+"aaald-deleted-text-description-2" = "$1 ლასირი რე";
+"aaald-error-subitle" = "მაახალით ხოლო ართშა ოცადებელო";
+"aaald-error-title" = "ვამიხუჯინუ სტატიაშ ისტორიაშ ინოხარგუაქ";
+"aaald-many-sections-description" = "$1 გიმნართეფს";
+"aaald-multiple-changes-description" = "მუსხირენ თირუაქ იკეთინჷ";
+"aaald-multiple-references-added-description" = "მუსხირენ სქოლიოქ გიაძინჷ";
+"aaald-new-book-reference-title" = "კჷრბი";
+"aaald-new-discussion" = "ახალი სხუნუა";
+"aaald-new-journal-reference-database" = "$1-შე";
+"aaald-new-journal-reference-title" = "ჟურნალი";
+"aaald-new-news-reference-title" = "ახალი ამბეეფი";
+"aaald-new-talk-topic-description-format" = "$1 თე სტატიაშ გეშა";
+"aaald-new-website-reference-archive-date-text" = "ორიგინალშე $1-ს";
+"aaald-new-website-reference-title" = "ვებ-საიტი";
+"about-content-license" = "დინორეშ ლიცენზია";
 // Fuzzy
 "account-creation-captcha-obtaining" = "ახალ CAPTCHA-შ მეღება.";
 "account-creation-logging-in" = "სისტემაშა მიშულა…";
@@ -12,10 +34,18 @@
 // Fuzzy
 "article-languages-filter-placeholder" = "ნინაშ ფილტრი";
 "article-languages-label" = "გეგშაგორით ნინა";
+// Fuzzy
+"diff-compare-header-from-info-heading" = "მაჯღონალი:";
+// Fuzzy
+"diff-compare-header-to-info-heading" = "ადრესატი";
 "edit-summary-choice-linked-words" = "გეძინელი რსხუეფი";
 "empty-no-other-article-languages-message" = "თე სტატია დიო ვა რე ჭარილი შხვა ნინაშა";
 "empty-no-other-article-languages-title" = "შხვა ნინეფი ვა რე ხემიოჭირინაფუს";
 "error-unknown" = "მეგორაფილი რე უჩინებუ ჩილათაშა.";
+"explore-featured-article-heading" = "გიშნაგორა სტატია";
+"explore-feed-preferences-featured-article-description" = "დღაშ გიშნაგორა სტატია ვიკიპედიას";
+"explore-feed-preferences-show-featured-article-title" = "ქაძირე ბართი „გიშნაგორა სტატია“";
+"featured-widget-content-failure-for-date" = "გიშნაგორა სტატია ვა რე ხემიოლუ თე თარიღიშო.";
 "history-clear-cancel" = "გოუქვაფა";
 // Fuzzy
 "history-clear-confirmation-heading" = "დობლასათო არძა ასერდეიანი ელემენტი?";
@@ -42,6 +72,7 @@
 "main-menu-terms-of-use" = "გჷმორინაფაშ წესეფი";
 "main-menu-title" = "ხოლო";
 "main-menu-zero-faq" = "Wikipedia Zero FAQ";
+"more-menu" = "უმოსი";
 "navbar-title-mode-edit-wikitext-preview" = "გიწოთოლორაფა";
 "saved-title" = "ჩუალირი";
 "search-field-placeholder-text" = "გორუა ვიკიპედიას";
@@ -53,9 +84,8 @@
 "search-title" = "გორუა";
 "settings-title" = "პარამეტრეფი";
 "talk-pages-topic-reply-onboarding-title" = "სხუნუაშ ხასჷლეფი";
-"wikitext-downloading" = "იხარგუაფუ კონტენტი...";
+"watchlist" = "კონტროლიშ ერკებული";
 "wikitext-preview-changes" = "მიშნაღელი თირაფეფიშ გიწოთოლორაფაშ ძირაფა…";
-"wikitext-preview-changes-none" = "მუთუნნერი თირაფა ვარე მიშაღალირი, ნამუშ ძირაფა შილებედჷნ.";
 "wikitext-upload-captcha-error" = "CAPTCHA-შ დოდასურაფაშ ჩილათა..";
 "wikitext-upload-captcha-needed" = "CAPTCHA-შ დოდასურაფაშ ოხვილჷ.";
 // Fuzzy

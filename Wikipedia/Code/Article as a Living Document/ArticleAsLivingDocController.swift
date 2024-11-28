@@ -67,28 +67,8 @@ class ArticleAsLivingDocController: NSObject {
     var articleAsLivingDocEditMetrics: [NSNumber]?
     
     var articleAsLivingDocViewController: ArticleAsLivingDocViewController?
-    
-    var shouldAttemptToShowArticleAsLivingDoc: Bool {
-        
-        guard let delegate = delegate,
-              delegate.articleURL.wmf_isEnglishWikipedia,
-              let view = delegate.view,
-              view.effectiveUserInterfaceLayoutDirection == .leftToRight
-               else {
-            return false
-        }
-        
-        let isInExperimentBucket: Bool
-        if let bucket = delegate.abTestsController.bucketForExperiment(.articleAsLivingDoc) {
-            isInExperimentBucket = bucket == .articleAsLivingDocTest
-        } else {
-            isInExperimentBucket = false
-        }
-        
-        let shouldAttemptToShowArticleAsLivingDoc = articleTitleAndSiteURL() != nil && delegate.isInValidSurveyCampaignAndArticleList && isInExperimentBucket
-        
-        return shouldAttemptToShowArticleAsLivingDoc
-    }
+
+    var shouldAttemptToShowArticleAsLivingDoc = false
     
     var shouldShowArticleAsLivingDoc: Bool {
         if let articleAsLivingDocViewModel = articleAsLivingDocViewModel,
@@ -243,7 +223,7 @@ class ArticleAsLivingDocController: NSObject {
                     self.failedLastInitialFetch = true
                 }
                 self.surveyLinkState = .inExperimentFailureLoadingEvents
-                DDLogDebug("Failure getting article as living doc view models: \(error)")
+                DDLogError("Failure getting article as living doc view models: \(error)")
             }
         }
         
@@ -255,7 +235,7 @@ class ArticleAsLivingDocController: NSObject {
                 switch result {
                 case .failure(let error):
                     self.articleAsLivingDocEditMetrics = nil
-                    DDLogDebug("Error fetching edit metrics for article as a living document: \(error)")
+                    DDLogError("Error fetching edit metrics for article as a living document: \(error)")
                 case .success(let timeseriesOfEditCounts):
                     self.articleAsLivingDocEditMetrics = timeseriesOfEditCounts
                 }
@@ -499,7 +479,7 @@ class ArticleAsLivingDocController: NSObject {
 
             switch result {
             case .failure(let error):
-                DDLogDebug("Failure fetching next significant events page \(error)")
+                DDLogError("Failure fetching next significant events page \(error)")
             case .success(let articleAsLivingDocViewModel):
                 self.articleAsLivingDocViewModel = articleAsLivingDocViewModel
             }

@@ -1,5 +1,6 @@
 import Foundation
 import WMF
+import WMFData
 
 class WikidataDescriptionController: ArticleDescriptionControlling {
 
@@ -33,33 +34,19 @@ class WikidataDescriptionController: ArticleDescriptionControlling {
         }
     }
     
-    func publishDescription(_ description: String, completion: @escaping (Result<ArticleDescriptionPublishResult, Error>) -> Void) {
+    func publishDescription(_ description: String, editType: ArticleDescriptionEditType, completion: @escaping (Result<ArticleDescriptionPublishResult, Error>) -> Void) {
         
-        fetcher.publish(newWikidataDescription: description, from: descriptionSource, forWikidataID: wikiDataID, languageCode: articleLanguageCode) { (error) in
+        let editTag: WMFEditTag = editType == .add ? .appDescriptionAdd : .appDescriptionChange
+
+        fetcher.publish(newWikidataDescription: description, from: descriptionSource, forWikidataID: wikiDataID, languageCode: articleLanguageCode, editTags: [editTag]) { (error) in
             if let error = error {
                 completion(.failure(error))
                 return
             }
-            
             completion(.success(ArticleDescriptionPublishResult(newRevisionID: nil, newDescription: description)))
         }
     }
-    
-    func errorCodeFromError(_ error: Error) -> String {
-        var apiErrorCode: String?
-        if let publishError = error as? WikidataFetcher.WikidataPublishingError {
-            switch publishError {
-            case .apiOther(let error):
-                apiErrorCode = error.code
-            case .apiBlocked(let blockedError):
-                apiErrorCode = blockedError.code
-            default:
-                break
-            }
-        }
-        let errorText = apiErrorCode ?? "\((error as NSError).domain)-\((error as NSError).code)"
-        return errorText
-    }
+
     
     func learnMoreViewControllerWithTheme(_ theme: Theme) -> UIViewController? {
         return DescriptionHelpViewController.init(theme: theme)

@@ -6,7 +6,7 @@
 //
 //
 
-import UIKit
+import WMFComponents
 
 @IBDesignable
 open class SWStepSlider: UIControl {
@@ -24,17 +24,18 @@ open class SWStepSlider: UIControl {
     
     let trackLayer = CALayer()
     var trackHeight: CGFloat = 1
-    var trackColor = UIColor(red: 152.0/255.0, green: 152.0/255.0, blue: 152.0/255.0, alpha: 1)
-    
+    var trackColor = WMFColor.gray400
+
     var tickHeight: CGFloat = 8
     var tickWidth: CGFloat = 1
-    var tickColor = UIColor(red: 152.0/255.0, green: 152.0/255.0, blue: 152.0/255.0, alpha: 1)
+    var tickColor = WMFColor.gray400
+
     
     let thumbLayer = CAShapeLayer()
-    var thumbFillColor = UIColor.white
-    var thumbStrokeColor = UIColor(red: 222.0/255.0, green: 222.0/255.0, blue: 222.0/255.0, alpha: 1)
+    var thumbFillColor = WMFColor.white
+    var thumbStrokeColor = WMFColor.gray200
     var thumbDimension: CGFloat = 28
-    
+
     var stepWidth: CGFloat {
         return self.trackWidth / CGFloat(self.maximumValue)
     }

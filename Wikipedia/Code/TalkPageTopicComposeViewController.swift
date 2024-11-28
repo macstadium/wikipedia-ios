@@ -1,4 +1,4 @@
-import UIKit
+import WMFComponents
 import WMF
 
 protocol TalkPageTopicComposeViewControllerDelegate: AnyObject {
@@ -8,6 +8,7 @@ protocol TalkPageTopicComposeViewControllerDelegate: AnyObject {
 struct TalkPageTopicComposeViewModel {
     let semanticContentAttribute: UISemanticContentAttribute
     let siteURL: URL
+    let pageLink: URL?
 }
 
 class TalkPageTopicComposeViewController: ViewController {
@@ -17,9 +18,9 @@ class TalkPageTopicComposeViewController: ViewController {
         static let titlePlaceholder = WMFLocalizedString("talk-pages-topic-compose-title-placeholder", value: "Topic title", comment: "Placeholder text in topic title field of the talk page topic compose screen. Please prioritize for de, ar and zh wikis.")
         static let bodyPlaceholder = WMFLocalizedString("talk-pages-topic-compose-body-placeholder", value: "Description", comment: "Placeholder text in topic body field of the talk page topic compose screen. Please prioritize for de, ar and zh wikis.")
         static let bodyPlaceholderAccessibility = WMFLocalizedString("talk-pages-topic-compose-body-placeholder-accessibility", value: "Topic description", comment: "Accessibility label for the placeholder element of the topic body text view on the topic compose screen.")
-        static let finePrintFormat = WMFLocalizedString("talk-page-topic-compose-terms-and-licenses", value: "By publishing changes, you agree to the %1$@Terms of Use%2$@, and you irrevocably agree to release your contribution under the %3$@CC BY-SA 3.0 License%4$@ and the %5$@GFDL%6$@.", comment: "Text for information about the Terms of Use and edit licenses on talk pages when composing a new topic. Parameters:\n* %1$@ - app-specific non-text formatting, %2$@ - app-specific non-text formatting, %3$@ - app-specific non-text formatting, %4$@ - app-specific non-text formatting, %5$@ - app-specific non-text formatting,  %6$@ - app-specific non-text formatting. Please prioritize for de, ar and zh wikis.")
+        static let finePrintFormat = WMFLocalizedString("talk-page-topic-compose-terms-and-licenses-ccsa4", value: "By publishing changes, you agree to the %1$@Terms of Use%2$@, and you irrevocably agree to release your contribution under the %3$@CC BY-SA 4.0 License%4$@ and the %5$@GFDL%6$@.", comment: "Text for information about the Terms of Use and edit licenses on talk pages when composing a new topic. Parameters:\n* %1$@ - app-specific non-text formatting, %2$@ - app-specific non-text formatting, %3$@ - app-specific non-text formatting, %4$@ - app-specific non-text formatting, %5$@ - app-specific non-text formatting,  %6$@ - app-specific non-text formatting. Please prioritize for de, ar and zh wikis.")
         static let closeConfirmationTitle = WMFLocalizedString("talk-pages-topic-compose-close-confirmation-title", value: "Are you sure you want to discard this new topic?", comment: "Title of confirmation alert displayed to user when they attempt to close the new topic view after entering title or body text.")
-        static let closeConfirmationDiscard = WMFLocalizedString("talk-pages-topic-compose-close-confirmation-discard", value: "Discard Topic", comment: "Title of discard action, displayed within a confirmation alert to user when they attempt to close the new topic view after entering title or body text. Please prioritize for de, ar and zh wikis.")
+        static let closeConfirmationDiscard = WMFLocalizedString("talk-pages-topic-compose-close-confirmation-discard-topic", value: "Discard Topic", comment: "Title of discard action, displayed within a confirmation alert to user when they attempt to close the new topic view after entering title or body text. Please prioritize for de, ar and zh wikis.")
     }
     
     let viewModel: TalkPageTopicComposeViewModel
@@ -129,8 +130,6 @@ class TalkPageTopicComposeViewController: ViewController {
     weak var delegate: TalkPageTopicComposeViewControllerDelegate?
     
     private weak var authenticationManager: WMFAuthenticationManager?
-
-    private let textFormattingPlainToolbarView = TextFormattingPlainToolbarView.wmf_viewFromClassNib()
 
     override var inputAccessoryView: UIView? {
         if bodyTextView.isFirstResponder {
@@ -271,7 +270,7 @@ class TalkPageTopicComposeViewController: ViewController {
     var shouldBlockDismissal: Bool {
         if let title = titleTextField.text,
               let body = bodyTextView.text,
-              (!title.isEmpty || !body.isEmpty) {
+              !title.isEmpty || !body.isEmpty {
             return true
         }
         
@@ -281,6 +280,9 @@ class TalkPageTopicComposeViewController: ViewController {
     func presentDismissConfirmationActionSheet() {
         let alertController = UIAlertController(title: Self.TopicComposeStrings.closeConfirmationTitle, message: nil, preferredStyle: .actionSheet)
         let discardAction = UIAlertAction(title: Self.TopicComposeStrings.closeConfirmationDiscard, style: .destructive) { _ in
+            if let talkPageURL = self.viewModel.pageLink {
+                EditAttemptFunnel.shared.logAbort(pageURL: talkPageURL)
+            }
             self.dismiss(animated: true)
         }
         
@@ -352,9 +354,9 @@ class TalkPageTopicComposeViewController: ViewController {
     // MARK: Private
 
     private func updateFonts() {
-        titleTextField.font = UIFont.wmf_font(.headline, compatibleWithTraitCollection: traitCollection)
-        bodyTextView.font = UIFont.wmf_font(.callout, compatibleWithTraitCollection: traitCollection)
-        bodyPlaceholderLabel.font = UIFont.wmf_font(.callout, compatibleWithTraitCollection: traitCollection)
+        titleTextField.font = WMFFont.for(.headline, compatibleWith: traitCollection)
+        bodyTextView.font = WMFFont.for(.callout, compatibleWith: traitCollection)
+        bodyPlaceholderLabel.font = WMFFont.for(.callout, compatibleWith: traitCollection)
         finePrintTextView.attributedText = licenseTitleTextViewAttributedString
     }
     
@@ -365,17 +367,17 @@ class TalkPageTopicComposeViewController: ViewController {
             localizedString,
             "<a href=\"\(Licenses.saveTermsURL?.absoluteString ?? "")\">",
             "</a>",
-            "<a href=\"\(Licenses.CCBYSA3URL?.absoluteString ?? "")\">",
+            "<a href=\"\(Licenses.CCBYSA4URL?.absoluteString ?? "")\">",
             "</a>" ,
             "<a href=\"\(Licenses.GFDLURL?.absoluteString ?? "")\">",
             "</a>"
         )
 
-        let attributedString = substitutedString.byAttributingHTML(with: .caption1, boldWeight: .regular, matching: traitCollection, color: theme.colors.primaryText, linkColor: theme.colors.link, tagMapping: nil, additionalTagAttributes: nil)
+        let styles = HtmlUtils.Styles(font: WMFFont.for(.caption1, compatibleWith: traitCollection), boldFont: WMFFont.for(.boldCaption1, compatibleWith: traitCollection), italicsFont: WMFFont.for(.italicCaption1, compatibleWith: traitCollection), boldItalicsFont: WMFFont.for(.boldCaption1, compatibleWith: traitCollection), color: theme.colors.primaryText, linkColor: theme.colors.link, lineSpacing: 3)
 
-        return attributedString
+        return NSAttributedString.attributedStringFromHtml(substitutedString, styles: styles)
     }
-    
+
     private func evaluatePublishButtonEnabledState() {        
         publishButton.isEnabled = !(titleTextField.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !bodyTextView.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
@@ -400,6 +402,9 @@ class TalkPageTopicComposeViewController: ViewController {
     @objc private func tappedClose() {
         
         guard shouldBlockDismissal else {
+            if let talkPageURL = viewModel.pageLink {
+                EditAttemptFunnel.shared.logAbort(pageURL: talkPageURL)
+            }
             dismiss(animated: true)
             return
         }
@@ -408,6 +413,10 @@ class TalkPageTopicComposeViewController: ViewController {
     }
     
     @objc private func tappedPublish() {
+        if let talkPageURL = viewModel.pageLink {
+            EditAttemptFunnel.shared.logSaveIntent(pageURL: talkPageURL)
+        }
+
         guard let title = titleTextField.text,
               let body = bodyTextView.text,
               !title.isEmpty && !body.isEmpty else {
@@ -416,9 +425,12 @@ class TalkPageTopicComposeViewController: ViewController {
         }
         
         view.endEditing(true)
-        
+        if let talkPageURL = viewModel.pageLink {
+            EditAttemptFunnel.shared.logSaveAttempt(pageURL: talkPageURL)
+        }
+
         guard let authenticationManager = authenticationManager,
-        !authenticationManager.isLoggedIn else {
+              !authenticationManager.authStateIsPermanent else {
             setupNavigationBar(isPublishing: true)
             delegate?.tappedPublish(topicTitle: title, topicBody: body, composeViewController: self)
             return

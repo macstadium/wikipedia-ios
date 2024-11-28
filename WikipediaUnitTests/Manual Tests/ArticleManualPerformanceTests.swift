@@ -15,12 +15,14 @@ class ArticleManualPerformanceTests: XCTestCase {
     
     private var articleURL: URL! = URL(string: "https://en.wikipedia.org/wiki/Dog")
     private var appSchemeArticleURL: URL! = URL(string: "app://en.wikipedia.org/wiki/Dog")
+    private var contextMenuConfigAppSchemeArticleURL: URL! = URL(string: "app://en.wikipedia.org/wiki/Cat")
     
-    override func setUp() {
-        super.setUp()
-        
+    override func setUp(completion: @escaping (Error?) -> Void) {
         LSNocilla.sharedInstance().start()
-        ArticleTestHelpers.stubCompleteMobileHTMLResponse(inBundle: wmf_bundle())
+        ArticleTestHelpers.setup {
+            ArticleTestHelpers.stubCompleteMobileHTMLResponse(inBundle: self.wmf_bundle())
+            completion(nil)
+        }
     }
 
     override func tearDown() {
@@ -30,33 +32,52 @@ class ArticleManualPerformanceTests: XCTestCase {
 
     // represents the speed at which article content is seen on screen
     func testArticleSetupTime() {
+        
+        let tempDatabaseExpectation = expectation(description: "Waiting for temp database setup")
+        
+        var dataStore: MWKDataStore!
+        MWKDataStore.createTemporaryDataStore { result in
+            
+            dataStore = result
+            tempDatabaseExpectation.fulfill()
+        }
+        
+        wait(for: [tempDatabaseExpectation], timeout: timeout)
 
         self.measure {
-            
-            let dataStore = MWKDataStore.temporary()
+
             guard let articleVC = ArticleViewController(articleURL: articleURL, dataStore: dataStore, theme: .light) else {
                 XCTFail("Unable to instantiate ArticleViewController")
                 return
             }
             
-            let setupExpectation = expectation(description: "Waiting for article initial setup call")
+            let articleSetupExpectation = expectation(description: "Waiting for article initial setup call")
             
             articleVC.initialSetupCompletion = {
-                setupExpectation.fulfill()
+                articleSetupExpectation.fulfill()
                 UIApplication.shared.workaroundKeyWindow?.rootViewController = nil
                 dataStore.clearTemporaryCache()
             }
             
             UIApplication.shared.workaroundKeyWindow?.rootViewController = articleVC
         
-            wait(for: [setupExpectation], timeout: timeout)
+            wait(for: [articleSetupExpectation], timeout: timeout)
         }
     }
     
     // represents the speed at which the context menu configuration is generated from a 3D touch on an article link
     func testContextMenuConfigTime() {
         
-        let dataStore = MWKDataStore.temporary()
+        let tempDatabaseExpectation = expectation(description: "Waiting for temp database setup")
+        
+        var dataStore: MWKDataStore!
+        MWKDataStore.createTemporaryDataStore { result in
+            dataStore = result
+            tempDatabaseExpectation.fulfill()
+        }
+        
+        wait(for: [tempDatabaseExpectation], timeout: timeout)
+        
         self.measure {
             
             guard let articleVC = ArticleViewController(articleURL: articleURL, dataStore: dataStore, theme: .light) else {
@@ -66,7 +87,7 @@ class ArticleManualPerformanceTests: XCTestCase {
             
             let contextExpectation = expectation(description: "Waiting for context menu configuration call")
             
-            articleVC.contextMenuConfigurationForLinkURL(appSchemeArticleURL) { (completionType, menuConfig) in
+            articleVC.contextMenuConfigurationForLinkURL(contextMenuConfigAppSchemeArticleURL, ignoreTimeout: true) { (completionType, menuConfig) in
                 if completionType == .bail {
                    XCTFail("Menu config should not bail.")
                 }
@@ -85,7 +106,15 @@ class ArticleManualPerformanceTests: XCTestCase {
     
     func testArticlePeekPreviewControllerDisplayTime() {
         
-        let dataStore = MWKDataStore.temporary()
+        let tempDatabaseExpectation = expectation(description: "Waiting for temp database setup")
+        
+        var dataStore: MWKDataStore!
+        MWKDataStore.createTemporaryDataStore { result in
+            dataStore = result
+            tempDatabaseExpectation.fulfill()
+        }
+        
+        wait(for: [tempDatabaseExpectation], timeout: timeout)
         
         self.measure {
         

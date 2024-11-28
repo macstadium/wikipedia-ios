@@ -1,4 +1,4 @@
-import UIKit
+import WMFComponents
 
 enum ReadingListDetailDisplayType {
     case modal, pushed
@@ -50,6 +50,7 @@ class ReadingListDetailViewController: ViewController {
         searchBarExtendedViewController?.dataSource = self
         searchBarExtendedViewController?.delegate = self
         readingListDetailUnderBarViewController.delegate = self
+        hidesBottomBarWhenPushed = true
     }
     
     required init?(coder aDecoder: NSCoder) {
@@ -290,8 +291,8 @@ extension ReadingListDetailViewController: SearchBarExtendedViewControllerDelega
         navigationBar.isExtendedViewHidingEnabled = true
     }
     
-    func textStyle(for button: UIButton) -> DynamicTextStyle {
-        return .body
+    func textStyle(for button: UIButton) -> WMFFont {
+        return .caption1
     }
     
     func buttonType(for button: UIButton, currentButtonType: SearchBarExtendedViewButtonType?) -> SearchBarExtendedViewButtonType? {
@@ -340,6 +341,16 @@ extension ReadingListDetailViewController: ReadingListEntryCollectionViewControl
         }
         viewController.updateScrollViewInsets()
     }
+    
+    func readingListEntryCollectionViewControllerDidSelectArticleURL(_ articleURL: URL, viewController: ReadingListEntryCollectionViewController) {
+        if displayType == .modal {
+            dismiss(animated: true) { [weak self] in
+                self?.navigate(to: articleURL)
+            }
+        } else {
+            navigate(to: articleURL)
+        }
+    }
 }
 
 
@@ -374,12 +385,12 @@ private extension ReadingListDetailViewController {
             self.seenSurveyPrompt = true
             ReadingListsFunnel.shared.logPresentedSurveyPrompt()
 
-            self.wmf_showReadingListImportSurveyPanel(primaryButtonTapHandler: { (sender) in
+            self.wmf_showReadingListImportSurveyPanel(primaryButtonTapHandler: { _, _ in
                 ReadingListsFunnel.shared.logTappedTakeSurvey()
                 UserDefaults.standard.wmf_tappedToImportSharedReadingListSurvey = true
                 self.navigate(to: surveyURL, useSafari: true)
                 // dismiss handler is called
-            }, secondaryButtonTapHandler: { (sender) in
+            }, secondaryButtonTapHandler: { _, _ in
                 // dismiss handler is called
             }, footerLinkAction: { (url) in
                  self.navigate(to: url, useSafari: true)
